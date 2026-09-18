@@ -7,12 +7,13 @@ terraform {
     }
   }
 
-  backend "s3" {
-    bucket         = "cosmos-tfstate-us-west-2"
-    key            = "phase1/network.tfstate"
-    region         = "us-west-2"
-    dynamodb_table = "terraform-locks"
-    encrypt        = true
+  # 기존 backend "s3" 대신 테라폼 클라우드 백엔드 사용
+  cloud {
+    organization = "cosmoscode"
+
+    workspaces {
+      name = "KTB4-9th-Cloud"
+    }
   }
 }
 
