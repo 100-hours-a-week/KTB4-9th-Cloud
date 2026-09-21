@@ -20,3 +20,9 @@ terraform {
 provider "aws" {
   region = var.aws_region
 }
+
+# CloudFront ACM 인증서 발급 전용 (반드시 us-east-1 이어야 함)
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
+}

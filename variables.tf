@@ -27,3 +27,9 @@ variable "key_name" {
   type        = string
   default     = "cosmos1-key-pair" # Replace with your key pair name
 }
+
+variable "domain_name" {
+  description = "Root domain name registered in Gabia"
+  type        = string
+  default     = "cosmoscode.site"
+}
