@@ -53,6 +53,15 @@ resource "aws_security_group" "judger_sg" {
     security_groups = [aws_security_group.main_sg.id]
   }
 
+  # 외부 스웨거 및 웹 접근 허용 (80)
+  ingress {
+    description = "Allow HTTP for Swagger and web"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   ingress {
     description = "Allow SSH from anywhere"
     from_port   = 22

@@ -27,3 +27,23 @@ output "route53_nameservers" {
   description = "가비아 네임서버 설정(1차~4차)에 등록해야 할 AWS Route 53 네임서버 목록"
   value       = aws_route53_zone.main.name_servers
 }
+
+output "judge_server_public_ip" {
+  description = "채점 서버 공인 IP"
+  value       = aws_instance.judge_server.public_ip
+}
+
+output "subdomain_dev_be_url" {
+  description = "Spring Boot 백엔드 스웨거 및 API 접속 서브도메인 주소"
+  value       = "http://${aws_route53_record.dev_be.name}"
+}
+
+output "subdomain_dev_ai_url" {
+  description = "FastAPI AI 서버 스웨거 및 API 접속 서브도메인 주소"
+  value       = "http://${aws_route53_record.dev_ai.name}"
+}
+
+output "subdomain_dev_judge_url" {
+  description = "채점 서버 스웨거 접속 서브도메인 주소"
+  value       = "http://${aws_route53_record.dev_judge.name}"
+}

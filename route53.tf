@@ -75,3 +75,30 @@ resource "aws_route53_record" "www" {
     evaluate_target_health = false
   }
 }
+
+# 7. Route 53 dev-be 서브도메인 (Spring Boot 메인 EC2 직접 연결)
+resource "aws_route53_record" "dev_be" {
+  zone_id = aws_route53_zone.main.zone_id
+  name    = "dev-be.${var.domain_name}"
+  type    = "A"
+  ttl     = 300
+  records = [aws_instance.main_server.public_ip]
+}
+
+# 8. Route 53 dev-ai 서브도메인 (FastAPI AI 메인 EC2 직접 연결)
+resource "aws_route53_record" "dev_ai" {
+  zone_id = aws_route53_zone.main.zone_id
+  name    = "dev-ai.${var.domain_name}"
+  type    = "A"
+  ttl     = 300
+  records = [aws_instance.main_server.public_ip]
+}
+
+# 9. Route 53 dev-judge 서브도메인 (채점 서버 EC2 직접 연결)
+resource "aws_route53_record" "dev_judge" {
+  zone_id = aws_route53_zone.main.zone_id
+  name    = "dev-judge.${var.domain_name}"
+  type    = "A"
+  ttl     = 300
+  records = [aws_instance.judge_server.public_ip]
+}
