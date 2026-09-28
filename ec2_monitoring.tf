@@ -9,7 +9,11 @@ resource "aws_instance" "monitoring_server" {
   root_block_device {
     volume_size           = 30
     volume_type           = "gp3"
-    delete_on_termination = true
+    delete_on_termination = false
+  }
+
+  lifecycle {
+    ignore_changes = [ami]
   }
 
   user_data = <<-EOF

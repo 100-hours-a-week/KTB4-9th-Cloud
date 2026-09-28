@@ -23,11 +23,16 @@ resource "aws_instance" "main_server" {
   root_block_device {
     volume_size           = 30
     volume_type           = "gp3"
-    delete_on_termination = true
+    delete_on_termination = false
   }
 
   tags = {
     Name = "${var.project_name}-main-server"
+  }
+
+  lifecycle {
+    ignore_changes  = [ami]
+    prevent_destroy = true
   }
 
   user_data = <<-EOF
