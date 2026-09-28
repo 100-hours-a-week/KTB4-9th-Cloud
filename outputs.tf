@@ -47,3 +47,18 @@ output "subdomain_dev_judge_url" {
   description = "채점 서버 스웨거 접속 서브도메인 주소"
   value       = "http://${aws_route53_record.dev_judge.name}"
 }
+
+output "monitoring_server_public_ip" {
+  description = "모니터링 서버 공인 IP"
+  value       = aws_instance.monitoring_server.public_ip
+}
+
+output "monitoring_server_private_ip" {
+  description = "모니터링 서버 사설 IP"
+  value       = aws_instance.monitoring_server.private_ip
+}
+
+output "subdomain_grafana_url" {
+  description = "Grafana 대시보드 접속 서브도메인 주소"
+  value       = "http://${aws_route53_record.grafana.name}:3000"
+}

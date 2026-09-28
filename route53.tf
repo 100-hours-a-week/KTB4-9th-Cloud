@@ -102,3 +102,12 @@ resource "aws_route53_record" "dev_judge" {
   ttl     = 300
   records = [aws_instance.judge_server.public_ip]
 }
+
+# 10. Route 53 grafana 서브도메인 (모니터링 서버 EC2 직접 연결)
+resource "aws_route53_record" "grafana" {
+  zone_id = aws_route53_zone.main.zone_id
+  name    = "grafana.${var.domain_name}"
+  type    = "A"
+  ttl     = 300
+  records = [aws_instance.monitoring_server.public_ip]
+}
