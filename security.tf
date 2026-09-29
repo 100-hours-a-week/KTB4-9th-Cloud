@@ -27,6 +27,15 @@ resource "aws_security_group" "main_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  # Node Exporter 메트릭 수집 (모니터링 서버 VPC 내부 허용)
+  ingress {
+    description = "Allow Node Exporter from VPC"
+    from_port   = 9100
+    to_port     = 9100
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+
   egress {
     from_port   = 0
     to_port     = 0
