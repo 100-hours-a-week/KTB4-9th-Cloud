@@ -60,5 +60,15 @@ output "monitoring_server_private_ip" {
 
 output "subdomain_grafana_url" {
   description = "Grafana 대시보드 접속 서브도메인 주소"
-  value       = "http://${aws_route53_record.grafana.name}:3000"
+  value       = "https://${aws_route53_record.grafana.name}"
+}
+
+output "loadtest_runner_public_ip" {
+  description = "k6 부하테스트 러너 서버 공인 IP (SSH 접속용)"
+  value       = aws_instance.loadtest_runner.public_ip
+}
+
+output "loadtest_runner_private_ip" {
+  description = "k6 부하테스트 러너 서버 사설 IP"
+  value       = aws_instance.loadtest_runner.private_ip
 }
