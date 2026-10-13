@@ -1,0 +1,11 @@
+output "vpc_id" { value = module.shared.vpc_id }
+output "public_subnet_ids" { value = module.shared.public_subnet_ids }
+output "private_subnet_ids" { value = module.shared.private_subnet_ids }
+output "data_subnet_ids" { value = module.shared.data_subnet_ids }
+output "ecr_repository_urls" { value = module.shared.ecr_repository_urls }
+output "ecr_repository_arns" { value = module.shared.ecr_repository_arns }
+output "nat_gateway_id" { value = module.shared.nat_gateway_id }
+output "s3_gateway_endpoint_id" { value = module.shared.s3_gateway_endpoint_id }
+output "route53_zone_id" { value = data.aws_route53_zone.main.zone_id }
+output "cloudfront_certificate_arn" { value = data.aws_acm_certificate.cloudfront.arn }
+output "regional_wildcard_certificate_arn" { value = module.shared.regional_wildcard_certificate_arn }
