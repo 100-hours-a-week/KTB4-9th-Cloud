@@ -17,6 +17,9 @@ jobs:
   plan:
     name: Terraform Plan
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: v1
 
     steps:
       - name: Checkout Code
@@ -51,7 +54,7 @@ jobs:
             const fs = require('fs');
             let plan = '';
             try {
-              plan = fs.readFileSync('plan.txt', 'utf8');
+              plan = fs.readFileSync('v1/plan.txt', 'utf8');
             } catch (err) {
               plan = 'Error reading plan output.';
             }
@@ -86,6 +89,9 @@ jobs:
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     environment: production
+    defaults:
+      run:
+        working-directory: v1
 
     steps:
       - name: Checkout Code
