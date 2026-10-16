@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+systemctl stop ecs || true
+
+VOLUME_ID="${volume_id}"
+MOUNT_PATH="${mount_path}"
+DEVICE=""
+
+for _ in $(seq 1 120); do
+  for candidate in /dev/nvme*n1; do
+    [[ -b "$candidate" ]] || continue
+    if /sbin/ebsnvme-id "$candidate" 2>/dev/null | grep -q "$VOLUME_ID"; then
+      DEVICE="$candidate"
+      break 2
+    fi
+  done
+  sleep 2
+done
+
+if [[ -z "$DEVICE" ]]; then
+  echo "지정 EBS volume을 찾지 못했습니다." >&2
+  exit 1
+fi
+
+if ! blkid "$DEVICE" >/dev/null 2>&1; then
+  mkfs.ext4 "$DEVICE"
+fi
+
+mkdir -p "$MOUNT_PATH"
+UUID=$(blkid -s UUID -o value "$DEVICE")
+grep -q "UUID=$UUID " /etc/fstab || echo "UUID=$UUID $MOUNT_PATH ext4 defaults,nofail 0 2" >> /etc/fstab
+mount "$MOUNT_PATH"
+
+cat >/etc/ecs/ecs.config <<'ECS_CONFIG'
+ECS_CLUSTER=${cluster_name}
+ECS_INSTANCE_ATTRIBUTES={"role":"${service_name}"}
+ECS_ENABLE_CONTAINER_METADATA=true
+ECS_CONFIG
+
+mkdir -p /etc/systemd/system/ecs.service.d
+cat >/etc/systemd/system/ecs.service.d/10-stateful-volume.conf <<EOF
+[Unit]
+RequiresMountsFor=$MOUNT_PATH
+EOF
+
+systemctl daemon-reload
+systemctl enable ecs
+
