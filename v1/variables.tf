@@ -33,3 +33,16 @@ variable "domain_name" {
   type        = string
   default     = "cosmoscode.site"
 }
+
+variable "manage_primary_domain" {
+  description = "Whether V1 owns the apex/www CloudFront aliases and Route 53 records"
+  type        = bool
+  default     = true
+}
+
+variable "primary_canary_policy_id" {
+  description = "Optional disabled-by-default CloudFront continuous deployment policy used during the V1 to V2 canary"
+  type        = string
+  default     = null
+  nullable    = true
+}

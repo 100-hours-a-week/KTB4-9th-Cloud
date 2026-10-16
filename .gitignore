@@ -21,6 +21,8 @@
 # 일반 환경변수 파일
 .env
 .env.*
+v2/migration/config/*.env
+github-environments/
 
 # ==========================================
 # 3. 테라폼 플러그인 캐시 및 실행 임시 파일
