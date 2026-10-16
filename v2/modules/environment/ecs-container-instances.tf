@@ -82,7 +82,12 @@ resource "aws_instance" "stateful" {
 
   lifecycle {
     prevent_destroy = true
-    ignore_changes  = [user_data]
+    # 최신 ECS optimized AMI가 게시되어도 데이터 호스트를 자동 교체하지 않는다.
+    # AMI 갱신은 snapshot/복구 검증을 포함한 별도 유지보수 작업으로 수행한다.
+    ignore_changes = [
+      ami,
+      user_data,
+    ]
   }
 
   tags = {
