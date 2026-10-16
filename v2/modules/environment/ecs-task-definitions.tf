@@ -1,7 +1,7 @@
 locals {
   application_environment = {
     spring = [
-      { name = "SPRING_PROFILES_ACTIVE", value = "prod" },
+      { name = "SPRING_PROFILES_ACTIVE", value = "stage" },
       { name = "DB_URL", value = "jdbc:mysql://${aws_db_instance.mysql.address}:3306/cosmos" },
       { name = "AI_SERVER_BASE_URL", value = "http://fastapi:${var.fastapi_container_port}" },
       { name = "JUDGE0_BASE_URL", value = "http://judge-api:${var.judge_api_container_port}" },

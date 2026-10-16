@@ -115,7 +115,7 @@ if rg -n 'FASTAPI_SECRET_JSON|JUDGE_API_SECRET_JSON|JUDGE_WORKER_SECRET_JSON' "$
 fi
 
 if rg -n 'SPRING_DATASOURCE_' "${v2_root}/modules/environment/ecs-task-definitions.tf"; then
-  fail "Spring prod profile이 읽지 않는 SPRING_DATASOURCE_* 환경 변수가 발견되었습니다."
+  fail "Spring stage profile이 읽지 않는 SPRING_DATASOURCE_* 환경 변수가 발견되었습니다."
 fi
 
 if rg -n '^After=cloud-final\.service$' "${v2_root}/modules/environment/templates/ecs-stateful-user-data.sh.tftpl"; then

@@ -175,7 +175,7 @@ run "Fargate_Service는_내부_topology와_Spring_ALB만_구성한다" {
     condition = {
       for item in local.application_environment.spring : item.name => item.value
       } == {
-      SPRING_PROFILES_ACTIVE  = "prod"
+      SPRING_PROFILES_ACTIVE  = "stage"
       DB_URL                  = "jdbc:mysql://mysql.internal:3306/cosmos"
       AI_SERVER_BASE_URL      = "http://fastapi:8000"
       JUDGE0_BASE_URL         = "http://judge-api:2358"
