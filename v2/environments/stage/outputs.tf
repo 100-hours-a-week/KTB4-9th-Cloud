@@ -1,0 +1,13 @@
+output "ecs_cluster_name" { value = module.environment.ecs_cluster_name }
+output "github_stage_cd_role_arns" { value = module.environment.github_stage_cd_role_arns }
+output "alb_dns_name" { value = module.environment.alb_dns_name }
+output "spring_target_group_arn" { value = module.environment.spring_target_group_arn }
+output "service_secret_arns" { value = module.environment.service_secret_arns }
+output "rds_mysql_endpoint" { value = module.environment.rds_mysql_endpoint }
+output "backend_valkey_endpoint" { value = module.environment.backend_valkey_endpoint }
+output "worker_capacity_provider_names" { value = module.environment.worker_capacity_provider_names }
+output "frontend_bucket_name" { value = module.environment.frontend_bucket_name }
+output "cloudfront_distribution_id" { value = module.environment.cloudfront_distribution_id }
+output "cloudfront_domain_name" { value = module.environment.cloudfront_domain_name }
+output "frontend_url" { value = module.environment.frontend_url }
+output "stage_service_urls" { value = module.environment.stage_service_urls }
