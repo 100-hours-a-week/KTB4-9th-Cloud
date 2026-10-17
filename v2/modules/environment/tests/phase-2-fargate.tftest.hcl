@@ -194,7 +194,7 @@ run "Fargate_Service는_내부_topology와_Spring_ALB만_구성한다" {
       BACKEND_URL       = "http://spring:8080/api"
       JUDGE0_URL        = "http://judge-api:2358"
       MOCK_LLM          = "false"
-      BATCH_ENABLED     = "false"
+      BATCH_ENABLED     = "true"
       BATCH_TIMEZONE    = "Asia/Seoul"
       BATCH_CONCURRENCY = "5"
       LOG_LEVEL         = "INFO"

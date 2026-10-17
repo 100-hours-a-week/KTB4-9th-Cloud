@@ -19,7 +19,7 @@ locals {
       { name = "BACKEND_URL", value = "http://spring:${var.spring_container_port}/api" },
       { name = "JUDGE0_URL", value = "http://judge-api:${var.judge_api_container_port}" },
       { name = "MOCK_LLM", value = "false" },
-      { name = "BATCH_ENABLED", value = "false" },
+      { name = "BATCH_ENABLED", value = "true" },
       { name = "BATCH_TIMEZONE", value = "Asia/Seoul" },
       { name = "BATCH_CONCURRENCY", value = "5" },
       { name = "LOG_LEVEL", value = "INFO" },
