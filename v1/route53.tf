@@ -52,6 +52,7 @@ resource "aws_acm_certificate_validation" "cert" {
 
 # 5. Route 53 Apex 도메인(cosmoscode.site) ➜ CloudFront Alias 레코드
 resource "aws_route53_record" "apex" {
+  count   = var.manage_primary_domain ? 1 : 0
   zone_id = aws_route53_zone.main.zone_id
   name    = var.domain_name
   type    = "A"
@@ -65,6 +66,7 @@ resource "aws_route53_record" "apex" {
 
 # 6. Route 53 www 서브도메인(www.cosmoscode.site) ➜ CloudFront Alias 레코드
 resource "aws_route53_record" "www" {
+  count   = var.manage_primary_domain ? 1 : 0
   zone_id = aws_route53_zone.main.zone_id
   name    = "www.${var.domain_name}"
   type    = "A"

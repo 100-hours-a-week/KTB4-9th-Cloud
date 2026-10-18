@@ -14,11 +14,12 @@ data "aws_ami" "ubuntu" {
 }
 
 resource "aws_instance" "main_server" {
-  ami                    = data.aws_ami.ubuntu.id
-  instance_type          = "t3.small"
-  subnet_id              = aws_subnet.public.id
-  vpc_security_group_ids = [aws_security_group.main_sg.id]
-  key_name               = var.key_name # Replace with your key pair name
+  ami                     = data.aws_ami.ubuntu.id
+  instance_type           = "t3.small"
+  subnet_id               = aws_subnet.public.id
+  vpc_security_group_ids  = [aws_security_group.main_sg.id]
+  key_name                = var.key_name # Replace with your key pair name
+  disable_api_termination = true
 
   root_block_device {
     volume_size           = 30

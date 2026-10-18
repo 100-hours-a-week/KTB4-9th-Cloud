@@ -18,9 +18,10 @@ resource "aws_cloudfront_origin_access_control" "oac" {
 
 # 3. CloudFront CDN 배포
 resource "aws_cloudfront_distribution" "frontend_cdn" {
-  enabled             = true
-  default_root_object = "index.html"
-  aliases             = [var.domain_name, "www.${var.domain_name}"]
+  enabled                         = true
+  default_root_object             = "index.html"
+  aliases                         = var.manage_primary_domain ? [var.domain_name, "www.${var.domain_name}"] : []
+  continuous_deployment_policy_id = var.primary_canary_policy_id
 
   origin {
     domain_name              = aws_s3_bucket.frontend_bucket.bucket_regional_domain_name

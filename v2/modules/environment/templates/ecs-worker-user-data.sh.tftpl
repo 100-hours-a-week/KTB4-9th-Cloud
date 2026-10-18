@@ -1,0 +1,14 @@
+#!/bin/bash
+set -euo pipefail
+
+install -d -m 0755 /etc/ecs
+install -m 0644 /dev/null /etc/ecs/ecs.config.tmp
+cat > /etc/ecs/ecs.config.tmp <<'EOF'
+ECS_CLUSTER=${cluster_name}
+ECS_INSTANCE_ATTRIBUTES={"role":"judge-worker"}
+ECS_ENABLE_SPOT_INSTANCE_DRAINING=true
+ECS_ENABLE_CONTAINER_METADATA=true
+EOF
+mv /etc/ecs/ecs.config.tmp /etc/ecs/ecs.config
+
+systemctl enable ecs

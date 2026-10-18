@@ -1,8 +1,9 @@
 resource "aws_instance" "judge_server" {
-  ami           = data.aws_ami.ubuntu.id # Amazon Linux 2 AMI (HVM), SSD Volume Type
-  instance_type = "c7i-flex.large"
-  subnet_id     = aws_subnet.public.id
-  key_name      = var.key_name
+  ami                     = data.aws_ami.ubuntu.id # Amazon Linux 2 AMI (HVM), SSD Volume Type
+  instance_type           = "c7i-flex.large"
+  subnet_id               = aws_subnet.public.id
+  key_name                = var.key_name
+  disable_api_termination = true
 
   vpc_security_group_ids = [aws_security_group.judger_sg.id]
 
@@ -13,7 +14,8 @@ resource "aws_instance" "judge_server" {
   }
 
   lifecycle {
-    ignore_changes = [ami]
+    ignore_changes  = [ami]
+    prevent_destroy = true
   }
 
   user_data = <<-EOF
