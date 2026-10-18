@@ -175,11 +175,14 @@ run "Fargate_Service는_내부_topology와_Spring_ALB만_구성한다" {
     condition = {
       for item in local.application_environment.spring : item.name => item.value
       } == {
-      SPRING_PROFILES_ACTIVE  = "stage"
-      DB_URL                  = "jdbc:mysql://mysql.internal:3306/cosmos"
-      AI_SERVER_BASE_URL      = "http://fastapi:8000"
-      JUDGE0_BASE_URL         = "http://judge-api:2358"
+      APP_REGION              = "ap-northeast-2"
+      APP_VERSION             = "v2"
+      SPRING_PROFILES_ACTIVE  = "prod"
+      DB_URL                  = "jdbc:mysql://mysql.internal:3306/cosmos?useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=UTF-8&serverTimezone=Asia/Seoul"
+      AI_SERVER_BASE_URL      = "https://stage-ai.cosmoscode.site"
+      JUDGE0_BASE_URL         = "https://stage-judge.cosmoscode.site"
       FRONTEND_BASE_URL       = "https://cosmoscode.site"
+      MANAGEMENT_PORT         = "9091"
       SENTRY_ENVIRONMENT      = "prod"
       SPRING_JPA_OPEN_IN_VIEW = "true"
       } && {

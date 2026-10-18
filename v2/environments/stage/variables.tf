@@ -82,3 +82,9 @@ variable "judge_worker_desired_count" {
   default     = 1
 }
 
+variable "enable_public_dns_cutover" {
+  description = "Stage V2 CloudFront가 apex 및 www 도메인을 소유할지 여부"
+  type        = bool
+  default     = false
+}
+

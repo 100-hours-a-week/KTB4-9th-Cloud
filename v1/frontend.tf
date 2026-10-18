@@ -20,8 +20,20 @@ resource "aws_cloudfront_origin_access_control" "oac" {
 resource "aws_cloudfront_distribution" "frontend_cdn" {
   enabled                         = true
   default_root_object             = "index.html"
-  aliases                         = var.manage_primary_domain ? [var.domain_name, "www.${var.domain_name}"] : []
+  aliases                         = var.manage_primary_domain ? [var.domain_name, "www.${var.domain_name}"] : ["dev.${var.domain_name}"]
   continuous_deployment_policy_id = var.primary_canary_policy_id
+
+  # V1 distribution의 origin/cache/SPA 설정은 이전 배포에서 별도로 관리되었다.
+  # 도메인 cutover가 현재 라우팅을 되돌리지 않도록 alias 외 드리프트는 보존한다.
+  lifecycle {
+    ignore_changes = [
+      continuous_deployment_policy_id,
+      custom_error_response,
+      default_cache_behavior,
+      ordered_cache_behavior,
+      origin,
+    ]
+  }
 
   origin {
     domain_name              = aws_s3_bucket.frontend_bucket.bucket_regional_domain_name

@@ -1,11 +1,14 @@
 locals {
   application_environment = {
     spring = [
-      { name = "SPRING_PROFILES_ACTIVE", value = "stage" },
-      { name = "DB_URL", value = "jdbc:mysql://${aws_db_instance.mysql.address}:3306/cosmos" },
-      { name = "AI_SERVER_BASE_URL", value = "http://fastapi:${var.fastapi_container_port}" },
-      { name = "JUDGE0_BASE_URL", value = "http://judge-api:${var.judge_api_container_port}" },
-      { name = "FRONTEND_BASE_URL", value = var.environment == "stage" ? "https://stage.${var.domain_name}" : "https://${var.domain_name}" },
+      { name = "APP_REGION", value = "ap-northeast-2" },
+      { name = "APP_VERSION", value = "v2" },
+      { name = "SPRING_PROFILES_ACTIVE", value = "prod" },
+      { name = "DB_URL", value = "jdbc:mysql://${aws_db_instance.mysql.address}:3306/cosmos?useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=UTF-8&serverTimezone=Asia/Seoul" },
+      { name = "AI_SERVER_BASE_URL", value = "https://stage-ai.${var.domain_name}" },
+      { name = "JUDGE0_BASE_URL", value = "https://stage-judge.${var.domain_name}" },
+      { name = "FRONTEND_BASE_URL", value = var.enable_public_dns_cutover ? "https://${var.domain_name}" : (var.environment == "stage" ? "https://stage.${var.domain_name}" : "https://${var.domain_name}") },
+      { name = "MANAGEMENT_PORT", value = "9091" },
       { name = "SENTRY_ENVIRONMENT", value = var.environment },
       { name = "SPRING_JPA_OPEN_IN_VIEW", value = "true" },
     ]
@@ -89,13 +92,19 @@ resource "aws_ecs_task_definition" "application" {
         command                = local.application_container_commands[each.key]
         essential              = true
         readonlyRootFilesystem = each.key != "judge-api"
-        portMappings = [{
+        portMappings = concat([{
           name          = each.key
           containerPort = each.value.port
           hostPort      = each.value.port
           protocol      = "tcp"
           appProtocol   = "http"
-        }]
+          }], each.key == "spring" ? [{
+          name          = "spring-metrics"
+          containerPort = 9091
+          hostPort      = 9091
+          protocol      = "tcp"
+          appProtocol   = "http"
+        }] : [])
         # Judge0 image runs as uid 1000 and already has a writable image /tmp.
         # A fresh ECS volume mounted there is root-owned and makes Ruby Dir.tmpdir fail.
         mountPoints = each.key == "judge-api" ? [] : [

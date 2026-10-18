@@ -35,9 +35,9 @@ variable "domain_name" {
 }
 
 variable "manage_primary_domain" {
-  description = "Whether V1 owns the apex/www CloudFront aliases and Route 53 records"
+  description = "Whether V1 owns the apex/www domain; when false V1 uses dev.<domain>"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "primary_canary_policy_id" {

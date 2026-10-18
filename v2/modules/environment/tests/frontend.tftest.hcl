@@ -194,6 +194,20 @@ run "stage_DNS와_ALB는_CloudFront만_허용한다" {
   }
 }
 
+run "stage_DNS_cutover를_승인하면_apex와_www를_생성한다" {
+  command = plan
+  variables { enable_public_dns_cutover = true }
+
+  assert {
+    condition = (
+      toset(keys(aws_route53_record.frontend)) == toset(["cosmoscode.site", "www.cosmoscode.site"]) &&
+      aws_cloudfront_distribution.frontend.aliases == toset(["cosmoscode.site", "www.cosmoscode.site"]) &&
+      output.frontend_url == "https://cosmoscode.site"
+    )
+    error_message = "승인된 stage cutover는 apex와 www를 v2 CloudFront에 연결해야 합니다."
+  }
+}
+
 run "prod_DNS_cutover는_기본적으로_비활성이다" {
   command = plan
   variables { environment = "prod" }

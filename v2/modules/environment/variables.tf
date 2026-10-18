@@ -154,7 +154,7 @@ variable "domain_name" {
 }
 
 variable "enable_public_dns_cutover" {
-  description = "Allow prod apex and www aliases to move to the v2 CloudFront distribution"
+  description = "Allow this environment to own the apex and www aliases on the v2 CloudFront distribution"
   type        = bool
   default     = false
 }
