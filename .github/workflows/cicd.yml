@@ -1,25 +1,60 @@
-name: Terraform CI/CD
+name: Terraform CI
 
 on:
   pull_request:
-    branches:
-      - main
   push:
     branches:
       - main
+      - stage
   workflow_dispatch:
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
-  plan:
-    name: Terraform Plan
+  changes:
+    name: Detect Terraform changes
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      v1: ${{ steps.changes.outputs.v1 }}
+      v2_shared: ${{ steps.changes.outputs.v2_shared }}
+      v2_stage: ${{ steps.changes.outputs.v2_stage }}
     steps:
-      - name: Checkout Code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Detect changed paths
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            v1:
+              - 'v1/**'
+              - '.github/workflows/**'
+            v2_shared:
+              - 'v2/environments/shared/**'
+              - 'v2/modules/shared/**'
+              - 'v2/tests/**'
+              - '.github/workflows/**'
+            v2_stage:
+              - 'v2/environments/stage/**'
+              - 'v2/modules/environment/**'
+              - 'v2/tests/**'
+              - '.github/workflows/**'
+
+  v1:
+    name: Validate and plan v1
+    needs: changes
+    if: needs.changes.outputs.v1 == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: v1
+    steps:
+      - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Setup Terraform
@@ -27,68 +62,28 @@ jobs:
         with:
           cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
 
-      - name: Terraform Format Check
-        run: terraform fmt -check
+      - name: Check formatting
+        run: terraform fmt -check -recursive
 
-      - name: Terraform Init
-        run: terraform init
+      - name: Initialize Terraform
+        run: terraform init -input=false
 
-      - name: Terraform Validate
+      - name: Validate configuration
         run: terraform validate -no-color
 
-      - name: Terraform Plan
-        id: plan
-        run: |
-          terraform plan -no-color -input=false 2>&1 | tee plan.txt
-        continue-on-error: false
+      - name: Plan changes
+        run: terraform plan -no-color -input=false
 
-      - name: Comment Plan to PR
-        uses: actions/github-script@v7
-        if: github.event_name == 'pull_request'
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const fs = require('fs');
-            let plan = '';
-            try {
-              plan = fs.readFileSync('plan.txt', 'utf8');
-            } catch (err) {
-              plan = 'Error reading plan output.';
-            }
-            if (plan.length > 60000) {
-              plan = plan.slice(0, 60000) + '\n... (truncated)';
-            }
-            const output = `#### Terraform Format and Style 🖌\`success\`
-            #### Terraform Initialization ⚙️\`success\`
-            #### Terraform Validation 🤖\`success\`
-            #### Terraform Plan 📖\`completed\`
-
-            <details><summary>Show Plan Output</summary>
-
-            \`\`\`terraform
-            ${plan}
-            \`\`\`
-
-            </details>
-
-            *Triggered by: @${{ github.actor }} on \`${{ github.event_name }}\`*`;
-
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: output
-            });
-
-  apply:
-    name: Terraform Apply
-    needs: plan
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+  v2-shared:
+    name: Validate and plan v2 shared
+    needs: changes
+    if: needs.changes.outputs.v2_shared == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    environment: production
-
+    defaults:
+      run:
+        working-directory: v2/environments/shared
     steps:
-      - name: Checkout Code
+      - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Setup Terraform
@@ -96,8 +91,55 @@ jobs:
         with:
           cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
 
-      - name: Terraform Init
-        run: terraform init
+      - name: Check formatting
+        run: terraform fmt -check -recursive . ../../modules/shared
 
-      - name: Terraform Apply
-        run: terraform apply -auto-approve -input=false
+      - name: Initialize Terraform
+        run: terraform init -input=false
+
+      - name: Validate configuration
+        run: terraform validate -no-color
+
+      - name: Run module tests
+        working-directory: v2/modules/shared
+        run: |
+          terraform init -backend=false -input=false
+          terraform test -no-color
+
+      - name: Plan changes
+        run: terraform plan -no-color -input=false
+
+  v2-stage:
+    name: Validate and plan v2 stage
+    needs: changes
+    if: needs.changes.outputs.v2_stage == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: v2/environments/stage
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Check formatting
+        run: terraform fmt -check -recursive . ../../modules/environment
+
+      - name: Initialize Terraform
+        run: terraform init -input=false
+
+      - name: Validate configuration
+        run: terraform validate -no-color
+
+      - name: Run module tests
+        working-directory: v2/modules/environment
+        run: |
+          terraform init -backend=false -input=false
+          terraform test -no-color
+
+      - name: Plan changes
+        run: terraform plan -no-color -input=false
