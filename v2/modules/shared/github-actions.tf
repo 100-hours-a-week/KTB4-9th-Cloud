@@ -20,6 +20,98 @@ locals {
   }
 }
 
+resource "aws_iam_role" "github_terraform_plan" {
+  name = "${var.project_name}-github-terraform-plan"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = "sts:AssumeRoleWithWebIdentity"
+      Principal = {
+        Federated = aws_iam_openid_connect_provider.github.arn
+      }
+      Condition = {
+        StringEquals = {
+          "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+        }
+        StringLike = {
+          "token.actions.githubusercontent.com:sub" = "repo:100-hours-a-week@167328634/KTB4-9th-Cloud@1344702375:*"
+        }
+      }
+    }]
+  })
+
+  tags = merge(local.common_tags, {
+    Repository = "KTB4-9th-Cloud"
+    Purpose    = "GitHubTerraformPlan"
+  })
+}
+
+resource "aws_iam_role_policy" "github_terraform_plan" {
+  name = "read-infrastructure-for-terraform-plan"
+  role = aws_iam_role.github_terraform_plan.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "ReadInfrastructure"
+        Effect = "Allow"
+        Action = [
+          "acm:Describe*",
+          "acm:GetCertificate",
+          "acm:List*",
+          "application-autoscaling:Describe*",
+          "autoscaling:Describe*",
+          "backup:Describe*",
+          "backup:Get*",
+          "backup:List*",
+          "cloudfront:Get*",
+          "cloudfront:List*",
+          "dlm:Get*",
+          "dlm:List*",
+          "ec2:Describe*",
+          "ecr:Describe*",
+          "ecr:GetLifecyclePolicy",
+          "ecr:GetRepositoryPolicy",
+          "ecr:List*",
+          "ecs:Describe*",
+          "ecs:List*",
+          "elasticache:Describe*",
+          "elasticache:List*",
+          "elasticloadbalancing:Describe*",
+          "iam:Get*",
+          "iam:List*",
+          "kms:DescribeKey",
+          "kms:ListAliases",
+          "logs:Describe*",
+          "logs:Get*",
+          "logs:List*",
+          "rds:Describe*",
+          "rds:ListTagsForResource",
+          "route53:Get*",
+          "route53:List*",
+          "s3:Get*",
+          "s3:List*",
+          "secretsmanager:DescribeSecret",
+          "secretsmanager:GetResourcePolicy",
+          "secretsmanager:ListSecretVersionIds",
+          "secretsmanager:ListSecrets",
+          "servicediscovery:Get*",
+          "servicediscovery:List*",
+          "ssm:DescribeParameters",
+          "ssm:GetParameter",
+          "ssm:GetParameters",
+          "sts:GetCallerIdentity",
+          "tag:GetResources",
+        ]
+        Resource = "*"
+      },
+    ]
+  })
+}
+
 resource "aws_iam_openid_connect_provider" "github" {
   url             = "https://token.actions.githubusercontent.com"
   client_id_list  = ["sts.amazonaws.com"]

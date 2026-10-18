@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   changes:
@@ -62,6 +63,14 @@ jobs:
         with:
           cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
 
+      - name: Authenticate to AWS with OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::352635536602:role/cosmos-v2-github-terraform-plan
+          aws-region: ap-northeast-2
+          role-session-name: terraform-plan-${{ github.run_id }}
+          mask-aws-account-id: true
+
       - name: Check formatting
         run: terraform fmt -check -recursive
 
@@ -90,6 +99,14 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Authenticate to AWS with OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::352635536602:role/cosmos-v2-github-terraform-plan
+          aws-region: ap-northeast-2
+          role-session-name: terraform-plan-${{ github.run_id }}
+          mask-aws-account-id: true
 
       - name: Check formatting
         run: terraform fmt -check -recursive . ../../modules/shared
@@ -125,6 +142,14 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Authenticate to AWS with OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::352635536602:role/cosmos-v2-github-terraform-plan
+          aws-region: ap-northeast-2
+          role-session-name: terraform-plan-${{ github.run_id }}
+          mask-aws-account-id: true
 
       - name: Check formatting
         run: terraform fmt -check -recursive . ../../modules/environment
