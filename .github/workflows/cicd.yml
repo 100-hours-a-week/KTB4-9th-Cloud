@@ -167,4 +167,4 @@ jobs:
           terraform test -no-color
 
       - name: Plan changes
-        run: terraform plan -no-color -input=false
+        run: terraform plan -no-color -input=false -var-file=stage.tfvars

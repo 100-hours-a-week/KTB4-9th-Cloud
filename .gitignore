@@ -17,6 +17,7 @@
 *.tfvars.json
 *.auto.tfvars
 *.auto.tfvars.json
+!v2/environments/stage/stage.tfvars
 
 # 일반 환경변수 파일
 .env
