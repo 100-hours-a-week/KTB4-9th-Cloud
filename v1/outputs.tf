@@ -20,7 +20,7 @@ output "frontend_cdn_url" {
 
 output "custom_domain_url" {
   description = "가비아 도메인 연결 주소"
-  value       = "https://${var.domain_name}"
+  value       = "https://${var.manage_primary_domain ? var.domain_name : "dev.${var.domain_name}"}"
 }
 
 output "route53_nameservers" {

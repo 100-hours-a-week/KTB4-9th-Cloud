@@ -60,7 +60,7 @@ output "cloudfront_domain_name" {
 
 output "frontend_url" {
   description = "사용자가 접근할 환경별 frontend URL"
-  value       = var.environment == "stage" ? "https://stage.${var.domain_name}" : "https://${aws_cloudfront_distribution.frontend.domain_name}"
+  value       = var.enable_public_dns_cutover ? "https://${var.domain_name}" : (var.environment == "stage" ? "https://stage.${var.domain_name}" : "https://${aws_cloudfront_distribution.frontend.domain_name}")
 }
 
 output "stage_service_urls" {

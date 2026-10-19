@@ -50,11 +50,11 @@ resource "aws_acm_certificate_validation" "cert" {
   validation_record_fqdns = [for record in aws_route53_record.cert_validation : record.fqdn]
 }
 
-# 5. Route 53 Apex 도메인(cosmoscode.site) ➜ CloudFront Alias 레코드
+# 5. Route 53 V1 프론트엔드 도메인 ➜ CloudFront Alias 레코드
 resource "aws_route53_record" "apex" {
-  count   = var.manage_primary_domain ? 1 : 0
+  count   = 1
   zone_id = aws_route53_zone.main.zone_id
-  name    = var.domain_name
+  name    = var.manage_primary_domain ? var.domain_name : "dev.${var.domain_name}"
   type    = "A"
 
   alias {

@@ -8,12 +8,12 @@ locals {
     ManagedBy   = "Terraform"
   }
 
-  frontend_aliases = var.environment == "stage" ? ["stage.${var.domain_name}"] : (
-    var.enable_public_dns_cutover ? [var.domain_name, "www.${var.domain_name}"] : []
+  frontend_aliases = var.enable_public_dns_cutover ? [var.domain_name, "www.${var.domain_name}"] : (
+    var.environment == "stage" ? ["stage.${var.domain_name}"] : []
   )
 
-  frontend_dns_names = var.environment == "stage" ? toset(["stage.${var.domain_name}"]) : (
-    var.enable_public_dns_cutover ? toset([var.domain_name, "www.${var.domain_name}"]) : toset([])
+  frontend_dns_names = var.enable_public_dns_cutover ? toset([var.domain_name, "www.${var.domain_name}"]) : (
+    var.environment == "stage" ? toset(["stage.${var.domain_name}"]) : toset([])
   )
 
   ecr_repositories = toset(["spring", "fastapi", "judge-api"])
