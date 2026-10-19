@@ -177,7 +177,7 @@ run "Fargate_Service는_내부_topology와_Spring_ALB만_구성한다" {
       } == {
       APP_REGION              = "ap-northeast-2"
       APP_VERSION             = "v2"
-      SPRING_PROFILES_ACTIVE  = "prod"
+      SPRING_PROFILES_ACTIVE  = "stage"
       DB_URL                  = "jdbc:mysql://mysql.internal:3306/cosmos?useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=UTF-8&serverTimezone=Asia/Seoul"
       AI_SERVER_BASE_URL      = "https://stage-ai.cosmoscode.site"
       JUDGE0_BASE_URL         = "https://stage-judge.cosmoscode.site"

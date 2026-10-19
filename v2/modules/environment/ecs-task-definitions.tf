@@ -3,7 +3,7 @@ locals {
     spring = [
       { name = "APP_REGION", value = "ap-northeast-2" },
       { name = "APP_VERSION", value = "v2" },
-      { name = "SPRING_PROFILES_ACTIVE", value = "prod" },
+      { name = "SPRING_PROFILES_ACTIVE", value = "stage" },
       { name = "DB_URL", value = "jdbc:mysql://${aws_db_instance.mysql.address}:3306/cosmos?useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=UTF-8&serverTimezone=Asia/Seoul" },
       { name = "AI_SERVER_BASE_URL", value = "https://stage-ai.${var.domain_name}" },
       { name = "JUDGE0_BASE_URL", value = "https://stage-judge.${var.domain_name}" },
