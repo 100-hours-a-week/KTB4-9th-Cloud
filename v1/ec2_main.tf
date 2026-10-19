@@ -15,7 +15,7 @@ data "aws_ami" "ubuntu" {
 
 resource "aws_instance" "main_server" {
   ami                     = data.aws_ami.ubuntu.id
-  instance_type           = "t3.small"
+  instance_type           = "t3.medium"
   subnet_id               = aws_subnet.public.id
   vpc_security_group_ids  = [aws_security_group.main_sg.id]
   key_name                = var.key_name # Replace with your key pair name
