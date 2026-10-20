@@ -71,6 +71,12 @@ locals {
     judge-api = ["judge-api", "judge-postgres", "judge-redis"]
   }
 
+  application_additional_secret_arns = {
+    spring    = [aws_db_instance.mysql.master_user_secret[0].secret_arn]
+    fastapi   = []
+    judge-api = []
+  }
+
   worker_secret_access = ["judge-api", "judge-postgres", "judge-redis"]
 }
 
@@ -96,9 +102,12 @@ resource "aws_iam_role_policy" "application_secret" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect   = "Allow"
-      Action   = ["secretsmanager:GetSecretValue"]
-      Resource = [for secret_key in local.application_secret_access[each.key] : aws_secretsmanager_secret.service[secret_key].arn]
+      Effect = "Allow"
+      Action = ["secretsmanager:GetSecretValue"]
+      Resource = concat(
+        [for secret_key in local.application_secret_access[each.key] : aws_secretsmanager_secret.service[secret_key].arn],
+        local.application_additional_secret_arns[each.key],
+      )
     }]
   })
 }

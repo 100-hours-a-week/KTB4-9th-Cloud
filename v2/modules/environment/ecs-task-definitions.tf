@@ -40,8 +40,8 @@ locals {
 
   application_secrets = {
     spring = [
-      { name = "DB_USERNAME", valueFrom = "${aws_secretsmanager_secret.service["spring"].arn}:db_username::" },
-      { name = "DB_PASSWORD", valueFrom = "${aws_secretsmanager_secret.service["spring"].arn}:db_password::" },
+      { name = "DB_USERNAME", valueFrom = "${aws_db_instance.mysql.master_user_secret[0].secret_arn}:username::" },
+      { name = "DB_PASSWORD", valueFrom = "${aws_db_instance.mysql.master_user_secret[0].secret_arn}:password::" },
       { name = "KAKAO_CLIENT_ID", valueFrom = "${aws_secretsmanager_secret.service["spring"].arn}:kakao_client_id::" },
       { name = "KAKAO_CLIENT_SECRET", valueFrom = "${aws_secretsmanager_secret.service["spring"].arn}:kakao_client_secret::" },
       { name = "KAKAO_REDIRECT_URI", valueFrom = "${aws_secretsmanager_secret.service["spring"].arn}:kakao_redirect_uri::" },
