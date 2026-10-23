@@ -9,43 +9,45 @@ data "aws_iam_policy_document" "ecs_tasks_assume_role" {
 }
 
 resource "aws_iam_role" "stateful_execution" {
-  for_each = local.stateful_services
+  for_each = local.stateful_task_groups
 
   name               = "${local.name_prefix}-${each.key}-execution"
   assume_role_policy = data.aws_iam_policy_document.ecs_tasks_assume_role.json
 }
 
 resource "aws_iam_role_policy_attachment" "stateful_execution" {
-  for_each = local.stateful_services
+  for_each = local.stateful_task_groups
 
   role       = aws_iam_role.stateful_execution[each.key].name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
 resource "aws_iam_role_policy" "stateful_secret" {
-  for_each = local.stateful_services
+  for_each = local.stateful_task_groups
 
   name = "read-own-runtime-secret"
   role = aws_iam_role.stateful_execution[each.key].id
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect   = "Allow"
-      Action   = ["secretsmanager:GetSecretValue"]
-      Resource = [aws_secretsmanager_secret.service[each.key].arn]
+      Effect = "Allow"
+      Action = ["secretsmanager:GetSecretValue"]
+      Resource = [
+        for service_key in each.value.service_keys : aws_secretsmanager_secret.service[service_key].arn
+      ]
     }]
   })
 }
 
 resource "aws_iam_role" "stateful_task" {
-  for_each = local.stateful_services
+  for_each = local.stateful_task_groups
 
   name               = "${local.name_prefix}-${each.key}-task"
   assume_role_policy = data.aws_iam_policy_document.ecs_tasks_assume_role.json
 }
 
 resource "aws_iam_role_policy" "stateful_exec" {
-  for_each = local.stateful_services
+  for_each = local.stateful_task_groups
 
   name = "ecs-exec"
   role = aws_iam_role.stateful_task[each.key].id

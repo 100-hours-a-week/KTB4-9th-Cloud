@@ -19,20 +19,18 @@ resource "aws_iam_role_policy_attachment" "dlm" {
 }
 
 resource "aws_dlm_lifecycle_policy" "stateful" {
-  for_each = local.stateful_services
-
-  description        = "Daily snapshots for ${each.key}"
+  description        = "Daily snapshots for consolidated stateful volume"
   execution_role_arn = aws_iam_role.dlm.arn
   state              = "ENABLED"
 
   policy_details {
     resource_types = ["VOLUME"]
     target_tags = {
-      BackupPolicy = each.key
+      BackupPolicy = "stateful"
     }
 
     schedule {
-      name      = "daily-${each.key}"
+      name      = "daily-stateful"
       copy_tags = true
 
       create_rule {
@@ -41,10 +39,15 @@ resource "aws_dlm_lifecycle_policy" "stateful" {
         times         = ["18:00"]
       }
 
-      retain_rule { count = each.value.backup_retention }
+      retain_rule { count = 7 }
     }
   }
 
-  tags = { Service = each.key }
+  tags = { Service = "stateful" }
+}
+
+moved {
+  from = aws_dlm_lifecycle_policy.stateful["ai-postgres"]
+  to   = aws_dlm_lifecycle_policy.stateful
 }
 

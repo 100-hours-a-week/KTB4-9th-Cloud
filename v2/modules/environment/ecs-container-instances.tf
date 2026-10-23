@@ -33,9 +33,7 @@ resource "aws_iam_instance_profile" "ecs_container_instance" {
 }
 
 resource "aws_ebs_volume" "stateful" {
-  for_each = local.stateful_services
-
-  availability_zone = data.aws_subnet.private[each.value.index].availability_zone
+  availability_zone = data.aws_subnet.private["0"].availability_zone
   size              = var.stateful_ebs_size
   type              = "gp3"
   encrypted         = true
@@ -45,27 +43,31 @@ resource "aws_ebs_volume" "stateful" {
   }
 
   tags = {
-    Name         = "${local.name_prefix}-${each.key}-data"
-    Service      = each.key
-    BackupPolicy = each.key
+    Name                 = "${local.name_prefix}-stateful-data"
+    Service              = "stateful"
+    BackupPolicy         = "stateful"
+    ConsolidatedServices = "ai-postgres,judge-postgres,judge-redis"
   }
 }
 
 resource "aws_instance" "stateful" {
-  for_each = local.stateful_services
-
-  ami                         = data.aws_ssm_parameter.ecs_optimized_al2023.value
-  instance_type               = var.stateful_instance_type
-  subnet_id                   = var.private_subnet_ids[each.value.index]
-  vpc_security_group_ids      = [aws_security_group.data[each.key].id]
+  ami           = data.aws_ssm_parameter.ecs_optimized_al2023.value
+  instance_type = var.stateful_instance_type
+  subnet_id     = var.private_subnet_ids[0]
+  # ECS awsvpc tasks keep their own service-specific security groups. The host
+  # only needs its existing management/egress group.
+  vpc_security_group_ids      = [aws_security_group.data["ai-postgres"].id]
   associate_public_ip_address = false
   iam_instance_profile        = aws_iam_instance_profile.ecs_container_instance.name
   user_data_replace_on_change = true
   user_data = templatefile("${path.module}/templates/ecs-stateful-user-data.sh.tftpl", {
     cluster_name = aws_ecs_cluster.main.name
-    service_name = each.key
-    volume_id    = aws_ebs_volume.stateful[each.key].id
-    mount_path   = each.value.mount_path
+    services = {
+      stateful = {
+        volume_id  = aws_ebs_volume.stateful.id
+        mount_path = "/srv/cosmos"
+      }
+    }
   })
 
   metadata_options {
@@ -91,17 +93,30 @@ resource "aws_instance" "stateful" {
   }
 
   tags = {
-    Name    = "${local.name_prefix}-${each.key}"
-    Service = each.key
+    Name    = "${local.name_prefix}-stateful"
+    Service = "stateful"
   }
 }
 
 resource "aws_volume_attachment" "stateful" {
-  for_each = local.stateful_services
-
   device_name  = "/dev/sdf"
-  volume_id    = aws_ebs_volume.stateful[each.key].id
-  instance_id  = aws_instance.stateful[each.key].id
+  volume_id    = aws_ebs_volume.stateful.id
+  instance_id  = aws_instance.stateful.id
   skip_destroy = true
+}
+
+moved {
+  from = aws_instance.stateful["ai-postgres"]
+  to   = aws_instance.stateful
+}
+
+moved {
+  from = aws_ebs_volume.stateful["ai-postgres"]
+  to   = aws_ebs_volume.stateful
+}
+
+moved {
+  from = aws_volume_attachment.stateful["ai-postgres"]
+  to   = aws_volume_attachment.stateful
 }
 

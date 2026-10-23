@@ -33,6 +33,9 @@ locals {
       index              = "0"
       port               = 5432
       mount_path         = "/var/lib/postgresql/data"
+      host_mount_path    = "/srv/cosmos/ai-postgres"
+      volume_name        = "data"
+      device_name        = "/dev/sdf"
       backup_retention   = 7
       memory_reservation = 1536
       image              = var.ai_postgres_image
@@ -43,6 +46,9 @@ locals {
       index              = "0"
       port               = 5432
       mount_path         = "/var/lib/postgresql/data"
+      host_mount_path    = "/srv/cosmos/judge-postgres"
+      volume_name        = "judge-postgres-data"
+      device_name        = "/dev/sdg"
       backup_retention   = 7
       memory_reservation = 1024
       image              = var.judge_postgres_image
@@ -50,9 +56,12 @@ locals {
       writable_tmp_path  = "/tmp"
     }
     judge-redis = {
-      index              = "1"
+      index              = "0"
       port               = 6379
       mount_path         = "/data"
+      host_mount_path    = "/srv/cosmos/judge-redis"
+      volume_name        = "judge-redis-data"
+      device_name        = "/dev/sdh"
       backup_retention   = 3
       memory_reservation = 512
       image              = var.judge_redis_image
@@ -62,6 +71,19 @@ locals {
   }
 
   enabled_stateful_services = var.enable_stateful_services ? local.stateful_services : {}
+
+  stateful_task_groups = {
+    ai-postgres = {
+      service_keys = ["ai-postgres"]
+      index        = "0"
+    }
+    judge-postgres = {
+      service_keys = ["judge-postgres", "judge-redis"]
+      index        = "0"
+    }
+  }
+
+  enabled_stateful_task_groups = var.enable_stateful_services ? local.stateful_task_groups : {}
 
   application_services = {
     spring = {

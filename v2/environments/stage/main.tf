@@ -56,5 +56,7 @@ module "environment" {
   enable_judge_worker_capacity = var.enable_judge_worker_capacity
   enable_judge_worker          = var.enable_judge_worker
   judge_worker_desired_count   = var.judge_worker_desired_count
+  enable_container_insights    = false
+  enable_stage_office_hours    = true
   enable_public_dns_cutover    = var.enable_public_dns_cutover
 }

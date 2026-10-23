@@ -221,9 +221,9 @@ variable "valkey_snapshot_retention_days" {
 }
 
 variable "stateful_instance_type" {
-  description = "EC2 instance type used independently by each Judge stateful service"
+  description = "EC2 instance type shared by AI PostgreSQL, Judge PostgreSQL, and Judge Redis"
   type        = string
-  default     = "t3.small"
+  default     = "t3.medium"
 
   validation {
     condition     = length(trimspace(var.stateful_instance_type)) > 0
@@ -293,6 +293,12 @@ variable "application_desired_count" {
     condition     = var.application_desired_count == 1
     error_message = "application_desired_count is fixed to 1 for the initial deployment."
   }
+}
+
+variable "enable_stage_office_hours" {
+  description = "평일 stage 리소스를 Asia/Seoul 운영 시간에만 실행할지 여부"
+  type        = bool
+  default     = false
 }
 
 variable "enable_phase2_services" {

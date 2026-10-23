@@ -312,15 +312,15 @@ run "Worker_OnDemand와_Spot_ASG를_분리한다" {
 
   assert {
     condition = (
-      aws_autoscaling_group.worker_on_demand[0].min_size == 1 &&
-      aws_autoscaling_group.worker_on_demand[0].desired_capacity == 1 &&
+      aws_autoscaling_group.worker_on_demand[0].min_size == 0 &&
+      aws_autoscaling_group.worker_on_demand[0].desired_capacity == 0 &&
       aws_autoscaling_group.worker_on_demand[0].max_size == 1 &&
       aws_autoscaling_group.worker_on_demand[0].protect_from_scale_in &&
       length(aws_autoscaling_group.worker_on_demand[0].vpc_zone_identifier) == 2 &&
       one([for tag in aws_autoscaling_group.worker_on_demand[0].tag : tag.value if tag.key == "AmazonECSManaged"]) == "" &&
       aws_autoscaling_group.worker_on_demand[0].mixed_instances_policy[0].launch_template[0].override[0].instance_type == "c7i.large"
     )
-    error_message = "On-Demand ASG는 c7i.large 한 대를 private subnet에 유지해야 합니다."
+    error_message = "On-Demand ASG는 비상 복구용 c7i.large 용량을 0대로 유지해야 합니다."
   }
 
   assert {
@@ -431,10 +431,10 @@ run "Judge_Worker_Task와_Service를_격리한다" {
   assert {
     condition = (
       length(aws_ecs_service.judge_worker["worker"].capacity_provider_strategy) == 2 &&
-      anytrue([for strategy in aws_ecs_service.judge_worker["worker"].capacity_provider_strategy : strategy.capacity_provider == "cosmos-v2-prod-judge-worker-on-demand" && strategy.base == 1 && strategy.weight == 0]) &&
-      anytrue([for strategy in aws_ecs_service.judge_worker["worker"].capacity_provider_strategy : strategy.capacity_provider == "cosmos-v2-prod-judge-worker-spot" && strategy.base == 0 && strategy.weight == 1])
+      anytrue([for strategy in aws_ecs_service.judge_worker["worker"].capacity_provider_strategy : strategy.capacity_provider == "cosmos-v2-prod-judge-worker-on-demand" && strategy.base == 0 && strategy.weight == 0]) &&
+      anytrue([for strategy in aws_ecs_service.judge_worker["worker"].capacity_provider_strategy : strategy.capacity_provider == "cosmos-v2-prod-judge-worker-spot" && strategy.base == 1 && strategy.weight == 1])
     )
-    error_message = "첫 Worker는 On-Demand, 추가 Worker는 Spot에 배치해야 합니다."
+    error_message = "Worker는 Spot을 기본 용량으로 사용하고 On-Demand는 비상 복구용으로 유지해야 합니다."
   }
 }
 
