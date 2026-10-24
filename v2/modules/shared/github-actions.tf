@@ -115,6 +115,7 @@ resource "aws_iam_role_policy" "github_terraform_plan" {
         Effect = "Allow"
         Action = [
           "lambda:GetFunction",
+          "lambda:GetFunctionCodeSigningConfig",
           "lambda:GetPolicy",
           "lambda:ListTags",
           "lambda:ListVersionsByFunction",
@@ -126,6 +127,7 @@ resource "aws_iam_role_policy" "github_terraform_plan" {
         Effect = "Allow"
         Action = [
           "states:DescribeStateMachine",
+          "states:ListStateMachineVersions",
           "states:ListTagsForResource",
         ]
         Resource = "arn:aws:states:${var.aws_region}:*:stateMachine:${var.project_name}-stage-*"

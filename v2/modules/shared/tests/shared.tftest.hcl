@@ -133,6 +133,7 @@ run "Terraform_plan_role은_관리_리소스만_읽는다" {
         if statement.Sid == "ReadTerraformLambda"
         ]).Action, []) == [
         "lambda:GetFunction",
+        "lambda:GetFunctionCodeSigningConfig",
         "lambda:GetPolicy",
         "lambda:ListTags",
         "lambda:ListVersionsByFunction",
@@ -152,6 +153,7 @@ run "Terraform_plan_role은_관리_리소스만_읽는다" {
         if statement.Sid == "ReadTerraformStateMachine"
         ]).Action, []) == [
         "states:DescribeStateMachine",
+        "states:ListStateMachineVersions",
         "states:ListTagsForResource",
       ] &&
       try(one([
