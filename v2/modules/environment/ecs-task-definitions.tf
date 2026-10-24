@@ -8,7 +8,7 @@ locals {
       { name = "AI_SERVER_BASE_URL", value = "https://stage-ai.${var.domain_name}" },
       { name = "JUDGE0_BASE_URL", value = "https://stage-judge.${var.domain_name}" },
       { name = "FRONTEND_BASE_URL", value = var.enable_public_dns_cutover ? "https://${var.domain_name}" : (var.environment == "stage" ? "https://stage.${var.domain_name}" : "https://${var.domain_name}") },
-      { name = "MANAGEMENT_PORT", value = "9091" },
+      { name = "MANAGEMENT_SERVER_PORT", value = "9091" },
       { name = "SENTRY_ENVIRONMENT", value = var.environment },
       { name = "SPRING_JPA_OPEN_IN_VIEW", value = "true" },
     ]
@@ -26,6 +26,9 @@ locals {
       { name = "BATCH_TIMEZONE", value = "Asia/Seoul" },
       { name = "BATCH_CONCURRENCY", value = "5" },
       { name = "LOG_LEVEL", value = "INFO" },
+      { name = "LANGSMITH_TRACING", value = "true" },
+      { name = "LANGSMITH_ENDPOINT", value = "https://api.smith.langchain.com" },
+      { name = "LANGSMITH_PROJECT", value = local.name_prefix },
     ]
     judge-api = [
       { name = "POSTGRES_HOST", value = "judge-postgres" },
@@ -51,6 +54,7 @@ locals {
       { name = "DB_USER", valueFrom = "${aws_secretsmanager_secret.service["ai-postgres"].arn}:username::" },
       { name = "DB_PASSWORD", valueFrom = "${aws_secretsmanager_secret.service["ai-postgres"].arn}:password::" },
       { name = "GEMINI_API_KEY", valueFrom = "${aws_secretsmanager_secret.service["fastapi"].arn}:gemini_api_key::" },
+      { name = "LANGSMITH_API_KEY", valueFrom = "${aws_secretsmanager_secret.service["fastapi"].arn}:langsmith_api_key::" },
     ]
     judge-api = [
       { name = "SECRET_KEY_BASE", valueFrom = "${aws_secretsmanager_secret.service["judge-api"].arn}:secret_key_base::" },

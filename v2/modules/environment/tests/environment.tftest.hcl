@@ -1,5 +1,11 @@
 mock_provider "aws" {
   override_data {
+    target          = data.aws_instances.stage_office_hours_stateful
+    override_during = plan
+    values          = { ids = ["i-0123456789abcdef0"] }
+  }
+
+  override_data {
     target = data.aws_iam_policy_document.ecs_task_execution
     values = { json = "{\"Version\":\"2012-10-17\",\"Statement\":[]}" }
   }
@@ -16,6 +22,26 @@ mock_provider "aws" {
 
   override_data {
     target = data.aws_iam_policy_document.dlm_assume_role
+    values = { json = "{\"Version\":\"2012-10-17\",\"Statement\":[]}" }
+  }
+
+  override_data {
+    target = data.aws_iam_policy_document.stage_office_hours_sfn_assume
+    values = { json = "{\"Version\":\"2012-10-17\",\"Statement\":[]}" }
+  }
+
+  override_data {
+    target = data.aws_iam_policy_document.stage_office_hours_sfn
+    values = { json = "{\"Version\":\"2012-10-17\",\"Statement\":[]}" }
+  }
+
+  override_data {
+    target = data.aws_iam_policy_document.stage_office_hours_scheduler_assume
+    values = { json = "{\"Version\":\"2012-10-17\",\"Statement\":[]}" }
+  }
+
+  override_data {
+    target = data.aws_iam_policy_document.stage_office_hours_scheduler
     values = { json = "{\"Version\":\"2012-10-17\",\"Statement\":[]}" }
   }
 
@@ -38,6 +64,24 @@ mock_provider "aws" {
     values = {
       arn = "arn:aws:cloudfront::123456789012:distribution/TEST"
     }
+  }
+}
+
+run "운영시간_자동화는_중지된_stateful_EC2도_조회한다" {
+  command = plan
+
+  variables {
+    enable_stage_office_hours = true
+  }
+
+  assert {
+    condition = data.aws_instances.stage_office_hours_stateful[0].instance_state_names == toset([
+      "pending",
+      "running",
+      "stopping",
+      "stopped",
+    ])
+    error_message = "운영시간 자동화는 중지된 Stateful EC2도 조회해야 합니다."
   }
 }
 
@@ -159,6 +203,11 @@ run "Stage_CD는_저장소별_최소권한_role을_사용한다" {
   assert {
     condition     = toset(keys(aws_iam_role_policy.github_stage_container_cd)) == toset(["fastapi", "spring", "judge"])
     error_message = "Container CD policy는 AI, Backend, Judge에 각각 하나씩 필요합니다."
+  }
+
+  assert {
+    condition     = contains(local.github_stage_target_health_actions, "elasticloadbalancing:DescribeTargetHealth")
+    error_message = "Container CD role은 배포 후 ALB target health를 검증할 수 있어야 합니다."
   }
 
   assert {

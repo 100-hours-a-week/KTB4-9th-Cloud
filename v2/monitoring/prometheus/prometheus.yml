@@ -1,0 +1,93 @@
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["prometheus:9090"]
+
+  - job_name: node-exporter
+    static_configs:
+      - targets: ["node-exporter:9100"]
+
+  - job_name: grafana
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["grafana:3000"]
+
+  - job_name: loki
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["loki:3100"]
+
+  - job_name: spring-ecs
+    metrics_path: /actuator/prometheus
+    aws_sd_configs:
+      - role: ecs
+        region: ap-northeast-2
+        port: 9091
+        refresh_interval: 60s
+    relabel_configs:
+      - source_labels: [__meta_ecs_cluster]
+        action: keep
+        regex: cosmos-v2-.*-cluster
+      - source_labels: [__meta_ecs_service]
+        action: keep
+        regex: cosmos-v2-.*-spring
+      - source_labels: [__meta_ecs_desired_status]
+        action: keep
+        regex: RUNNING
+      - source_labels: [__meta_ecs_last_status]
+        action: keep
+        regex: RUNNING
+      - source_labels: [__meta_ecs_health_status]
+        action: keep
+        regex: HEALTHY|UNKNOWN
+      - source_labels: [__meta_ecs_ip_address]
+        target_label: __address__
+        replacement: $1:9091
+      - target_label: __metrics_path__
+        replacement: /actuator/prometheus
+      - source_labels: [__meta_ecs_cluster]
+        target_label: environment
+        regex: cosmos-v2-(stage|prod)-cluster
+        replacement: $1
+      - source_labels: [__meta_ecs_service]
+        target_label: service
+        regex: cosmos-v2-(?:stage|prod)-(.+)
+        replacement: $1
+
+  - job_name: judge-redis
+    metrics_path: /metrics
+    aws_sd_configs:
+      - role: ecs
+        region: ap-northeast-2
+        port: 9121
+        refresh_interval: 60s
+    relabel_configs:
+      - source_labels: [__meta_ecs_cluster]
+        action: keep
+        regex: cosmos-v2-.*-cluster
+      - source_labels: [__meta_ecs_service]
+        action: keep
+        # Judge Redis is a sidecar in the consolidated judge-postgres ECS service.
+        regex: cosmos-v2-.*-judge-postgres
+      - source_labels: [__meta_ecs_desired_status]
+        action: keep
+        regex: RUNNING
+      - source_labels: [__meta_ecs_last_status]
+        action: keep
+        regex: RUNNING
+      - source_labels: [__meta_ecs_health_status]
+        action: keep
+        regex: HEALTHY|UNKNOWN
+      - source_labels: [__meta_ecs_ip_address]
+        target_label: __address__
+        replacement: $1:9121
+      - source_labels: [__meta_ecs_cluster]
+        target_label: environment
+        regex: cosmos-v2-(stage|prod)-cluster
+        replacement: $1
+      - target_label: service
+        replacement: judge-redis

@@ -1,0 +1,40 @@
+apiVersion: 1
+
+deleteDatasources:
+  - name: CloudWatch v2
+    orgId: 1
+  - name: Prometheus v2
+    orgId: 1
+  - name: Loki v2
+    orgId: 1
+
+datasources:
+  - name: CloudWatch v2
+    uid: cloudwatch-v2
+    type: cloudwatch
+    access: proxy
+    isDefault: true
+    editable: false
+    jsonData:
+      authType: default
+      defaultRegion: ap-northeast-2
+
+  - name: Prometheus v2
+    uid: prometheus-v2
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    editable: false
+    jsonData:
+      httpMethod: POST
+      prometheusType: Prometheus
+      prometheusVersion: 3.14.0
+
+  - name: Loki v2
+    uid: loki-v2
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: false
+    jsonData:
+      maxLines: 1000

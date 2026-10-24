@@ -132,18 +132,21 @@ output "stateful_image_references" {
 }
 
 output "stateful_instance_ids" {
-  description = "Judge 상태 저장 서비스 EC2 ID"
-  value       = { for key, instance in aws_instance.stateful : key => instance.id }
+  description = "AI PostgreSQL, Judge PostgreSQL, Redis가 공유하는 상태 저장 EC2 ID"
+  value       = { for key in keys(local.stateful_services) : key => aws_instance.stateful.id }
 }
 
 output "stateful_ebs_volume_ids" {
-  description = "Judge 상태 저장 서비스 EBS volume ID"
-  value       = { for key, volume in aws_ebs_volume.stateful : key => volume.id }
+  description = "AI PostgreSQL, Judge PostgreSQL, Redis가 공유하는 EBS volume ID"
+  value       = { for key in keys(local.stateful_services) : key => aws_ebs_volume.stateful.id }
 }
 
 output "stateful_ecs_service_names" {
   description = "활성화된 Judge 상태 저장 ECS Service 이름"
-  value       = { for key, service in aws_ecs_service.stateful : key => service.name }
+  value = {
+    for service_key in keys(local.enabled_stateful_services) : service_key =>
+    aws_ecs_service.stateful[service_key == "judge-redis" ? "judge-postgres" : service_key].name
+  }
 }
 
 output "application_task_definition_arns" {

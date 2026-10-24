@@ -57,9 +57,9 @@ resource "aws_lb_target_group" "spring" {
 
   health_check {
     enabled             = true
-    path                = local.application_services.spring.health_path
+    path                = "/actuator/health"
     protocol            = "HTTP"
-    port                = "traffic-port"
+    port                = "9091"
     matcher             = "200"
     interval            = 30
     timeout             = 5

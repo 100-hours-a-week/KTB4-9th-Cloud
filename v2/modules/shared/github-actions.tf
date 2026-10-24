@@ -110,6 +110,40 @@ resource "aws_iam_role_policy" "github_terraform_plan" {
         ]
         Resource = "*"
       },
+      {
+        Sid    = "ReadTerraformLambda"
+        Effect = "Allow"
+        Action = [
+          "lambda:GetFunction",
+          "lambda:GetFunctionCodeSigningConfig",
+          "lambda:GetPolicy",
+          "lambda:ListTags",
+          "lambda:ListVersionsByFunction",
+        ]
+        Resource = "arn:aws:lambda:${var.aws_region}:*:function:${var.project_name}-stage-*"
+      },
+      {
+        Sid    = "ReadTerraformStateMachine"
+        Effect = "Allow"
+        Action = [
+          "states:DescribeStateMachine",
+          "states:ListStateMachineVersions",
+          "states:ListTagsForResource",
+        ]
+        Resource = "arn:aws:states:${var.aws_region}:*:stateMachine:${var.project_name}-stage-*"
+      },
+      {
+        Sid      = "ReadTerraformScheduler"
+        Effect   = "Allow"
+        Action   = ["scheduler:GetSchedule"]
+        Resource = "arn:aws:scheduler:${var.aws_region}:*:schedule/default/${var.project_name}-stage-*"
+      },
+      {
+        Sid      = "ReadTerraformMonitoringSecret"
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = "arn:aws:secretsmanager:${var.aws_region}:*:secret:/${var.project_name}/monitoring/grafana-admin-*"
+      },
     ]
   })
 }

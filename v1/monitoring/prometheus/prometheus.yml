@@ -1,0 +1,47 @@
+global:
+  scrape_interval: 10s
+  scrape_timeout: 5s
+  evaluation_interval: 10s
+
+scrape_configs:
+  - job_name: cosmos-main-node
+    scrape_interval: 10s
+    static_configs:
+      - targets: ["10.0.1.184:9100"]
+        labels: {environment: stage, version: v1, host: main}
+
+  - job_name: cosmos-main-containers
+    scrape_interval: 10s
+    static_configs:
+      - targets: ["10.0.1.184:18080"]
+        labels: {environment: stage, version: v1, host: main}
+
+  - job_name: judge0-node
+    static_configs:
+      - targets: ["10.0.1.143:9100"]
+        labels: {environment: stage, version: v1, host: judge}
+
+  - job_name: judge0-containers
+    static_configs:
+      - targets: ["10.0.1.143:8080"]
+        labels: {environment: stage, version: v1, host: judge}
+
+  - job_name: judge0-postgres
+    static_configs:
+      - targets: ["10.0.1.143:9187"]
+        labels: {environment: stage, version: v1, host: judge}
+
+  - job_name: judge0-redis
+    static_configs:
+      - targets: ["10.0.1.143:9121"]
+        labels: {environment: stage, version: v1, host: judge}
+
+  - job_name: oregon-mysql
+    static_configs:
+      - targets: ["cosmos-oregon-mysqld-exporter:9104"]
+        labels: {environment: stage, version: v1, db: oregon-docker-mysql}
+
+  - job_name: seoul-rds-mysql
+    static_configs:
+      - targets: ["cosmos-seoul-rds-mysqld-exporter:9104"]
+        labels: {environment: stage, version: v1, db: seoul-rds}

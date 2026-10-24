@@ -78,13 +78,13 @@ resource "aws_ecs_service" "judge_worker" {
 
   capacity_provider_strategy {
     capacity_provider = aws_ecs_capacity_provider.worker_on_demand[0].name
-    base              = 1
+    base              = 0
     weight            = 0
   }
 
   capacity_provider_strategy {
     capacity_provider = aws_ecs_capacity_provider.worker_spot[0].name
-    base              = 0
+    base              = 1
     weight            = 1
   }
 
@@ -107,11 +107,11 @@ resource "aws_ecs_service" "judge_worker" {
   placement_constraints { type = "distinctInstance" }
 
   lifecycle {
-    ignore_changes = [task_definition]
+    ignore_changes = [task_definition, desired_count]
 
     precondition {
-      condition     = var.judge_worker_desired_count <= 1 + var.worker_spot_max_size
-      error_message = "judge_worker_desired_count는 On-Demand 1대와 Spot 최대 용량의 합을 초과할 수 없습니다."
+      condition     = var.judge_worker_desired_count <= var.worker_spot_max_size
+      error_message = "judge_worker_desired_count는 Spot 최대 용량을 초과할 수 없습니다."
     }
   }
 

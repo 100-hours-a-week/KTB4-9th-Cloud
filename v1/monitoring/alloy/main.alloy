@@ -1,0 +1,88 @@
+prometheus.scrape "spring" {
+  targets         = [{ "__address__" = "127.0.0.1:8080", "__metrics_path__" = "/api/actuator/prometheus", "service" = "spring" }]
+  scrape_interval = "10s"
+  forward_to      = [prometheus.relabel.v1.receiver]
+}
+
+prometheus.relabel "v1" {
+  forward_to = [prometheus.remote_write.central.receiver]
+  rule {
+    target_label = "environment"
+    replacement  = "stage"
+  }
+  rule {
+    target_label = "region"
+    replacement  = "us-west-2"
+  }
+  rule {
+    target_label = "version"
+    replacement  = "v1"
+  }
+}
+
+prometheus.remote_write "central" {
+  endpoint {
+    url = sys.env("REMOTE_WRITE_URL")
+    basic_auth {
+      username = sys.env("INGEST_USERNAME")
+      password = sys.env("INGEST_PASSWORD")
+    }
+  }
+}
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "container_logs" {
+  targets = discovery.docker.containers.targets
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_log_stream"]
+    target_label  = "stream"
+  }
+  rule {
+    target_label = "environment"
+    replacement  = "stage"
+  }
+  rule {
+    target_label = "region"
+    replacement  = "us-west-2"
+  }
+  rule {
+    target_label = "version"
+    replacement  = "v1"
+  }
+  rule {
+    target_label = "host"
+    replacement  = "main"
+  }
+}
+
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.container_logs.output
+  forward_to = [loki.process.within_retention.receiver]
+}
+
+loki.process "within_retention" {
+  forward_to = [loki.write.central.receiver]
+  stage.drop {
+    older_than          = "168h"
+    drop_counter_reason = "outside_loki_retention"
+  }
+}
+
+loki.write "central" {
+  endpoint {
+    url = sys.env("LOKI_PUSH_URL")
+    basic_auth {
+      username = sys.env("INGEST_USERNAME")
+      password = sys.env("INGEST_PASSWORD")
+    }
+  }
+}

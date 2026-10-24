@@ -42,6 +42,8 @@ module "environment" {
   route53_zone_id                   = data.terraform_remote_state.shared.outputs.route53_zone_id
   cloudfront_certificate_arn        = data.terraform_remote_state.shared.outputs.cloudfront_certificate_arn
   regional_wildcard_certificate_arn = data.terraform_remote_state.shared.outputs.regional_wildcard_certificate_arn
+  monitoring_security_group_id      = data.terraform_remote_state.shared.outputs.monitoring_security_group_id
+  monitoring_private_ip             = data.terraform_remote_state.shared.outputs.monitoring_private_ip
 
   enable_stateful_services     = var.enable_stateful_services
   ai_postgres_image            = var.ai_postgres_image
@@ -56,5 +58,7 @@ module "environment" {
   enable_judge_worker_capacity = var.enable_judge_worker_capacity
   enable_judge_worker          = var.enable_judge_worker
   judge_worker_desired_count   = var.judge_worker_desired_count
+  enable_container_insights    = false
+  enable_stage_office_hours    = true
   enable_public_dns_cutover    = var.enable_public_dns_cutover
 }

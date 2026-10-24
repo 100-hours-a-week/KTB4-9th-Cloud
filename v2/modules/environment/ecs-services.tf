@@ -20,7 +20,7 @@ resource "aws_ecs_service" "application" {
   }
 
   lifecycle {
-    ignore_changes = [task_definition]
+    ignore_changes = [task_definition, desired_count]
   }
 
   network_configuration {

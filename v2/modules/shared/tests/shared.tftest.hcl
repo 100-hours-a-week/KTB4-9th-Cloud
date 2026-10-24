@@ -123,6 +123,76 @@ run "GitHub_Stage_CI는_저장소별_ECR만_push한다" {
   }
 }
 
+run "Terraform_plan_role은_관리_리소스만_읽는다" {
+  command = plan
+
+  assert {
+    condition = (
+      try(one([
+        for statement in jsondecode(aws_iam_role_policy.github_terraform_plan.policy).Statement : statement
+        if statement.Sid == "ReadTerraformLambda"
+        ]).Action, []) == [
+        "lambda:GetFunction",
+        "lambda:GetFunctionCodeSigningConfig",
+        "lambda:GetPolicy",
+        "lambda:ListTags",
+        "lambda:ListVersionsByFunction",
+      ] &&
+      try(one([
+        for statement in jsondecode(aws_iam_role_policy.github_terraform_plan.policy).Statement : statement
+        if statement.Sid == "ReadTerraformLambda"
+      ]).Resource, null) == "arn:aws:lambda:ap-northeast-2:*:function:cosmos-v2-stage-*"
+    )
+    error_message = "Terraform plan role은 stage Lambda의 상태만 읽어야 합니다."
+  }
+
+  assert {
+    condition = (
+      try(one([
+        for statement in jsondecode(aws_iam_role_policy.github_terraform_plan.policy).Statement : statement
+        if statement.Sid == "ReadTerraformStateMachine"
+        ]).Action, []) == [
+        "states:DescribeStateMachine",
+        "states:ListStateMachineVersions",
+        "states:ListTagsForResource",
+      ] &&
+      try(one([
+        for statement in jsondecode(aws_iam_role_policy.github_terraform_plan.policy).Statement : statement
+        if statement.Sid == "ReadTerraformStateMachine"
+      ]).Resource, null) == "arn:aws:states:ap-northeast-2:*:stateMachine:cosmos-v2-stage-*"
+    )
+    error_message = "Terraform plan role은 stage Step Functions 상태만 읽어야 합니다."
+  }
+
+  assert {
+    condition = (
+      try(one([
+        for statement in jsondecode(aws_iam_role_policy.github_terraform_plan.policy).Statement : statement
+        if statement.Sid == "ReadTerraformScheduler"
+      ]).Action, []) == ["scheduler:GetSchedule"] &&
+      try(one([
+        for statement in jsondecode(aws_iam_role_policy.github_terraform_plan.policy).Statement : statement
+        if statement.Sid == "ReadTerraformScheduler"
+      ]).Resource, null) == "arn:aws:scheduler:ap-northeast-2:*:schedule/default/cosmos-v2-stage-*"
+    )
+    error_message = "Terraform plan role은 stage office-hours schedule만 읽어야 합니다."
+  }
+
+  assert {
+    condition = (
+      try(one([
+        for statement in jsondecode(aws_iam_role_policy.github_terraform_plan.policy).Statement : statement
+        if statement.Sid == "ReadTerraformMonitoringSecret"
+      ]).Action, []) == ["secretsmanager:GetSecretValue"] &&
+      try(one([
+        for statement in jsondecode(aws_iam_role_policy.github_terraform_plan.policy).Statement : statement
+        if statement.Sid == "ReadTerraformMonitoringSecret"
+      ]).Resource, null) == "arn:aws:secretsmanager:ap-northeast-2:*:secret:/cosmos-v2/monitoring/grafana-admin-*"
+    )
+    error_message = "Terraform plan role은 Grafana 관리자 Secret 값만 읽어야 합니다."
+  }
+}
+
 run "가용_영역이_두_개가_아니면_거부한다" {
   command = plan
 

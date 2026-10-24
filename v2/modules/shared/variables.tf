@@ -30,6 +30,56 @@ variable "domain_name" {
   }
 }
 
+variable "enable_monitoring" {
+  description = "서울 리전에 독립 모니터링 호스트를 생성할지 여부"
+  type        = bool
+  default     = false
+}
+
+variable "monitoring_instance_type" {
+  description = "모니터링 EC2 인스턴스 유형"
+  type        = string
+  default     = "t3.small"
+
+  validation {
+    condition     = var.monitoring_instance_type == "t3.small"
+    error_message = "monitoring_instance_type은 비용 절감을 위해 t3.small이어야 합니다."
+  }
+}
+
+variable "monitoring_root_volume_size" {
+  description = "모니터링 호스트 루트 gp3 볼륨 크기(GiB)"
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = var.monitoring_root_volume_size >= 30
+    error_message = "monitoring_root_volume_size는 최소 30GiB여야 합니다."
+  }
+}
+
+variable "monitoring_data_volume_size" {
+  description = "Prometheus, Loki, Grafana 데이터 gp3 볼륨 크기(GiB)"
+  type        = number
+  default     = 100
+
+  validation {
+    condition     = var.monitoring_data_volume_size >= 100
+    error_message = "monitoring_data_volume_size는 최소 100GiB여야 합니다."
+  }
+}
+
+variable "monitoring_hostname" {
+  description = "서울 Grafana 검증용 hostname"
+  type        = string
+  default     = "grafana-v2.cosmoscode.site"
+
+  validation {
+    condition     = var.monitoring_hostname == "grafana-v2.${var.domain_name}"
+    error_message = "monitoring_hostname은 grafana-v2.<domain_name>이어야 합니다."
+  }
+}
+
 variable "vpc_cidr" {
   description = "공유 VPC CIDR"
   type        = string

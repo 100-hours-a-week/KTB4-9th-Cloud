@@ -90,8 +90,8 @@ resource "aws_autoscaling_group" "worker_on_demand" {
   count = var.enable_judge_worker_capacity ? 1 : 0
 
   name                  = "${local.name_prefix}-judge-worker-on-demand"
-  min_size              = 1
-  desired_capacity      = 1
+  min_size              = 0
+  desired_capacity      = 0
   max_size              = 1
   vpc_zone_identifier   = values(var.private_subnet_ids)
   protect_from_scale_in = true
@@ -185,6 +185,11 @@ resource "aws_autoscaling_group" "worker_spot" {
   }
 
   depends_on = [aws_iam_role_policy_attachment.worker_instance]
+
+  lifecycle {
+    # ECS managed scaling owns the live desired capacity.
+    ignore_changes = [desired_capacity]
+  }
 }
 
 resource "aws_ecs_capacity_provider" "worker_on_demand" {

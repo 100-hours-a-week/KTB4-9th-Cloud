@@ -47,6 +47,37 @@ resource "aws_vpc_security_group_ingress_rule" "spring_from_alb" {
   to_port                      = 8080
 }
 
+resource "aws_vpc_security_group_ingress_rule" "spring_management_from_alb" {
+  security_group_id            = aws_security_group.application["spring"].id
+  referenced_security_group_id = aws_security_group.alb.id
+  description                  = "Allow ALB health checks against the Spring management port"
+  ip_protocol                  = "tcp"
+  from_port                    = 9091
+  to_port                      = 9091
+}
+
+resource "aws_vpc_security_group_ingress_rule" "spring_metrics_from_monitoring" {
+  count = var.monitoring_security_group_id == null ? 0 : 1
+
+  security_group_id            = aws_security_group.application["spring"].id
+  referenced_security_group_id = var.monitoring_security_group_id
+  description                  = "Allow Prometheus on the shared monitoring host to scrape Spring metrics"
+  ip_protocol                  = "tcp"
+  from_port                    = 9091
+  to_port                      = 9091
+}
+
+resource "aws_vpc_security_group_ingress_rule" "judge_redis_exporter_from_monitoring" {
+  count = var.monitoring_security_group_id == null ? 0 : 1
+
+  security_group_id            = aws_security_group.data["judge-redis"].id
+  referenced_security_group_id = var.monitoring_security_group_id
+  description                  = "Allow Prometheus on the shared monitoring host to scrape Redis metrics"
+  ip_protocol                  = "tcp"
+  from_port                    = 9121
+  to_port                      = 9121
+}
+
 resource "aws_vpc_security_group_ingress_rule" "stage_service_from_alb" {
   for_each = local.stage_additional_target_services
 

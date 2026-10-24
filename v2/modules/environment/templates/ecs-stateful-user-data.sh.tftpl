@@ -3,45 +3,52 @@ set -euo pipefail
 
 systemctl stop ecs || true
 
-VOLUME_ID="${volume_id}"
-MOUNT_PATH="${mount_path}"
-DEVICE=""
+mount_volume() {
+  local volume_id="$1"
+  local mount_path="$2"
+  local device=""
 
-for _ in $(seq 1 120); do
-  for candidate in /dev/nvme*n1; do
-    [[ -b "$candidate" ]] || continue
-    if /sbin/ebsnvme-id "$candidate" 2>/dev/null | grep -q "$VOLUME_ID"; then
-      DEVICE="$candidate"
-      break 2
-    fi
+  for _ in $(seq 1 120); do
+    for candidate in /dev/nvme*n1; do
+      [[ -b "$candidate" ]] || continue
+      if /sbin/ebsnvme-id "$candidate" 2>/dev/null | grep -q "$volume_id"; then
+        device="$candidate"
+        break 2
+      fi
+    done
+    sleep 2
   done
-  sleep 2
-done
 
-if [[ -z "$DEVICE" ]]; then
-  echo "지정 EBS volume을 찾지 못했습니다." >&2
-  exit 1
-fi
+  if [[ -z "$device" ]]; then
+    echo "지정 EBS volume을 찾지 못했습니다: $volume_id" >&2
+    exit 1
+  fi
 
-if ! blkid "$DEVICE" >/dev/null 2>&1; then
-  mkfs.ext4 "$DEVICE"
-fi
+  if ! blkid "$device" >/dev/null 2>&1; then
+    mkfs.ext4 "$device"
+  fi
 
-mkdir -p "$MOUNT_PATH"
-UUID=$(blkid -s UUID -o value "$DEVICE")
-grep -q "UUID=$UUID " /etc/fstab || echo "UUID=$UUID $MOUNT_PATH ext4 defaults,nofail 0 2" >> /etc/fstab
-mount "$MOUNT_PATH"
+  mkdir -p "$mount_path"
+  local uuid
+  uuid=$(blkid -s UUID -o value "$device")
+  grep -q "UUID=$uuid " /etc/fstab || echo "UUID=$uuid $mount_path ext4 defaults,nofail 0 2" >> /etc/fstab
+  mountpoint -q "$mount_path" || mount "$mount_path"
+}
+
+%{ for service in services ~}
+mount_volume "${service.volume_id}" "${service.mount_path}"
+%{ endfor ~}
 
 cat >/etc/ecs/ecs.config <<'ECS_CONFIG'
 ECS_CLUSTER=${cluster_name}
-ECS_INSTANCE_ATTRIBUTES={"role":"${service_name}"}
+ECS_INSTANCE_ATTRIBUTES={"stateful":"true"}
 ECS_ENABLE_CONTAINER_METADATA=true
 ECS_CONFIG
 
 mkdir -p /etc/systemd/system/ecs.service.d
 cat >/etc/systemd/system/ecs.service.d/10-stateful-volume.conf <<EOF
 [Unit]
-RequiresMountsFor=$MOUNT_PATH
+RequiresMountsFor=%{ for service in services } ${service.mount_path}%{ endfor }
 EOF
 
 systemctl daemon-reload

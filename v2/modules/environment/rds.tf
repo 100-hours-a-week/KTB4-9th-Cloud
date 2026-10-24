@@ -9,7 +9,8 @@ resource "aws_db_instance" "mysql" {
   identifier = "${local.name_prefix}-mysql"
 
   engine                      = "mysql"
-  engine_version              = "8.0"
+  engine_version              = "8.4.11"
+  allow_major_version_upgrade = true
   instance_class              = var.rds_instance_class
   db_name                     = "cosmos"
   username                    = "cosmos_admin"

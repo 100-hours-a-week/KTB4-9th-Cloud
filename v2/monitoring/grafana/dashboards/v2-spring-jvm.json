@@ -1,0 +1,111 @@
+{
+  "annotations": { "list": [] },
+  "editable": false,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-v2" },
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "prometheus-v2" }, "expr": "sum by (id) (jvm_memory_used_bytes{area=\"heap\",environment=\"$environment\",service=\"$service\"})", "legendFormat": "used {{id}}", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "prometheus-v2" }, "expr": "sum by (id) (jvm_memory_max_bytes{area=\"heap\",environment=\"$environment\",service=\"$service\"})", "legendFormat": "max {{id}}", "refId": "B" }
+      ],
+      "title": "JVM Heap",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-v2" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "id": 2,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "prometheus-v2" }, "expr": "sum by (action, cause) (rate(jvm_gc_pause_seconds_sum{environment=\"$environment\",service=\"$service\"}[5m]))", "legendFormat": "{{action}} / {{cause}}", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "prometheus-v2" }, "expr": "sum(rate(jvm_gc_pause_seconds_count{environment=\"$environment\",service=\"$service\"}[5m]))", "legendFormat": "events/s", "refId": "B" }
+      ],
+      "title": "GC Pause",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-v2" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 8 },
+      "id": 3,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus-v2" }, "expr": "jvm_threads_live_threads{environment=\"$environment\",service=\"$service\"}", "legendFormat": "live", "refId": "A" }],
+      "title": "JVM Threads",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-v2" },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 8 },
+      "id": 4,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus-v2" }, "expr": "process_cpu_usage{environment=\"$environment\",service=\"$service\"}", "legendFormat": "process", "refId": "A" }],
+      "title": "Process CPU",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-v2" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 8 },
+      "id": 5,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "prometheus-v2" }, "expr": "hikaricp_connections_active{environment=\"$environment\",service=\"$service\"}", "legendFormat": "active", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "prometheus-v2" }, "expr": "hikaricp_connections_idle{environment=\"$environment\",service=\"$service\"}", "legendFormat": "idle", "refId": "B" },
+        { "datasource": { "type": "prometheus", "uid": "prometheus-v2" }, "expr": "hikaricp_connections_pending{environment=\"$environment\",service=\"$service\"}", "legendFormat": "pending", "refId": "C" }
+      ],
+      "title": "HikariCP Connections",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-v2" },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 15 },
+      "id": 6,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus-v2" }, "expr": "sum by (method, uri) (rate(http_server_requests_seconds_count{environment=\"$environment\",service=\"$service\"}[5m]))", "legendFormat": "{{method}} {{uri}}", "refId": "A" }],
+      "title": "HTTP RPS by Route",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-v2" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 15 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus-v2" }, "expr": "histogram_quantile(0.95, sum by (le, uri) (rate(http_server_requests_seconds_bucket{environment=\"$environment\",service=\"$service\"}[5m])))", "legendFormat": "p95 {{uri}}", "refId": "A" }],
+      "title": "HTTP p95 Latency by Route",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-v2" },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 15 },
+      "id": 8,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus-v2" }, "expr": "sum(rate(http_server_requests_seconds_count{environment=\"$environment\",service=\"$service\",status=~\"5..\"}[5m])) / clamp_min(sum(rate(http_server_requests_seconds_count{environment=\"$environment\",service=\"$service\"}[5m])), 0.001)", "legendFormat": "5xx ratio", "refId": "A" }],
+      "title": "HTTP 5xx Error Ratio",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 41,
+  "tags": ["cosmos", "v2", "spring", "jvm"],
+  "templating": {
+    "list": [
+      { "current": { "text": "stage", "value": "stage" }, "hide": 0, "includeAll": false, "label": "Environment", "multi": false, "name": "environment", "options": [{ "selected": true, "text": "stage", "value": "stage" }, { "selected": false, "text": "prod", "value": "prod" }], "query": "stage,prod", "type": "custom" },
+      { "current": { "text": "spring", "value": "spring" }, "datasource": { "type": "prometheus", "uid": "prometheus-v2" }, "definition": "label_values(up{job=\"spring-ecs\",environment=\"$environment\"}, service)", "hide": 0, "includeAll": false, "label": "Service", "multi": false, "name": "service", "query": { "query": "label_values(up{job=\"spring-ecs\",environment=\"$environment\"}, service)", "refId": "PrometheusVariableQueryEditor-VariableQuery" }, "refresh": 1, "type": "query" }
+    ]
+  },
+  "time": { "from": "now-3h", "to": "now" },
+  "timezone": "browser",
+  "title": "v2 Spring JVM and RED",
+  "uid": "v2-spring-jvm",
+  "version": 1
+}

@@ -1,0 +1,92 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": false,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki-v2"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 20,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki-v2"
+          },
+          "editorMode": "code",
+          "expr": "{environment=\"$environment\", application=\"ai-postgres\"}",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "ai-postgres Logs",
+      "type": "logs"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 41,
+  "tags": [
+    "cosmos-v2",
+    "logs",
+    "ai-postgres"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": "stage",
+          "value": "stage"
+        },
+        "datasource": {
+          "type": "loki",
+          "uid": "loki-v2"
+        },
+        "definition": "label_values(environment)",
+        "includeAll": false,
+        "label": "Environment",
+        "name": "environment",
+        "options": [],
+        "query": "label_values(environment)",
+        "refresh": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "COSMOS v2 / Logs / ai-postgres",
+  "uid": "v2-logs-ai-postgres",
+  "version": 1,
+  "weekStart": ""
+}
