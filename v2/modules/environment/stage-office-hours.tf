@@ -21,15 +21,13 @@ locals {
 data "aws_instances" "stage_office_hours_stateful" {
   count = local.stage_office_hours_enabled ? 1 : 0
 
+  instance_state_names = ["pending", "running", "stopping", "stopped"]
+
   filter {
     name   = "tag:Name"
     values = ["${local.name_prefix}-stateful"]
   }
 
-  filter {
-    name   = "instance-state-name"
-    values = ["pending", "running", "stopping", "stopped"]
-  }
 }
 
 data "aws_iam_policy_document" "stage_office_hours_sfn_assume" {

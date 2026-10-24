@@ -1,5 +1,11 @@
 mock_provider "aws" {
   override_data {
+    target          = data.aws_instances.stage_office_hours_stateful
+    override_during = plan
+    values          = { ids = ["i-0123456789abcdef0"] }
+  }
+
+  override_data {
     target = data.aws_iam_policy_document.ecs_task_execution
     values = { json = "{\"Version\":\"2012-10-17\",\"Statement\":[]}" }
   }
@@ -16,6 +22,26 @@ mock_provider "aws" {
 
   override_data {
     target = data.aws_iam_policy_document.dlm_assume_role
+    values = { json = "{\"Version\":\"2012-10-17\",\"Statement\":[]}" }
+  }
+
+  override_data {
+    target = data.aws_iam_policy_document.stage_office_hours_sfn_assume
+    values = { json = "{\"Version\":\"2012-10-17\",\"Statement\":[]}" }
+  }
+
+  override_data {
+    target = data.aws_iam_policy_document.stage_office_hours_sfn
+    values = { json = "{\"Version\":\"2012-10-17\",\"Statement\":[]}" }
+  }
+
+  override_data {
+    target = data.aws_iam_policy_document.stage_office_hours_scheduler_assume
+    values = { json = "{\"Version\":\"2012-10-17\",\"Statement\":[]}" }
+  }
+
+  override_data {
+    target = data.aws_iam_policy_document.stage_office_hours_scheduler
     values = { json = "{\"Version\":\"2012-10-17\",\"Statement\":[]}" }
   }
 
@@ -38,6 +64,24 @@ mock_provider "aws" {
     values = {
       arn = "arn:aws:cloudfront::123456789012:distribution/TEST"
     }
+  }
+}
+
+run "운영시간_자동화는_중지된_stateful_EC2도_조회한다" {
+  command = plan
+
+  variables {
+    enable_stage_office_hours = true
+  }
+
+  assert {
+    condition = data.aws_instances.stage_office_hours_stateful[0].instance_state_names == toset([
+      "pending",
+      "running",
+      "stopping",
+      "stopped",
+    ])
+    error_message = "운영시간 자동화는 중지된 Stateful EC2도 조회해야 합니다."
   }
 }
 
