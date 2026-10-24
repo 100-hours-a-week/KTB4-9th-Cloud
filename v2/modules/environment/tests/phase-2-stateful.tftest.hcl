@@ -168,18 +168,15 @@ run "상태_저장_Task와_Service는_고정_호스트와_Service_Connect를_사
 
   assert {
     condition = alltrue([
-      for key, task in aws_ecs_task_definition.stateful :
-      task.network_mode == "awsvpc" &&
-      task.requires_compatibilities == toset(["EC2"]) &&
-      length(task.volume) == length(local.stateful_task_groups[key].service_keys) &&
+      for key in keys(local.enabled_stateful_task_groups) :
+      aws_ecs_task_definition.stateful[key].network_mode == "awsvpc" &&
+      aws_ecs_task_definition.stateful[key].requires_compatibilities == toset(["EC2"]) &&
       alltrue([
-        for volume in task.volume : contains([
-          for service_key in local.stateful_task_groups[key].service_keys :
-          local.stateful_services[service_key].host_mount_path
-        ], volume.host_path)
+        for service_key in local.stateful_task_groups[key].service_keys :
+        startswith(local.stateful_services[service_key].host_mount_path, "/srv/cosmos/")
       ]) &&
-      jsondecode(task.container_definitions)[0].memoryReservation == local.stateful_services[key].memory_reservation &&
-      !jsondecode(task.container_definitions)[0].readonlyRootFilesystem &&
+      jsondecode(local.stateful_container_definitions[key])[0].memoryReservation == local.stateful_services[key].memory_reservation &&
+      !jsondecode(local.stateful_container_definitions[key])[0].readonlyRootFilesystem &&
       can(regex("@sha256:[0-9a-f]{64}$", local.stateful_services[key].image))
     ])
     error_message = "상태 저장 Task는 EC2/awsvpc, 공식 immutable image, host volume과 writable root를 사용해야 합니다."

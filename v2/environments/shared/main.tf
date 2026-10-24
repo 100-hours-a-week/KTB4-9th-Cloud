@@ -1,5 +1,6 @@
 module "shared" {
-  source = "../../modules/shared"
+  source            = "../../modules/shared"
+  enable_monitoring = true
 }
 
 data "aws_route53_zone" "main" {

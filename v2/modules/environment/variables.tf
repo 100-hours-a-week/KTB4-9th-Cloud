@@ -47,6 +47,30 @@ variable "vpc_cidr" {
   }
 }
 
+variable "monitoring_security_group_id" {
+  description = "Shared monitoring host security group allowed to scrape application metrics"
+  type        = string
+  default     = null
+  nullable    = true
+
+  validation {
+    condition     = var.monitoring_security_group_id == null || can(regex("^sg-[0-9A-Za-z-]+$", var.monitoring_security_group_id))
+    error_message = "monitoring_security_group_id must be null or a security group ID."
+  }
+}
+
+variable "monitoring_private_ip" {
+  description = "Shared monitoring host private IP used by the CloudWatch Logs to Loki forwarder"
+  type        = string
+  default     = null
+  nullable    = true
+
+  validation {
+    condition     = var.monitoring_private_ip == null || can(cidrhost("${var.monitoring_private_ip}/32", 0))
+    error_message = "monitoring_private_ip must be null or a valid IPv4 address."
+  }
+}
+
 variable "public_subnet_ids" {
   description = "Shared Public subnet ID map keyed by 0 and 1"
   type        = map(string)

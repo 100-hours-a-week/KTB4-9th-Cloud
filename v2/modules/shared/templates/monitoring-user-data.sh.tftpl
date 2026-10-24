@@ -1,0 +1,181 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+export DEBIAN_FRONTEND=noninteractive
+
+apt-get update
+apt-get install -y ca-certificates curl docker.io docker-compose-v2 unzip
+
+curl -fsSL https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o /tmp/awscliv2.zip
+unzip -q /tmp/awscliv2.zip -d /tmp/awscliv2
+/tmp/awscliv2/aws/install
+rm -rf -- /tmp/awscliv2 /tmp/awscliv2.zip
+
+systemctl enable --now docker
+
+cat >/etc/cosmos-monitoring.conf <<'CONFIG'
+CONFIG_BUCKET=${config_bucket_name}
+MONITORING_HOSTNAME=${monitoring_hostname}
+AWS_REGION=${aws_region}
+GRAFANA_ADMIN_SECRET_ARN=${admin_secret_arn}
+DATA_DEVICE=${data_device_path}
+CONFIG
+chmod 600 /etc/cosmos-monitoring.conf
+
+source /etc/cosmos-monitoring.conf
+
+resolve_data_device() {
+  local root_source root_parent candidate
+
+  if [[ -b "$DATA_DEVICE" ]]; then
+    readlink -f "$DATA_DEVICE"
+    return 0
+  fi
+
+  root_source="$(findmnt -n -o SOURCE /)"
+  root_parent="$(lsblk -no PKNAME "$root_source" | head -n 1)"
+  [[ -n "$root_parent" ]] && root_parent="/dev/$root_parent"
+
+  while read -r candidate; do
+    if [[ "$candidate" != "$root_parent" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done < <(lsblk -dpno NAME,TYPE | awk '$2 == "disk" { print $1 }')
+
+  return 1
+}
+
+data_device=""
+for _ in $(seq 1 60); do
+  if data_device="$(resolve_data_device)"; then
+    break
+  fi
+  sleep 2
+done
+
+[[ -n "$data_device" && -b "$data_device" ]] || {
+  echo "Monitoring data device was not found" >&2
+  exit 1
+}
+
+if ! blkid "$data_device" >/dev/null 2>&1; then
+  mkfs.ext4 -F "$data_device"
+fi
+
+data_uuid="$(blkid -s UUID -o value "$data_device")"
+mkdir -p /srv/monitoring/data
+if ! grep -q --fixed-strings "UUID=$data_uuid /srv/monitoring/data " /etc/fstab; then
+  printf 'UUID=%s /srv/monitoring/data ext4 defaults,nofail 0 2\n' "$data_uuid" >>/etc/fstab
+fi
+mountpoint -q /srv/monitoring/data || mount /srv/monitoring/data
+
+install -d -m 0755 /srv/monitoring/releases
+install -d -o 472 -g 472 /srv/monitoring/data/grafana
+install -d -o 65534 -g 65534 /srv/monitoring/data/prometheus
+install -d -o 10001 -g 10001 /srv/monitoring/data/loki
+install -d -o 1000 -g 1000 /srv/monitoring/data/caddy/data /srv/monitoring/data/caddy/config
+
+cat >/usr/local/sbin/refresh-monitoring-config <<'SCRIPT'
+#!/usr/bin/env bash
+set -euo pipefail
+
+source /etc/cosmos-monitoring.conf
+
+staging_root="$(mktemp -d /srv/monitoring/.config-sync.XXXXXX)"
+trap 'rm -rf "$staging_root"' EXIT
+staging_config="$staging_root/config"
+mkdir -p "$staging_config"
+
+aws s3 sync "s3://$CONFIG_BUCKET/" "$staging_config/" \
+  --region "$AWS_REGION" \
+  --only-show-errors
+
+if [[ -e /srv/monitoring/config ]] && diff -qr "$staging_config" /srv/monitoring/config >/dev/null; then
+  exit 0
+fi
+
+required_files=(
+  docker-compose.yml
+  caddy/Caddyfile
+  prometheus/prometheus.yml
+  loki/loki.yml
+  grafana/grafana.ini
+  grafana/provisioning/datasources/datasources.yml
+  grafana/provisioning/dashboards/providers.yml
+)
+
+for required_file in "$${required_files[@]}"; do
+  [[ -s "$staging_config/$required_file" ]] || {
+    echo "Required monitoring config is missing: $required_file" >&2
+    exit 1
+  }
+done
+
+grafana_admin_password="$(aws secretsmanager get-secret-value \
+  --secret-id "$GRAFANA_ADMIN_SECRET_ARN" \
+  --region "$AWS_REGION" \
+  --query SecretString \
+  --output text)"
+
+[[ -n "$grafana_admin_password" && "$grafana_admin_password" != "None" ]] || {
+  echo "Grafana administrator secret is empty" >&2
+  exit 1
+}
+
+umask 077
+{
+  printf 'GRAFANA_ADMIN_PASSWORD=%s\n' "$grafana_admin_password"
+  printf 'MONITORING_HOSTNAME=%s\n' "$MONITORING_HOSTNAME"
+} >/etc/cosmos-monitoring.env
+
+docker compose \
+  --env-file /etc/cosmos-monitoring.env \
+  -f "$staging_config/docker-compose.yml" \
+  config --quiet
+
+release_dir="/srv/monitoring/releases/$(date +%Y%m%d%H%M%S)"
+mv "$staging_config" "$release_dir"
+ln -sfn "$release_dir" /srv/monitoring/config.next
+mv -Tf /srv/monitoring/config.next /srv/monitoring/config
+
+docker compose \
+  --env-file /etc/cosmos-monitoring.env \
+  -f /srv/monitoring/config/docker-compose.yml \
+  up -d --remove-orphans --force-recreate
+
+find /srv/monitoring/releases \
+  -mindepth 1 -maxdepth 1 -type d \
+  ! -samefile "$release_dir" -mtime +1 \
+  -exec rm -rf -- {} +
+SCRIPT
+chmod 750 /usr/local/sbin/refresh-monitoring-config
+
+cat >/etc/systemd/system/monitoring-config-refresh.service <<'UNIT'
+[Unit]
+Description=Refresh COSMOS monitoring configuration
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/refresh-monitoring-config
+UNIT
+
+cat >/etc/systemd/system/monitoring-config-refresh.timer <<'TIMER'
+[Unit]
+Description=Periodically refresh COSMOS monitoring configuration
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=5min
+RandomizedDelaySec=30s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+TIMER
+
+systemctl daemon-reload
+/usr/local/sbin/refresh-monitoring-config
+systemctl enable --now monitoring-config-refresh.timer

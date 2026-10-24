@@ -144,7 +144,7 @@ output "stateful_ebs_volume_ids" {
 output "stateful_ecs_service_names" {
   description = "활성화된 Judge 상태 저장 ECS Service 이름"
   value = {
-    for service_key in keys(local.stateful_services) : service_key =>
+    for service_key in keys(local.enabled_stateful_services) : service_key =>
     aws_ecs_service.stateful[service_key == "judge-redis" ? "judge-postgres" : service_key].name
   }
 }

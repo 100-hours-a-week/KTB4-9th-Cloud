@@ -42,6 +42,8 @@ module "environment" {
   route53_zone_id                   = data.terraform_remote_state.shared.outputs.route53_zone_id
   cloudfront_certificate_arn        = data.terraform_remote_state.shared.outputs.cloudfront_certificate_arn
   regional_wildcard_certificate_arn = data.terraform_remote_state.shared.outputs.regional_wildcard_certificate_arn
+  monitoring_security_group_id      = data.terraform_remote_state.shared.outputs.monitoring_security_group_id
+  monitoring_private_ip             = data.terraform_remote_state.shared.outputs.monitoring_private_ip
 
   enable_stateful_services     = var.enable_stateful_services
   ai_postgres_image            = var.ai_postgres_image

@@ -1,0 +1,8 @@
+{
+	email ops@cosmoscode.site
+}
+
+{$MONITORING_HOSTNAME} {
+	encode zstd gzip
+	reverse_proxy grafana:3000
+}

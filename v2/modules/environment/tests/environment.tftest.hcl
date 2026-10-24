@@ -162,6 +162,11 @@ run "Stage_CD는_저장소별_최소권한_role을_사용한다" {
   }
 
   assert {
+    condition     = contains(local.github_stage_target_health_actions, "elasticloadbalancing:DescribeTargetHealth")
+    error_message = "Container CD role은 배포 후 ALB target health를 검증할 수 있어야 합니다."
+  }
+
+  assert {
     condition     = toset(keys(aws_iam_role_policy.github_stage_frontend_cd)) == toset(["frontend"])
     error_message = "Frontend CD policy는 frontend 역할에 하나만 필요합니다."
   }

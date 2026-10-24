@@ -60,6 +60,8 @@ locals {
       ]
     }
   } : {}
+
+  github_stage_target_health_actions = ["elasticloadbalancing:DescribeTargetHealth"]
 }
 
 resource "aws_iam_role" "github_stage_cd" {
@@ -120,6 +122,12 @@ resource "aws_iam_role_policy" "github_stage_container_cd" {
         Effect   = "Allow"
         Action   = ["ecs:DescribeServices", "ecs:UpdateService"]
         Resource = each.value.service_arns
+      },
+      {
+        Sid      = "ReadOwnTargetHealth"
+        Effect   = "Allow"
+        Action   = local.github_stage_target_health_actions
+        Resource = "*"
       },
       {
         Sid      = "PassOwnTaskRoles"

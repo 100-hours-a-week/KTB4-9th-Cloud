@@ -1,0 +1,13 @@
+apiVersion: 1
+
+providers:
+  - name: COSMOS v2
+    orgId: 1
+    folder: COSMOS v2
+    type: file
+    disableDeletion: true
+    editable: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

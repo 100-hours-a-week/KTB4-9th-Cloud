@@ -36,6 +36,14 @@ resource "aws_security_group" "main_sg" {
     cidr_blocks = [var.vpc_cidr]
   }
 
+  ingress {
+    description     = "Allow cAdvisor from monitoring server"
+    from_port       = 18080
+    to_port         = 18080
+    protocol        = "tcp"
+    security_groups = [aws_security_group.monitoring_sg.id]
+  }
+
   egress {
     from_port   = 0
     to_port     = 0

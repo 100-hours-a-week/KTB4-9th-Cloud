@@ -52,3 +52,38 @@ output "regional_wildcard_certificate_arn" {
   description = "서울 리전 ALB용 wildcard ACM 인증서 ARN"
   value       = aws_acm_certificate_validation.regional_wildcard.certificate_arn
 }
+
+output "monitoring_instance_id" {
+  description = "독립 모니터링 EC2 instance ID"
+  value       = try(aws_instance.monitoring[0].id, null)
+}
+
+output "monitoring_hostname" {
+  description = "Grafana monitoring hostname"
+  value       = var.enable_monitoring ? var.monitoring_hostname : null
+}
+
+output "monitoring_private_ip" {
+  description = "독립 모니터링 EC2 private IP"
+  value       = try(aws_instance.monitoring[0].private_ip, null)
+}
+
+output "monitoring_public_ip" {
+  description = "독립 모니터링 EC2 Elastic IP"
+  value       = try(aws_eip.monitoring[0].public_ip, null)
+}
+
+output "monitoring_security_group_id" {
+  description = "독립 모니터링 EC2 security group ID"
+  value       = try(aws_security_group.monitoring[0].id, null)
+}
+
+output "monitoring_config_bucket_name" {
+  description = "모니터링 구성 배포 S3 bucket"
+  value       = try(aws_s3_bucket.monitoring_config[0].id, null)
+}
+
+output "monitoring_admin_secret_arn" {
+  description = "Grafana admin secret ARN"
+  value       = try(aws_secretsmanager_secret.monitoring_grafana_admin[0].arn, null)
+}

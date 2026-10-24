@@ -23,8 +23,9 @@ mock_provider "aws" {
   override_resource {
     target = aws_db_instance.mysql
     values = {
-      address = "mysql.internal"
-      port    = 3306
+      address            = "mysql.internal"
+      port               = 3306
+      master_user_secret = [{ secret_arn = "arn:aws:secretsmanager:ap-northeast-2:123456789012:secret:mysql" }]
     }
   }
   override_data {
@@ -182,25 +183,28 @@ run "Fargate_Service는_내부_topology와_Spring_ALB만_구성한다" {
       AI_SERVER_BASE_URL      = "https://stage-ai.cosmoscode.site"
       JUDGE0_BASE_URL         = "https://stage-judge.cosmoscode.site"
       FRONTEND_BASE_URL       = "https://cosmoscode.site"
-      MANAGEMENT_PORT         = "9091"
+      MANAGEMENT_SERVER_PORT  = "9091"
       SENTRY_ENVIRONMENT      = "prod"
       SPRING_JPA_OPEN_IN_VIEW = "true"
       } && {
       for item in local.application_environment.fastapi : item.name => item.value
       } == {
-      DB_HOST           = "ai-postgres"
-      DB_PORT           = "5432"
-      DB_NAME           = "cosmos"
-      DB_ECHO           = "false"
-      DB_POOL_SIZE      = "5"
-      DB_MAX_OVERFLOW   = "5"
-      BACKEND_URL       = "http://spring:8080/api"
-      JUDGE0_URL        = "http://judge-api:2358"
-      MOCK_LLM          = "false"
-      BATCH_ENABLED     = "true"
-      BATCH_TIMEZONE    = "Asia/Seoul"
-      BATCH_CONCURRENCY = "5"
-      LOG_LEVEL         = "INFO"
+      DB_HOST            = "ai-postgres"
+      DB_PORT            = "5432"
+      DB_NAME            = "cosmos"
+      DB_ECHO            = "false"
+      DB_POOL_SIZE       = "5"
+      DB_MAX_OVERFLOW    = "5"
+      BACKEND_URL        = "http://spring:8080/api"
+      JUDGE0_URL         = "http://judge-api:2358"
+      MOCK_LLM           = "false"
+      BATCH_ENABLED      = "true"
+      BATCH_TIMEZONE     = "Asia/Seoul"
+      BATCH_CONCURRENCY  = "5"
+      LOG_LEVEL          = "INFO"
+      LANGSMITH_TRACING  = "true"
+      LANGSMITH_ENDPOINT = "https://api.smith.langchain.com"
+      LANGSMITH_PROJECT  = "cosmos-v2-prod"
     }
     error_message = "Spring과 FastAPI 비민감 환경 변수는 실제 애플리케이션 설정 이름과 일치해야 합니다."
   }
@@ -212,7 +216,7 @@ run "Fargate_Service는_내부_topology와_Spring_ALB만_구성한다" {
         "KAKAO_CLIENT_SECRET", "KAKAO_REDIRECT_URI", "JWT_SECRET",
       ]) &&
       toset([for secret in local.application_secrets.fastapi : secret.name]) == toset([
-        "DB_USER", "DB_PASSWORD", "GEMINI_API_KEY",
+        "DB_USER", "DB_PASSWORD", "GEMINI_API_KEY", "LANGSMITH_API_KEY",
       ]) &&
       toset([for secret in local.application_secrets["judge-api"] : secret.name]) == toset([
         "SECRET_KEY_BASE", "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB", "REDIS_PASSWORD",
@@ -280,7 +284,8 @@ run "Spring_Target_Group과_listener_rule은_안전하게_전환된다" {
       aws_lb_target_group.spring.target_type == "ip" &&
       aws_lb_target_group.spring.protocol == "HTTP" &&
       aws_lb_target_group.spring.port == 8080 &&
-      aws_lb_target_group.spring.health_check[0].path == "/api/actuator/health" &&
+      aws_lb_target_group.spring.health_check[0].path == "/actuator/health" &&
+      aws_lb_target_group.spring.health_check[0].port == "9091" &&
       aws_lb_target_group.spring.health_check[0].matcher == "200" &&
       aws_lb_target_group.spring.deregistration_delay == "30" &&
       !aws_lb_target_group.spring.stickiness[0].enabled &&
