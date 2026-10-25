@@ -505,3 +505,10 @@ check "judge_worker_capacity_enabled" {
     error_message = "enable_judge_worker_capacity must be true before enabling Judge Worker."
   }
 }
+
+variable "discord_webhook_url" {
+  description = "Discord incoming webhook URL for batch monitoring notifications"
+  type        = string
+  default     = ""
+  sensitive   = true
+}

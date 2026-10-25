@@ -88,3 +88,10 @@ variable "enable_public_dns_cutover" {
   default     = false
 }
 
+variable "discord_webhook_url" {
+  description = "Discord incoming webhook URL for batch monitoring notifications"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+

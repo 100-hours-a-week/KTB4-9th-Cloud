@@ -12,3 +12,5 @@ enable_judge_worker_capacity = true
 enable_judge_worker          = true
 judge_worker_desired_count   = 1
 enable_public_dns_cutover    = true
+
+discord_webhook_url = "https://discord.com/api/webhooks/1563769266560311458/6A2ZUwXFMvfA8oWVdHJiU9MwWZ7ZJ9GB51gHSdLEfTlZnMYcK9U0TbcH-9tZPJ71dPjb"

@@ -61,4 +61,5 @@ module "environment" {
   enable_container_insights    = false
   enable_stage_office_hours    = true
   enable_public_dns_cutover    = var.enable_public_dns_cutover
+  discord_webhook_url          = var.discord_webhook_url
 }

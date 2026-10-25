@@ -55,6 +55,7 @@ locals {
       { name = "DB_PASSWORD", valueFrom = "${aws_secretsmanager_secret.service["ai-postgres"].arn}:password::" },
       { name = "GEMINI_API_KEY", valueFrom = "${aws_secretsmanager_secret.service["fastapi"].arn}:gemini_api_key::" },
       { name = "LANGSMITH_API_KEY", valueFrom = "${aws_secretsmanager_secret.service["fastapi"].arn}:langsmith_api_key::" },
+      { name = "ADMIN_TOKEN", valueFrom = "${aws_secretsmanager_secret.service["fastapi"].arn}:admin_token::" },
     ]
     judge-api = [
       { name = "SECRET_KEY_BASE", valueFrom = "${aws_secretsmanager_secret.service["judge-api"].arn}:secret_key_base::" },
