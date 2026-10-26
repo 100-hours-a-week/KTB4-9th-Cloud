@@ -79,7 +79,12 @@ resource "aws_iam_role" "github_stage_cd" {
       Condition = {
         StringEquals = {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-          "token.actions.githubusercontent.com:sub" = "repo:${local.github_organization.name}@${local.github_organization.id}/${each.value.name}@${each.value.id}:environment:staging"
+          "token.actions.githubusercontent.com:sub" = each.key == "fastapi" ? [
+            "repo:${local.github_organization.name}@${local.github_organization.id}/${each.value.name}@${each.value.id}:environment:staging",
+            "repo:${local.github_organization.name}@${local.github_organization.id}/${each.value.name}@${each.value.id}:environment:production-approval"
+          ] : [
+            "repo:${local.github_organization.name}@${local.github_organization.id}/${each.value.name}@${each.value.id}:environment:staging"
+          ]
         }
       }
     }]
