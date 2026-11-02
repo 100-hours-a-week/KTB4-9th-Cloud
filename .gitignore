@@ -22,6 +22,7 @@
 # 일반 환경변수 파일
 .env
 .env.*
+!v1/rabbitmq/.env.example
 v2/migration/config/*.env
 github-environments/
 
