@@ -21,7 +21,7 @@ for db in ai judge; do
   params=$(python3 -c 'import json,sys;print(json.dumps({"commands":[
     "set -e -o pipefail",
     f"c=$(docker ps --format {{{{.Names}}}} | grep -E -- -{sys.argv[1]}-postgres-[0-9a-f]+$)",
-    "u=$(docker exec $c sh -c \"cat \\$POSTGRES_USER_FILE 2>/dev/null || echo \\$POSTGRES_USER\")",
+    "u=$(docker exec $c sh -c \"echo \\$POSTGRES_USER\")",
     "test -n \"$u\"",
     f"docker exec $c pg_dumpall -U $u --clean --if-exists | gzip > /tmp/{sys.argv[1]}.sql.gz",
     f"gunzip -c /tmp/{sys.argv[1]}.sql.gz | grep -q \"database cluster dump complete\"",
