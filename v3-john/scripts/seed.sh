@@ -19,10 +19,12 @@ INSTANCE=$(aws ec2 describe-instances --region "$REGION" --filters "Name=tag:Nam
 for db in ai judge; do
   put=$(PYTHONPATH="$DEPS" python3 -c 'import boto3,sys;from botocore.config import Config;print(boto3.client("s3",region_name=sys.argv[1],config=Config(signature_version="s3v4")).generate_presigned_url("put_object",Params={"Bucket":sys.argv[2],"Key":sys.argv[3]},ExpiresIn=3600))' "$REGION" "$BUCKET" "eks-seed/$db.sql.gz")
   params=$(python3 -c 'import json,sys;print(json.dumps({"commands":[
-    "set -e",
-    f"c=$(docker ps --format {{{{.Names}}}} | grep {sys.argv[1]}-postgres | head -1)",
+    "set -e -o pipefail",
+    f"c=$(docker ps --format {{{{.Names}}}} | grep -E -- -{sys.argv[1]}-postgres-[0-9a-f]+$)",
     "u=$(docker exec $c sh -c \"cat \\$POSTGRES_USER_FILE 2>/dev/null || echo \\$POSTGRES_USER\")",
+    "test -n \"$u\"",
     f"docker exec $c pg_dumpall -U $u --clean --if-exists | gzip > /tmp/{sys.argv[1]}.sql.gz",
+    f"gunzip -c /tmp/{sys.argv[1]}.sql.gz | grep -q \"database cluster dump complete\"",
     f"curl -fsS -X PUT -T /tmp/{sys.argv[1]}.sql.gz \"{sys.argv[2]}\"",
     f"rm -f /tmp/{sys.argv[1]}.sql.gz"]}))' "$db" "$put")
   cmd=$(aws ssm send-command --region "$REGION" --instance-ids "$INSTANCE" --document-name AWS-RunShellScript --parameters "$params" --query Command.CommandId --output text)

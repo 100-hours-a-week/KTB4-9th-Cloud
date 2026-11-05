@@ -8,7 +8,7 @@ spec:
     - name: prod
       namespace: prod
   hostnames:
-    - grafana.cosmoscode.site
+    - grafana-v3.cosmoscode.site
   rules:
     - backendRefs:
         - { name: kube-prometheus-stack-grafana, port: 80 }
