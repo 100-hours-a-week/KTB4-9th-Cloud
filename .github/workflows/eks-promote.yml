@@ -59,7 +59,7 @@ jobs:
           [[ "$digest" == sha256:* ]] || { echo "::error::원본 이미지를 찾을 수 없습니다"; exit 1; }
           for target in $targets; do
             file="${target%%:*}"; repo="${target##*:}"
-            docker buildx imagetools create -t "$REGISTRY/$repo:$IMAGE_TAG" "$REGISTRY/$source_repo@$digest"
+            docker buildx imagetools create -t "$REGISTRY/$repo:$IMAGE_TAG" -t "$REGISTRY/$repo:prod-${digest:7:12}" "$REGISTRY/$source_repo@$digest"
             sed -i -E "s#^image: .*#image: $REGISTRY/$repo@$digest#" "v3/gitops/environments/prod/$file.yaml"
           done
           echo "DIGEST=$digest" >> "$GITHUB_ENV"
