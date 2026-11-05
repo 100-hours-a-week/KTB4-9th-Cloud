@@ -65,6 +65,22 @@ variable "node_groups" {
       labels        = { "workload-class" = "system" }
       taints        = [{ key = "CriticalAddonsOnly", value = "true", effect = "NO_SCHEDULE" }]
     }
+    stateful-ng = {
+      instance_type = "m7i.xlarge"
+      min_size      = 1
+      desired_size  = 1
+      max_size      = 3
+      labels        = { "workload-class" = "stateful" }
+      taints        = [{ key = "workload", value = "stateful", effect = "NO_SCHEDULE" }]
+    }
+    judge-base-ng = {
+      instance_type = "c7i.2xlarge"
+      min_size      = 1
+      desired_size  = 1
+      max_size      = 1
+      labels        = { "workload-class" = "judge" }
+      taints        = [{ key = "workload", value = "judge", effect = "NO_SCHEDULE" }]
+    }
     application-ng = {
       instance_type = "t3.xlarge"
       min_size      = 2
@@ -89,4 +105,21 @@ variable "ecr_repositories" {
     "cosmos-judge-worker",
     "cosmos-mlflow",
   ]
+}
+
+variable "rds_security_group_id" {
+  type = string
+}
+
+variable "valkey_security_group_id" {
+  type = string
+}
+
+variable "workload_secrets" {
+  description = "prod ServiceAccount별 읽기 허용 Secret"
+  type        = map(list(string))
+}
+
+variable "mlflow_bucket_arn" {
+  type = string
 }

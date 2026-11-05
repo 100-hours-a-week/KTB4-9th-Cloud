@@ -1,0 +1,84 @@
+# chart: prometheus-community/kube-prometheus-stack 92.18.0
+# Grafana 관리자 계정은 Secret grafana-admin을 사용한다. Secret discord-webhook은 Secrets Manager cosmos/monitoring/discord-webhook 값이다.
+kubeEtcd: { enabled: false }
+kubeScheduler: { enabled: false }
+kubeControllerManager: { enabled: false }
+kubeProxy: { enabled: false }
+prometheus:
+  prometheusSpec:
+    retention: 15d
+    retentionSize: 25GB
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    resources:
+      requests: { cpu: 500m, memory: 2Gi }
+      limits: { cpu: "2", memory: 4Gi }
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp3-retain
+          accessModes: [ReadWriteOnce]
+          resources: { requests: { storage: 30Gi } }
+alertmanager:
+  config:
+    route:
+      receiver: discord
+      group_by: [alertname, namespace]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+      routes:
+        - receiver: "null"
+          matchers:
+            - alertname=~"Watchdog|InfoInhibitor"
+    receivers:
+      - name: "null"
+      - name: discord
+        discord_configs:
+          - webhook_url_file: /etc/alertmanager/secrets/discord-webhook/url
+            send_resolved: true
+  alertmanagerSpec:
+    secrets: [discord-webhook]
+    resources:
+      requests: { cpu: 50m, memory: 128Mi }
+      limits: { cpu: 200m, memory: 256Mi }
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp3-retain
+          accessModes: [ReadWriteOnce]
+          resources: { requests: { storage: 2Gi } }
+grafana:
+  admin:
+    existingSecret: grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+  persistence:
+    enabled: true
+    storageClassName: gp3-retain
+    size: 5Gi
+  sidecar:
+    dashboards: { enabled: true, label: grafana_dashboard, searchNamespace: monitoring }
+    datasources: { enabled: true, uid: prometheus-v2, name: Prometheus v2 }
+  additionalDataSources:
+    - name: Loki v2
+      uid: loki-v2
+      type: loki
+      access: proxy
+      url: http://loki.monitoring.svc.cluster.local:3100
+prometheusOperator:
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits: { cpu: 300m, memory: 256Mi }
+kube-state-metrics:
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { cpu: 200m, memory: 256Mi }
+prometheus-node-exporter:
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { cpu: 200m, memory: 128Mi }

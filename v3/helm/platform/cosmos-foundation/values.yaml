@@ -12,7 +12,7 @@ namespaces:
     quota: { pods: "60", requestsCpu: "64", requestsMemory: 72Gi, limitsCpu: "90", limitsMemory: 96Gi, pvcs: "5", storage: 100Gi }
   monitoring:
     podSecurity: {}
-    quota: { pods: "30", requestsCpu: "8", requestsMemory: 16Gi, limitsCpu: "16", limitsMemory: 32Gi, pvcs: "5", storage: 200Gi }
+    quota: { pods: "30", requestsCpu: "8", requestsMemory: 16Gi, limitsCpu: "24", limitsMemory: 32Gi, pvcs: "5", storage: 200Gi }
 
 limitRange:
   defaultRequest: { cpu: 100m, memory: 128Mi }

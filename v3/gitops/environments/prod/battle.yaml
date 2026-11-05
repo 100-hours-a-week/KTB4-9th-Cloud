@@ -1,0 +1,33 @@
+name: cosmos-battle
+component: battle
+image: 352635536602.dkr.ecr.ap-northeast-2.amazonaws.com/cosmos-battle@sha256:ebfbf1e12c010fb6a78db999f011995b7063c5150cda20b1de0b19ed353af849
+serviceAccount: battle-sa
+service: { name: battle-service }
+extraPorts: [{ name: management, port: 9091 }]
+env:
+  SPRING_PROFILES_ACTIVE: stage
+  SPRING_CONFIG_IMPORT: optional:configtree:/mnt/secrets/
+  SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "10"
+  MANAGEMENT_SERVER_PORT: "9091"
+  APP_REGION: ap-northeast-2
+  APP_VERSION: v3
+  FRONTEND_BASE_URL: https://eks.cosmoscode.site
+  KAKAO_REDIRECT_URI: https://eks.cosmoscode.site/api/auth/oauth/kakao/callback
+  SPRING_JPA_OPEN_IN_VIEW: "true"
+  SENTRY_ENVIRONMENT: stage
+  AI_SERVER_BASE_URL: http://ai-llm-service
+  JUDGE0_BASE_URL: http://judge-api-service
+secrets:
+  - secret: cosmos/prod/spring-config
+    keys: { DB_URL: DB_URL }
+  - secret: "rds!db-a46a0c07-f0b9-4008-8625-fb7c744e7d1f"
+    keys: { username: DB_USERNAME, password: DB_PASSWORD }
+  - secret: /cosmos-v2/stage/spring
+    keys: { kakao_client_id: KAKAO_CLIENT_ID, kakao_client_secret: KAKAO_CLIENT_SECRET, kakao_redirect_uri: KAKAO_REDIRECT_URI, jwt_secret: JWT_SECRET }
+resources:
+  requests: { cpu: "1", memory: 1Gi }
+  limits: { cpu: "2", memory: 2Gi }
+probes:
+  startupProbe: { tcpSocket: { port: 8080 }, periodSeconds: 5, timeoutSeconds: 2, failureThreshold: 36 }
+  readinessProbe: { tcpSocket: { port: 8080 }, periodSeconds: 5, timeoutSeconds: 2, failureThreshold: 3 }
+  livenessProbe: { tcpSocket: { port: 8080 }, periodSeconds: 10, timeoutSeconds: 2, failureThreshold: 3 }

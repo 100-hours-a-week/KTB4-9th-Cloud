@@ -122,3 +122,22 @@ resource "aws_eks_pod_identity_association" "cluster_autoscaler" {
   service_account = "cluster-autoscaler"
   role_arn        = aws_iam_role.cluster_autoscaler.arn
 }
+
+# 정책 원본: aws-load-balancer-controller docs/install/iam_policy.json
+resource "aws_iam_role" "lb_controller" {
+  name               = "${var.cluster_name}-lb-controller-role"
+  assume_role_policy = data.aws_iam_policy_document.pod_identity_assume.json
+}
+
+resource "aws_iam_role_policy" "lb_controller" {
+  name   = "lb-controller"
+  role   = aws_iam_role.lb_controller.id
+  policy = file("${path.module}/lb-controller-policy.json")
+}
+
+resource "aws_eks_pod_identity_association" "lb_controller" {
+  cluster_name    = aws_eks_cluster.main.name
+  namespace       = "kube-system"
+  service_account = "aws-load-balancer-controller"
+  role_arn        = aws_iam_role.lb_controller.arn
+}

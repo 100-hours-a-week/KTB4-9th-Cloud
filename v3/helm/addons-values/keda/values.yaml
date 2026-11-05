@@ -1,0 +1,5 @@
+# chart: kedacore/keda 2.21.0
+nodeSelector: { workload-class: system }
+tolerations:
+  - key: CriticalAddonsOnly
+    operator: Exists
