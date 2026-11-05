@@ -33,6 +33,14 @@ module "eks" {
   valkey_security_group_id = "sg-0771c1aefded0effb"
   mlflow_bucket_arn        = "arn:aws:s3:::cosmos-v2-stage-mlflow-artifacts-352635536602"
 
+  github_oidc_provider_arn = "arn:aws:iam::352635536602:oidc-provider/token.actions.githubusercontent.com"
+
+  ci_promote_sub = "repo:100-hours-a-week@167328634/KTB4-9th-Cloud@1344702375:environment:eks-prod"
+  ci_promote_images = {
+    "cosmos-v2/spring"  = ["cosmos-auth", "cosmos-core", "cosmos-battle"]
+    "cosmos-v2/fastapi" = ["cosmos-ai-llm", "cosmos-ai-make-problem", "cosmos-ai-problem-batch"]
+  }
+
   workload_secrets = {
     auth-sa           = ["rds!db-a46a0c07-f0b9-4008-8625-fb7c744e7d1f", "/cosmos-v2/stage/spring", "cosmos/prod/spring-config"]
     core-sa           = ["rds!db-a46a0c07-f0b9-4008-8625-fb7c744e7d1f", "/cosmos-v2/stage/spring", "cosmos/prod/spring-config"]

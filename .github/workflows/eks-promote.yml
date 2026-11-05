@@ -1,0 +1,80 @@
+name: EKS Prod Promote
+
+on:
+  workflow_dispatch:
+    inputs:
+      component:
+        description: "승격할 이미지"
+        required: true
+        type: choice
+        options: [spring, fastapi]
+      image_tag:
+        description: "cosmos-v2 ECR의 이미지 태그 (Git SHA)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+concurrency:
+  group: eks-promote
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    environment: eks-prod
+    env:
+      AWS_REGION: ap-northeast-2
+      COMPONENT: ${{ inputs.component }}
+      IMAGE_TAG: ${{ inputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate input
+        run: |
+          [[ "$IMAGE_TAG" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::image_tag는 40자리 Git SHA여야 합니다"; exit 1; }
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.EKS_PROMOTE_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Copy image to service repositories
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          case "$COMPONENT" in
+            spring)  source_repo=cosmos-v2/spring;  targets="auth:cosmos-auth core:cosmos-core battle:cosmos-battle" ;;
+            fastapi) source_repo=cosmos-v2/fastapi; targets="ai-llm:cosmos-ai-llm ai-make-problem:cosmos-ai-make-problem ai-problem-batch:cosmos-ai-problem-batch" ;;
+          esac
+          digest=$(aws ecr describe-images --repository-name "$source_repo" --image-ids imageTag="$IMAGE_TAG" --query 'imageDetails[0].imageDigest' --output text)
+          [[ "$digest" == sha256:* ]] || { echo "::error::원본 이미지를 찾을 수 없습니다"; exit 1; }
+          for target in $targets; do
+            file="${target%%:*}"; repo="${target##*:}"
+            docker buildx imagetools create -t "$REGISTRY/$repo:$IMAGE_TAG" "$REGISTRY/$source_repo@$digest"
+            sed -i -E "s#^image: .*#image: $REGISTRY/$repo@$digest#" "v3/gitops/environments/prod/$file.yaml"
+          done
+          echo "DIGEST=$digest" >> "$GITHUB_ENV"
+
+      - name: Open promotion PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          branch="promote/$COMPONENT-${IMAGE_TAG:0:12}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add v3/gitops/environments/prod
+          git commit -m "deploy(prod): $COMPONENT ${IMAGE_TAG:0:12} 승격"
+          git push origin "$branch"
+          gh pr create --base "$GITHUB_REF_NAME" --head "$branch" \
+            --title "deploy(prod): $COMPONENT ${IMAGE_TAG:0:12} 승격" \
+            --body "원본 digest: \`$DIGEST\`. Merge 후 Argo CD에서 Manual Sync합니다."

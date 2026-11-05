@@ -123,3 +123,17 @@ variable "workload_secrets" {
 variable "mlflow_bucket_arn" {
   type = string
 }
+
+variable "github_oidc_provider_arn" {
+  type = string
+}
+
+variable "ci_promote_sub" {
+  description = "이미지 승격 워크플로의 OIDC sub"
+  type        = string
+}
+
+variable "ci_promote_images" {
+  description = "원본 ECR별 복사 대상 ECR"
+  type        = map(list(string))
+}
