@@ -1,0 +1,38 @@
+name: cosmos-ai-llm
+component: ai
+image: 352635536602.dkr.ecr.ap-northeast-2.amazonaws.com/cosmos-ai-llm@sha256:023356171f5055120bb769c560e263558cc58d222b0723752a22bde586dbbc2c
+serviceAccount: ai-llm-sa
+port: 8000
+service: { name: ai-llm-service }
+command: ["sh", "-c", 'for f in /mnt/secrets/[A-Z]*; do export "$(basename "$f")=$(cat "$f")"; done; exec uvicorn src.main:app --host 0.0.0.0 --port 8000']
+env:
+  DB_ECHO: "false"
+  DB_PORT: "5432"
+  DB_NAME: cosmos
+  DB_HOST: ai-postgres
+  DB_POOL_SIZE: "5"
+  DB_MAX_OVERFLOW: "5"
+  JUDGE0_URL: http://judge-api-service
+  BACKEND_URL: http://core-service/api
+  LANGSMITH_ENDPOINT: https://api.smith.langchain.com
+  LANGSMITH_TRACING: "true"
+  LANGSMITH_PROJECT: cosmos-v3-wade
+  MOCK_LLM: "false"
+  BATCH_ENABLED: "false"
+  BATCH_TIMEZONE: Asia/Seoul
+  BATCH_CONCURRENCY: "5"
+  LOG_LEVEL: INFO
+secrets:
+  - secret: /cosmos-v2/stage/ai-postgres
+    keys: { username: DB_USER, password: DB_PASSWORD }
+  - secret: /cosmos-v2/stage/fastapi
+    keys: { gemini_api_key: GEMINI_API_KEY, langsmith_api_key: LANGSMITH_API_KEY, admin_token: ADMIN_TOKEN }
+resources:
+  requests: { cpu: 500m, memory: 512Mi }
+  limits: { cpu: "1", memory: 1Gi }
+probes:
+  startupProbe: { httpGet: { path: /health, port: 8000 }, periodSeconds: 2, timeoutSeconds: 2, failureThreshold: 30 }
+  readinessProbe: { httpGet: { path: /health, port: 8000 }, periodSeconds: 5, timeoutSeconds: 2, failureThreshold: 3 }
+  livenessProbe: { httpGet: { path: /health, port: 8000 }, periodSeconds: 10, timeoutSeconds: 2, failureThreshold: 3 }
+replicas: null # HPA가 관리
+hpa: { enabled: true, min: 1, max: 2, cpu: 70 }

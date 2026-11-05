@@ -1,0 +1,7 @@
+# chart: oci://docker.io/envoyproxy/gateway-helm 1.9.3
+deployment:
+  pod:
+    nodeSelector: { workload-class: system }
+    tolerations:
+      - key: CriticalAddonsOnly
+        operator: Exists

@@ -1,0 +1,32 @@
+name: cosmos-judge-worker
+component: judge
+image: 352635536602.dkr.ecr.ap-northeast-2.amazonaws.com/cosmos-judge-worker@sha256:84c7632c8e3d0911a64d1a5114cf0126b0f96e12700c9a2781dc832f7e0e5320
+serviceAccount: judge-worker-sa
+replicas: null # KEDA가 관리
+port: 0
+service: { enabled: false }
+privileged: true
+nodeSelector: { workload-class: judge }
+tolerations: [{ key: workload, value: judge, effect: NoSchedule }]
+command: ["sh", "-c", 'for f in /mnt/secrets/[A-Z]*; do export "$(basename "$f")=$(cat "$f")"; done; exec ./scripts/workers']
+terminationGracePeriodSeconds: 120
+env:
+  REDIS_HOST: judge-redis-queue
+  REDIS_PORT: "6379"
+  POSTGRES_HOST: judge-postgres
+  POSTGRES_PORT: "5432"
+  RAILS_ENV: production
+  RESQUE_NAMESPACE: prod:judge0
+  COUNT: "2"
+  INTERVAL: "0.1"
+secrets:
+  - secret: /cosmos-v2/stage/judge-api
+    keys: { secret_key_base: SECRET_KEY_BASE }
+  - secret: /cosmos-v2/stage/judge-postgres
+    keys: { username: POSTGRES_USER, password: POSTGRES_PASSWORD, database: POSTGRES_DB }
+  - secret: /cosmos-v2/stage/judge-redis
+    keys: { password: REDIS_PASSWORD }
+resources:
+  requests: { cpu: "2", memory: 2Gi }
+  limits: { cpu: "2", memory: 2Gi }
+rollingUpdate: { maxUnavailable: 1, maxSurge: 0 }

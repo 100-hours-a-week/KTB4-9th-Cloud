@@ -1,0 +1,380 @@
+# 설계서 13장을 기준으로 코드 실제 호출을 반영한다. Battle·AI 평가 스케줄러가 모든 Spring 파드에서 돌아 AI 호출은 Spring 3개 모두 허용한다.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: prod
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: prod
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: kube-system }
+          podSelector:
+            matchLabels: { k8s-app: kube-dns }
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cosmos-auth
+  namespace: prod
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: cosmos-auth }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: envoy-gateway-system }
+      ports:
+        - { protocol: TCP, port: 8080 }
+  egress:
+    - to:
+        - ipBlock: { cidr: 10.40.20.0/23 }
+      ports:
+        - { protocol: TCP, port: 3306 }
+        - { protocol: TCP, port: 6379 }
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12]
+      ports:
+        - { protocol: TCP, port: 443 }
+    - to:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: cosmos-ai-llm }
+      ports:
+        - { protocol: TCP, port: 8000 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cosmos-core
+  namespace: prod
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: cosmos-core }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: envoy-gateway-system }
+      ports:
+        - { protocol: TCP, port: 8080 }
+    - from:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: cosmos-ai-problem-batch }
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: cosmos-ai-llm }
+      ports:
+        - { protocol: TCP, port: 8080 }
+  egress:
+    - to:
+        - ipBlock: { cidr: 10.40.20.0/23 }
+      ports:
+        - { protocol: TCP, port: 3306 }
+        - { protocol: TCP, port: 6379 }
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12]
+      ports:
+        - { protocol: TCP, port: 443 }
+    - to:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: cosmos-ai-llm }
+      ports:
+        - { protocol: TCP, port: 8000 }
+    - to:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: cosmos-judge-api }
+      ports:
+        - { protocol: TCP, port: 2358 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cosmos-battle
+  namespace: prod
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: cosmos-battle }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: envoy-gateway-system }
+      ports:
+        - { protocol: TCP, port: 8080 }
+  egress:
+    - to:
+        - ipBlock: { cidr: 10.40.20.0/23 }
+      ports:
+        - { protocol: TCP, port: 3306 }
+        - { protocol: TCP, port: 6379 }
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12]
+      ports:
+        - { protocol: TCP, port: 443 }
+    - to:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: cosmos-ai-llm }
+      ports:
+        - { protocol: TCP, port: 8000 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cosmos-ai-llm
+  namespace: prod
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: cosmos-ai-llm }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: cosmos-auth }
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: cosmos-core }
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: cosmos-battle }
+      ports:
+        - { protocol: TCP, port: 8000 }
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: ai-postgres }
+      ports:
+        - { protocol: TCP, port: 5432 }
+    - to:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: cosmos-core }
+      ports:
+        - { protocol: TCP, port: 8080 }
+    - to:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: cosmos-judge-api }
+      ports:
+        - { protocol: TCP, port: 2358 }
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12]
+      ports:
+        - { protocol: TCP, port: 443 }
+    - to:
+        - ipBlock: { cidr: 169.254.170.23/32 }
+      ports:
+        - { protocol: TCP, port: 80 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cosmos-ai-make-problem
+  namespace: prod
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: cosmos-ai-make-problem }
+  policyTypes: [Ingress, Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: ai-postgres }
+      ports:
+        - { protocol: TCP, port: 5432 }
+    - to:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: cosmos-core }
+      ports:
+        - { protocol: TCP, port: 8080 }
+    - to:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: cosmos-judge-api }
+      ports:
+        - { protocol: TCP, port: 2358 }
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12]
+      ports:
+        - { protocol: TCP, port: 443 }
+    - to:
+        - ipBlock: { cidr: 169.254.170.23/32 }
+      ports:
+        - { protocol: TCP, port: 80 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cosmos-ai-problem-batch
+  namespace: prod
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: cosmos-ai-problem-batch }
+  policyTypes: [Ingress, Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: ai-postgres }
+      ports:
+        - { protocol: TCP, port: 5432 }
+    - to:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: cosmos-core }
+      ports:
+        - { protocol: TCP, port: 8080 }
+    - to:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: cosmos-judge-api }
+      ports:
+        - { protocol: TCP, port: 2358 }
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12]
+      ports:
+        - { protocol: TCP, port: 443 }
+    - to:
+        - ipBlock: { cidr: 169.254.170.23/32 }
+      ports:
+        - { protocol: TCP, port: 80 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cosmos-mlflow
+  namespace: prod
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: cosmos-mlflow }
+  policyTypes: [Ingress, Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: ai-postgres }
+      ports:
+        - { protocol: TCP, port: 5432 }
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12]
+      ports:
+        - { protocol: TCP, port: 443 }
+    - to:
+        - ipBlock: { cidr: 169.254.170.23/32 }
+      ports:
+        - { protocol: TCP, port: 80 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ai-postgres
+  namespace: prod
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: ai-postgres }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: cosmos-ai-llm }
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: cosmos-ai-make-problem }
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: cosmos-ai-problem-batch }
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: cosmos-ai-migrate }
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: cosmos-mlflow }
+      ports:
+        - { protocol: TCP, port: 5432 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cosmos-judge-api
+  namespace: prod
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: cosmos-judge-api }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: cosmos-core }
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: cosmos-ai-llm }
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: cosmos-ai-make-problem }
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: cosmos-ai-problem-batch }
+      ports:
+        - { protocol: TCP, port: 2358 }
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: judge-redis-queue }
+      ports:
+        - { protocol: TCP, port: 6379 }
+    - to:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: judge-postgres }
+      ports:
+        - { protocol: TCP, port: 5432 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: judge-postgres
+  namespace: prod
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: judge-postgres }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: cosmos-judge-api }
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: cosmos-judge-worker }
+      ports:
+        - { protocol: TCP, port: 5432 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: judge-redis-queue
+  namespace: prod
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: judge-redis-queue }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: cosmos-judge-api }
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: cosmos-judge-worker }
+      ports:
+        - { protocol: TCP, port: 6379 }
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: keda }
+      ports:
+        - { protocol: TCP, port: 6379 }

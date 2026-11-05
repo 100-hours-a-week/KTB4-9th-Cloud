@@ -1,0 +1,19 @@
+name: judge-redis-queue
+component: data
+image: redis:7.2.4@sha256:5a93f6b2e391b78e8bd3f9e7e1e1e06aeb5295043b4703fb88392835cec924a0
+serviceAccount: judge-redis-sa
+port: 6379
+service: { name: judge-redis-queue, port: 6379 }
+nodeSelector: { workload-class: stateful }
+tolerations: [{ key: workload, value: stateful, effect: NoSchedule }]
+priorityClass: cosmos-platform-critical
+stateful: { enabled: true, storage: 5Gi, mountPath: /data }
+command: ["sh", "-c", 'exec redis-server --appendonly yes --requirepass "$(cat /mnt/secrets/REDIS_PASSWORD)"']
+secrets:
+  - secret: /cosmos-v2/stage/judge-redis
+    keys: { password: REDIS_PASSWORD }
+resources:
+  requests: { cpu: 250m, memory: 512Mi }
+  limits: { cpu: "1", memory: 1Gi }
+probes:
+  readinessProbe: { exec: { command: ["sh", "-c", 'redis-cli -a "$(cat /mnt/secrets/REDIS_PASSWORD)" --no-auth-warning ping | grep PONG'] }, periodSeconds: 10, timeoutSeconds: 3, failureThreshold: 3 }
