@@ -90,3 +90,16 @@ module "edge_argocd" {
   vpc_origin_id = module.edge.vpc_origin_id
   web_acl_arn   = module.edge.web_acl_arn
 }
+
+module "edge_grafana" {
+  source = "../../modules/edge-internal"
+  providers = {
+    aws.us_east_1 = aws.us_east_1
+  }
+
+  domain        = "grafana.cosmoscode.site"
+  zone_id       = data.aws_route53_zone.main.zone_id
+  nlb_dns_name  = data.aws_lb.prod.dns_name
+  vpc_origin_id = module.edge.vpc_origin_id
+  web_acl_arn   = module.edge.web_acl_arn
+}

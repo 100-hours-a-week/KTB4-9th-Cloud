@@ -55,7 +55,7 @@ for a in auth core battle ai-llm ai-make-problem ai-problem-batch mlflow judge-a
 for a in auth core battle ai-llm mlflow judge-api judge-worker; do wait_healthy "prod-$a"; done
 
 until kubectl get svc -n envoy-gateway-system -o jsonpath='{.items[*].status.loadBalancer.ingress[*].hostname}' | grep -q "$CLUSTER"; do sleep 10; done
-kubectl apply -f "$G/environments/argocd/route.yaml"
+kubectl apply -f "$G/environments/argocd/route.yaml" -f "$G/environments/argocd/grafana-route.yaml"
 tf apply -input=false -auto-approve -var "seed_snapshot_identifier=$SNAPSHOT" -var enable_edge=true
 aws s3 sync "s3://$SEED_BUCKET/eks-seed/frontend/" "s3://$(tf output -raw edge_bucket)/" --delete
 aws cloudfront create-invalidation --distribution-id "$(tf output -raw edge_distribution_id)" --paths '/*' >/dev/null

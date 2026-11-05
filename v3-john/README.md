@@ -8,6 +8,7 @@
 | VPC | `10.30.0.0/16` |
 | 서비스 | `https://john.cosmoscode.site` |
 | Argo CD | `https://argocd-john.cosmoscode.site` |
+| Grafana | `https://grafana-john.cosmoscode.site` |
 | 노드 | Spot 5대, 16 vCPU |
 
 ## 사용
