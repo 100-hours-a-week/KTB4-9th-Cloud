@@ -1,0 +1,34 @@
+name: cosmos-ai-make-problem
+component: ai
+image: 352635536602.dkr.ecr.ap-northeast-2.amazonaws.com/cosmos-ai-make-problem@sha256:023356171f5055120bb769c560e263558cc58d222b0723752a22bde586dbbc2c
+serviceAccount: ai-job-sa
+port: 0
+service: { enabled: false }
+priorityClass: cosmos-batch
+command: ["sh", "-c", 'for f in /mnt/secrets/[A-Z]*; do export "$(basename "$f")=$(cat "$f")"; done; exec python -m src.batch generate']
+env:
+  DB_ECHO: "false"
+  DB_PORT: "5432"
+  DB_NAME: cosmos
+  DB_HOST: ai-postgres
+  DB_POOL_SIZE: "5"
+  DB_MAX_OVERFLOW: "5"
+  JUDGE0_URL: http://judge-api-service
+  BACKEND_URL: http://core-service/api
+  LANGSMITH_ENDPOINT: https://api.smith.langchain.com
+  LANGSMITH_TRACING: "true"
+  LANGSMITH_PROJECT: cosmos-v3-wade
+  MOCK_LLM: "false"
+  BATCH_ENABLED: "false"
+  BATCH_TIMEZONE: Asia/Seoul
+  BATCH_CONCURRENCY: "5"
+  LOG_LEVEL: INFO
+secrets:
+  - secret: /cosmos-v2/stage/ai-postgres
+    keys: { username: DB_USER, password: DB_PASSWORD }
+  - secret: /cosmos-v2/stage/fastapi
+    keys: { gemini_api_key: GEMINI_API_KEY, langsmith_api_key: LANGSMITH_API_KEY, admin_token: ADMIN_TOKEN }
+resources:
+  requests: { cpu: 250m, memory: 512Mi }
+  limits: { cpu: "1", memory: 1Gi }
+cronJob: { enabled: true, schedule: "0 12 * * *", suspend: true, activeDeadlineSeconds: 5400 }

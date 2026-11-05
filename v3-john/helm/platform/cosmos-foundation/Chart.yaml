@@ -1,0 +1,5 @@
+apiVersion: v2
+name: cosmos-foundation
+description: COSMOS Namespace, Quota, LimitRange, StorageClass, RBAC, PriorityClass
+type: application
+version: 0.1.0

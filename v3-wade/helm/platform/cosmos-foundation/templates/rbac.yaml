@@ -1,0 +1,25 @@
+# Secret 조회, exec, port-forward, impersonate는 포함하지 않는다.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cosmos-namespace-deployer
+rules:
+  - apiGroups: ["", "apps", "batch", "autoscaling", "policy", "networking.k8s.io", "gateway.networking.k8s.io", "keda.sh"]
+    resources: ["pods", "pods/log", "services", "configmaps", "serviceaccounts", "events", "deployments", "replicasets", "statefulsets", "jobs", "cronjobs", "horizontalpodautoscalers", "poddisruptionbudgets", "networkpolicies", "httproutes", "scaledobjects"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+{{- range .Values.deployerNamespaces }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cosmos-deployers
+  namespace: {{ . }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cosmos-namespace-deployer
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: cosmos:{{ . }}-deployers
+{{- end }}

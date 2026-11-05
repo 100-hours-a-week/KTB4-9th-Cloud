@@ -1,0 +1,26 @@
+name: ""
+component: ""
+image: ""
+version: ""
+replicas: 1
+serviceAccount: ""
+createServiceAccount: true
+command: []
+env: {}
+secrets: []
+secretMountPath: /mnt/secrets
+port: 8080
+service: { enabled: true, name: "", port: 80 }
+extraPorts: []
+probes: {}
+resources: {}
+priorityClass: cosmos-api
+nodeSelector: { workload-class: application }
+tolerations: []
+terminationGracePeriodSeconds: 60
+stateful: { enabled: false, storage: 30Gi, mountPath: "", storageClass: gp3-retain }
+cronJob: { enabled: false, schedule: "", suspend: true, activeDeadlineSeconds: 5400 }
+job: { enabled: false }
+privileged: false
+rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+hpa: { enabled: false, min: 1, max: 1, cpu: 70 }

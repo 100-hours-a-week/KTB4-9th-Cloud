@@ -1,0 +1,35 @@
+name: cosmos-core
+component: core
+image: 352635536602.dkr.ecr.ap-northeast-2.amazonaws.com/cosmos-core@sha256:ebfbf1e12c010fb6a78db999f011995b7063c5150cda20b1de0b19ed353af849
+serviceAccount: core-sa
+service: { name: core-service }
+extraPorts: [{ name: management, port: 9091 }]
+env:
+  SPRING_PROFILES_ACTIVE: stage
+  SPRING_CONFIG_IMPORT: optional:configtree:/mnt/secrets/
+  SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "10"
+  MANAGEMENT_SERVER_PORT: "9091"
+  APP_REGION: ap-northeast-2
+  APP_VERSION: v3
+  FRONTEND_BASE_URL: https://john.cosmoscode.site
+  KAKAO_REDIRECT_URI: https://john.cosmoscode.site/api/auth/oauth/kakao/callback
+  SPRING_JPA_OPEN_IN_VIEW: "true"
+  SENTRY_ENVIRONMENT: stage
+  AI_SERVER_BASE_URL: http://ai-llm-service
+  JUDGE0_BASE_URL: http://judge-api-service
+secrets:
+  - secret: cosmos/john/spring-config
+    keys: { DB_URL: DB_URL }
+  - secret: cosmos/john/main-db
+    keys: { username: DB_USERNAME, password: DB_PASSWORD }
+  - secret: /cosmos-v2/stage/spring
+    keys: { kakao_client_id: KAKAO_CLIENT_ID, kakao_client_secret: KAKAO_CLIENT_SECRET, kakao_redirect_uri: KAKAO_REDIRECT_URI, jwt_secret: JWT_SECRET }
+resources:
+  requests: { cpu: "1", memory: 1Gi }
+  limits: { cpu: "2", memory: 2Gi }
+probes:
+  startupProbe: { tcpSocket: { port: 8080 }, periodSeconds: 5, timeoutSeconds: 2, failureThreshold: 36 }
+  readinessProbe: { httpGet: { path: /actuator/health, port: 9091 }, periodSeconds: 5, timeoutSeconds: 2, failureThreshold: 3 }
+  livenessProbe: { tcpSocket: { port: 8080 }, periodSeconds: 10, timeoutSeconds: 2, failureThreshold: 3 }
+replicas: null # HPA가 관리
+hpa: { enabled: true, min: 1, max: 3, cpu: 70 }

@@ -1,0 +1,10 @@
+# chart: aws-secrets-manager/secrets-store-csi-driver-provider-aws 3.1.4
+tolerations:
+  - operator: Exists
+secrets-store-csi-driver:
+  install: true
+  syncSecret:
+    enabled: true # KEDA Redis Scaler 예외용
+  linux:
+    tolerations:
+      - operator: Exists

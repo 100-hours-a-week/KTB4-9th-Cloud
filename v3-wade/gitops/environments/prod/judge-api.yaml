@@ -1,0 +1,31 @@
+name: cosmos-judge-api
+component: judge
+image: 352635536602.dkr.ecr.ap-northeast-2.amazonaws.com/cosmos-judge-api@sha256:84c7632c8e3d0911a64d1a5114cf0126b0f96e12700c9a2781dc832f7e0e5320
+serviceAccount: judge-api-sa
+port: 2358
+service: { name: judge-api-service }
+command: ["sh", "-c", 'for f in /mnt/secrets/[A-Z]*; do export "$(basename "$f")=$(cat "$f")"; done; exec ./scripts/server']
+env:
+  REDIS_HOST: judge-redis-queue
+  REDIS_PORT: "6379"
+  POSTGRES_HOST: judge-postgres
+  POSTGRES_PORT: "5432"
+  RAILS_ENV: production
+  RESQUE_NAMESPACE: prod:judge0
+  PORT: "2358"
+secrets:
+  - secret: /cosmos-v2/stage/judge-api
+    keys: { secret_key_base: SECRET_KEY_BASE }
+  - secret: /cosmos-v2/stage/judge-postgres
+    keys: { username: POSTGRES_USER, password: POSTGRES_PASSWORD, database: POSTGRES_DB }
+  - secret: /cosmos-v2/stage/judge-redis
+    keys: { password: REDIS_PASSWORD }
+resources:
+  requests: { cpu: 250m, memory: 512Mi }
+  limits: { cpu: "1", memory: 1Gi }
+probes:
+  startupProbe: { httpGet: { path: /version, port: 2358 }, periodSeconds: 5, timeoutSeconds: 2, failureThreshold: 36 }
+  readinessProbe: { httpGet: { path: /version, port: 2358 }, periodSeconds: 5, timeoutSeconds: 2, failureThreshold: 3 }
+  livenessProbe: { httpGet: { path: /version, port: 2358 }, periodSeconds: 10, timeoutSeconds: 2, failureThreshold: 3 }
+replicas: null # HPA가 관리
+hpa: { enabled: true, min: 1, max: 2, cpu: 70 }

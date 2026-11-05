@@ -1,0 +1,25 @@
+name: ai-postgres
+component: data
+image: pgvector/pgvector:pg17@sha256:ac08538c6f8b9904c33c8224c5e5706dbe760aca29db1d096972b4052c22a75d
+serviceAccount: ai-postgres-sa
+port: 5432
+service: { name: ai-postgres, port: 5432 }
+priorityClass: cosmos-platform-critical
+nodeSelector: { workload-class: stateful }
+tolerations: [{ key: workload, value: stateful, effect: NoSchedule }]
+stateful: { enabled: true, storage: 30Gi, mountPath: /var/lib/postgresql/data }
+env:
+  PGDATA: /var/lib/postgresql/data/pgdata
+  POSTGRES_DB: cosmos
+  POSTGRES_USER_FILE: /mnt/secrets/POSTGRES_USER
+  POSTGRES_PASSWORD_FILE: /mnt/secrets/POSTGRES_PASSWORD
+secrets:
+  - secret: /cosmos-v2/stage/ai-postgres
+    keys: { username: POSTGRES_USER, password: POSTGRES_PASSWORD }
+resources:
+  requests: { cpu: 500m, memory: 1Gi }
+  limits: { cpu: "1", memory: 2Gi }
+probes:
+  startupProbe: { exec: { command: ["sh", "-c", 'pg_isready -U "$(cat /mnt/secrets/POSTGRES_USER)" -d cosmos'] }, periodSeconds: 10, timeoutSeconds: 3, failureThreshold: 10 }
+  readinessProbe: { exec: { command: ["sh", "-c", 'pg_isready -U "$(cat /mnt/secrets/POSTGRES_USER)" -d cosmos'] }, periodSeconds: 10, timeoutSeconds: 3, failureThreshold: 3 }
+  livenessProbe: { exec: { command: ["sh", "-c", 'pg_isready -U "$(cat /mnt/secrets/POSTGRES_USER)" -d cosmos'] }, periodSeconds: 10, timeoutSeconds: 3, failureThreshold: 6 }
