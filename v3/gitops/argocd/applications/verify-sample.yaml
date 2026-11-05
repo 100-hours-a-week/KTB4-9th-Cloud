@@ -7,7 +7,7 @@ spec:
   project: dev
   source:
     repoURL: https://github.com/100-hours-a-week/KTB4-9th-Cloud.git
-    targetRevision: feat/v3-eks
+    targetRevision: main
     path: v3/gitops/charts/verify-sample
     helm:
       valueFiles:

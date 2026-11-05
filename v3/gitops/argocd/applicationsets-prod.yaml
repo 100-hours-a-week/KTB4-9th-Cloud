@@ -28,7 +28,7 @@ spec:
       project: prod
       source:
         repoURL: https://github.com/100-hours-a-week/KTB4-9th-Cloud.git
-        targetRevision: feat/v3-eks
+        targetRevision: main
         path: v3/gitops/charts/cosmos-app
         helm:
           valueFiles:
@@ -55,7 +55,7 @@ spec:
   project: prod
   source:
     repoURL: https://github.com/100-hours-a-week/KTB4-9th-Cloud.git
-    targetRevision: feat/v3-eks
+    targetRevision: main
     path: v3/gitops/environments/prod/platform
   destination:
     server: https://kubernetes.default.svc
