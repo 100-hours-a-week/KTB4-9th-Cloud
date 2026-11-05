@@ -1,0 +1,35 @@
+name: GitOps CI
+
+on:
+  pull_request:
+    paths:
+      - "v3/gitops/**"
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: v4.3.1
+
+      - name: Render prod values
+        run: |
+          set -euo pipefail
+          for values in v3/gitops/environments/prod/*.yaml; do
+            helm lint v3/gitops/charts/cosmos-app -f "$values"
+            helm template check v3/gitops/charts/cosmos-app -n prod -f "$values" > /dev/null
+          done
+
+      - name: Reject mutable images
+        run: |
+          set -euo pipefail
+          if grep -L 'image: .*@sha256:' v3/gitops/environments/prod/*.yaml | grep .; then
+            echo "::error::digest로 고정하지 않은 이미지가 있습니다"
+            exit 1
+          fi

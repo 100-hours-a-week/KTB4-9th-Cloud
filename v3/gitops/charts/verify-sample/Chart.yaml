@@ -1,0 +1,4 @@
+apiVersion: v2
+name: verify-sample
+description: GitOps 배포와 복구 검증용 샘플
+version: 0.1.0

@@ -1,0 +1,24 @@
+name: judge-postgres
+component: data
+image: postgres:16.2@sha256:4aea012537edfad80f98d870a36e6b90b4c09b27be7f4b4759d72db863baeebb
+serviceAccount: judge-postgres-sa
+port: 5432
+service: { name: judge-postgres, port: 5432 }
+nodeSelector: { workload-class: stateful }
+tolerations: [{ key: workload, value: stateful, effect: NoSchedule }]
+priorityClass: cosmos-platform-critical
+stateful: { enabled: true, storage: 30Gi, mountPath: /var/lib/postgresql/data }
+env:
+  PGDATA: /var/lib/postgresql/data/pgdata
+  POSTGRES_USER_FILE: /mnt/secrets/POSTGRES_USER
+  POSTGRES_PASSWORD_FILE: /mnt/secrets/POSTGRES_PASSWORD
+  POSTGRES_DB_FILE: /mnt/secrets/POSTGRES_DB
+secrets:
+  - secret: /cosmos-v2/stage/judge-postgres
+    keys: { username: POSTGRES_USER, password: POSTGRES_PASSWORD, database: POSTGRES_DB }
+resources:
+  requests: { cpu: 500m, memory: 1Gi }
+  limits: { cpu: "1", memory: 2Gi }
+probes:
+  startupProbe: { exec: { command: ["sh", "-c", 'pg_isready -U "$(cat /mnt/secrets/POSTGRES_USER)"'] }, periodSeconds: 10, timeoutSeconds: 3, failureThreshold: 10 }
+  readinessProbe: { exec: { command: ["sh", "-c", 'pg_isready -U "$(cat /mnt/secrets/POSTGRES_USER)"'] }, periodSeconds: 10, timeoutSeconds: 3, failureThreshold: 3 }
