@@ -23,3 +23,4 @@ cronJob: { enabled: false, schedule: "", suspend: true, activeDeadlineSeconds: 5
 job: { enabled: false }
 privileged: false
 rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+hpa: { enabled: false, min: 1, max: 1, cpu: 70 }

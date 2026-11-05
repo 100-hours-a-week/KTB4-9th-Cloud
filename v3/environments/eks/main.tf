@@ -77,3 +77,16 @@ module "edge" {
   nlb_dns_name  = data.aws_lb.prod.dns_name
   allowed_cidrs = var.edge_allowed_cidrs
 }
+
+module "edge_argocd" {
+  source = "../../modules/edge-internal"
+  providers = {
+    aws.us_east_1 = aws.us_east_1
+  }
+
+  domain        = "argocd.cosmoscode.site"
+  zone_id       = data.aws_route53_zone.main.zone_id
+  nlb_dns_name  = data.aws_lb.prod.dns_name
+  vpc_origin_id = module.edge.vpc_origin_id
+  web_acl_arn   = module.edge.web_acl_arn
+}
