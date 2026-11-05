@@ -45,11 +45,11 @@ variable "log_retention_days" {
 
 variable "node_groups" {
   type = map(object({
-    instance_type = string
-    min_size      = number
-    desired_size  = number
-    max_size      = number
-    labels        = map(string)
+    instance_types = list(string)
+    min_size       = number
+    desired_size   = number
+    max_size       = number
+    labels         = map(string)
     taints = list(object({
       key    = string
       value  = string
@@ -58,36 +58,36 @@ variable "node_groups" {
   }))
   default = {
     system-ng = {
-      instance_type = "t3.large"
-      min_size      = 2
-      desired_size  = 2
-      max_size      = 3
-      labels        = { "workload-class" = "system" }
-      taints        = [{ key = "CriticalAddonsOnly", value = "true", effect = "NO_SCHEDULE" }]
+      instance_types = ["t3.large", "t3a.large"]
+      min_size       = 1
+      desired_size   = 1
+      max_size       = 3
+      labels         = { "workload-class" = "system" }
+      taints         = [{ key = "CriticalAddonsOnly", value = "true", effect = "NO_SCHEDULE" }]
     }
     stateful-ng = {
-      instance_type = "m7i.xlarge"
-      min_size      = 1
-      desired_size  = 1
-      max_size      = 3
-      labels        = { "workload-class" = "stateful" }
-      taints        = [{ key = "workload", value = "stateful", effect = "NO_SCHEDULE" }]
+      instance_types = ["m7i.large", "m6i.large", "m5.large"]
+      min_size       = 1
+      desired_size   = 1
+      max_size       = 3
+      labels         = { "workload-class" = "stateful" }
+      taints         = [{ key = "workload", value = "stateful", effect = "NO_SCHEDULE" }]
     }
     judge-base-ng = {
-      instance_type = "c7i.2xlarge"
-      min_size      = 1
-      desired_size  = 1
-      max_size      = 1
-      labels        = { "workload-class" = "judge" }
-      taints        = [{ key = "workload", value = "judge", effect = "NO_SCHEDULE" }]
+      instance_types = ["c7i.xlarge", "c6i.xlarge", "c5.xlarge"]
+      min_size       = 1
+      desired_size   = 1
+      max_size       = 3
+      labels         = { "workload-class" = "judge" }
+      taints         = [{ key = "workload", value = "judge", effect = "NO_SCHEDULE" }]
     }
     application-ng = {
-      instance_type = "t3.xlarge"
-      min_size      = 2
-      desired_size  = 2
-      max_size      = 6
-      labels        = { "workload-class" = "application" }
-      taints        = []
+      instance_types = ["t3.xlarge", "t3a.xlarge", "m5.xlarge"]
+      min_size       = 2
+      desired_size   = 2
+      max_size       = 6
+      labels         = { "workload-class" = "application" }
+      taints         = []
     }
   }
 }

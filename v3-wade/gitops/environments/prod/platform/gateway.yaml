@@ -53,7 +53,7 @@ spec:
             matchExpressions:
               - key: kubernetes.io/metadata.name
                 operator: In
-                values: [prod, argocd]
+                values: [prod, argocd, monitoring]
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute

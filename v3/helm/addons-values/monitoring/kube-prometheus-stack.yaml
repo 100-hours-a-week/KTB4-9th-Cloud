@@ -50,6 +50,9 @@ alertmanager:
           accessModes: [ReadWriteOnce]
           resources: { requests: { storage: 2Gi } }
 grafana:
+  grafana.ini:
+    server:
+      root_url: https://grafana-v3.cosmoscode.site
   admin:
     existingSecret: grafana-admin
     userKey: admin-user

@@ -8,6 +8,7 @@
 | VPC | `10.40.0.0/16` |
 | 서비스 | `https://wade.cosmoscode.site` |
 | Argo CD | `https://argocd-wade.cosmoscode.site` |
+| Grafana | `https://grafana-wade.cosmoscode.site` |
 | 노드 | Spot 5대, 16 vCPU |
 
 ## 사용
