@@ -224,3 +224,5 @@ resource "aws_route53_record" "alias" {
 
 output "distribution_id" { value = aws_cloudfront_distribution.main.id }
 output "bucket" { value = aws_s3_bucket.frontend.id }
+output "web_acl_arn" { value = aws_wafv2_web_acl.main.arn }
+output "vpc_origin_id" { value = aws_cloudfront_vpc_origin.nlb.id }

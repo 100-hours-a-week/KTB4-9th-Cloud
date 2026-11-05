@@ -24,5 +24,8 @@ resources:
   requests: { cpu: 250m, memory: 512Mi }
   limits: { cpu: "1", memory: 1Gi }
 probes:
-  startupProbe: { tcpSocket: { port: 2358 }, periodSeconds: 5, timeoutSeconds: 2, failureThreshold: 36 }
-  readinessProbe: { tcpSocket: { port: 2358 }, periodSeconds: 5, timeoutSeconds: 2, failureThreshold: 3 }
+  startupProbe: { httpGet: { path: /version, port: 2358 }, periodSeconds: 5, timeoutSeconds: 2, failureThreshold: 36 }
+  readinessProbe: { httpGet: { path: /version, port: 2358 }, periodSeconds: 5, timeoutSeconds: 2, failureThreshold: 3 }
+  livenessProbe: { httpGet: { path: /version, port: 2358 }, periodSeconds: 10, timeoutSeconds: 2, failureThreshold: 3 }
+replicas: null # HPA가 관리
+hpa: { enabled: true, min: 1, max: 2, cpu: 70 }

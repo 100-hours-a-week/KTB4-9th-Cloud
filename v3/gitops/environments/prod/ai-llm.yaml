@@ -34,3 +34,5 @@ probes:
   startupProbe: { httpGet: { path: /health, port: 8000 }, periodSeconds: 2, timeoutSeconds: 2, failureThreshold: 30 }
   readinessProbe: { httpGet: { path: /health, port: 8000 }, periodSeconds: 5, timeoutSeconds: 2, failureThreshold: 3 }
   livenessProbe: { httpGet: { path: /health, port: 8000 }, periodSeconds: 10, timeoutSeconds: 2, failureThreshold: 3 }
+replicas: null # HPA가 관리
+hpa: { enabled: true, min: 1, max: 2, cpu: 70 }

@@ -29,5 +29,7 @@ resources:
   limits: { cpu: "2", memory: 2Gi }
 probes:
   startupProbe: { tcpSocket: { port: 8080 }, periodSeconds: 5, timeoutSeconds: 2, failureThreshold: 36 }
-  readinessProbe: { tcpSocket: { port: 8080 }, periodSeconds: 5, timeoutSeconds: 2, failureThreshold: 3 }
+  readinessProbe: { httpGet: { path: /actuator/health, port: 9091 }, periodSeconds: 5, timeoutSeconds: 2, failureThreshold: 3 }
   livenessProbe: { tcpSocket: { port: 8080 }, periodSeconds: 10, timeoutSeconds: 2, failureThreshold: 3 }
+replicas: null # HPA가 관리
+hpa: { enabled: true, min: 1, max: 2, cpu: 70 }

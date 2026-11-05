@@ -42,7 +42,6 @@ spec:
       ignoreDifferences:
         - group: apps
           kind: Deployment
-          name: cosmos-judge-worker
           jsonPointers:
             - /spec/replicas
 ---
