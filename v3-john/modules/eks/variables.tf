@@ -66,7 +66,7 @@ variable "node_groups" {
       taints         = [{ key = "CriticalAddonsOnly", value = "true", effect = "NO_SCHEDULE" }]
     }
     stateful-ng = {
-      instance_types = ["m7i.large", "m6i.large", "m5.large"]
+      instance_types = ["m7i.large", "m6i.large", "m5.large", "m5a.large", "m6a.large", "m7a.large", "r5.large", "r6i.large"]
       min_size       = 1
       desired_size   = 1
       max_size       = 1
