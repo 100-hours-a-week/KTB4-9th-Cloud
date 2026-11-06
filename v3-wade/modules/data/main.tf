@@ -24,10 +24,12 @@ resource "aws_db_subnet_group" "main" {
 }
 
 resource "aws_db_instance" "main" {
-  identifier              = "${var.name}-mysql"
-  snapshot_identifier     = var.snapshot_identifier
-  instance_class          = "db.t4g.medium"
-  storage_type            = "gp3"
+  identifier          = "${var.name}-mysql"
+  snapshot_identifier = var.snapshot_identifier
+  instance_class      = "db.t4g.medium"
+  storage_type        = "gp3"
+  # 시드 스냅샷이 암호화되어 있어 복원본도 암호화된다. 지정하지 않으면 매 apply마다 교체된다.
+  storage_encrypted       = true
   multi_az                = false
   password                = var.master_password
   db_subnet_group_name    = aws_db_subnet_group.main.name

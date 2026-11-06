@@ -46,10 +46,12 @@ variable "log_retention_days" {
 variable "node_groups" {
   type = map(object({
     instance_types = list(string)
-    min_size       = number
-    desired_size   = number
-    max_size       = number
-    labels         = map(string)
+    # Spot 재고가 없을 때 그룹별로 ON_DEMAND로 바꾼다.
+    capacity_type = optional(string, "SPOT")
+    min_size      = number
+    desired_size  = number
+    max_size      = number
+    labels        = map(string)
     taints = list(object({
       key    = string
       value  = string
@@ -66,7 +68,7 @@ variable "node_groups" {
       taints         = [{ key = "CriticalAddonsOnly", value = "true", effect = "NO_SCHEDULE" }]
     }
     stateful-ng = {
-      instance_types = ["m7i.large", "m6i.large", "m5.large"]
+      instance_types = ["m7i.large", "m6i.large", "m5.large", "m5a.large", "r5.large", "r6i.large", "t3.large", "t3a.large"]
       min_size       = 1
       desired_size   = 1
       max_size       = 1
