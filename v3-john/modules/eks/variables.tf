@@ -46,10 +46,12 @@ variable "log_retention_days" {
 variable "node_groups" {
   type = map(object({
     instance_types = list(string)
-    min_size       = number
-    desired_size   = number
-    max_size       = number
-    labels         = map(string)
+    # Spot 재고가 없을 때 그룹별로 ON_DEMAND로 바꾼다.
+    capacity_type = optional(string, "SPOT")
+    min_size      = number
+    desired_size  = number
+    max_size      = number
+    labels        = map(string)
     taints = list(object({
       key    = string
       value  = string
