@@ -52,6 +52,29 @@ jobs:
       - uses: aws-actions/amazon-ecr-login@v2
         id: ecr
 
+      - name: Gate on ECR scan (block CRITICAL)
+        run: |
+          case "$COMPONENT" in spring) repo=cosmos-v2/spring ;; fastapi) repo=cosmos-v2/fastapi ;; esac
+          id="imageTag=$IMAGE_TAG"
+          # 푸시 시 기본 스캔이 끝날 때까지 기다린다.
+          aws ecr wait image-scan-complete --repository-name "$repo" --image-id "$id"
+          counts=$(aws ecr describe-image-scan-findings --repository-name "$repo" --image-id "$id" \
+            --query 'imageScanFindings.findingSeverityCounts' --output json)
+          [ "$counts" = null ] && counts='{}'
+          {
+            echo "### ECR 스캔: \`$repo:${IMAGE_TAG:0:12}\`"
+            echo "| 심각도 | 건수 |"; echo "|---|---|"
+            jq -r 'to_entries[] | "| \(.key) | \(.value) |"' <<<"$counts"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "SCAN_COUNTS=$(jq -c . <<<"$counts")" >> "$GITHUB_ENV"
+          critical=$(jq -r '.CRITICAL // 0' <<<"$counts")
+          if [ "$critical" -gt 0 ]; then
+            echo "::error::CRITICAL 취약점 ${critical}건으로 승격을 중단합니다"
+            aws ecr describe-image-scan-findings --repository-name "$repo" --image-id "$id" \
+              --query 'imageScanFindings.findings[?severity==`CRITICAL`].[name,uri]' --output text >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
       - uses: docker/setup-buildx-action@v3
 
       - name: Copy image to service repositories
@@ -92,5 +115,5 @@ jobs:
             git push -q -f origin "$branch"
             gh pr create --base "${GITHUB_REF_NAME:-main}" --head "$branch" \
               --title "deploy($c): $COMPONENT ${IMAGE_TAG:0:12} 승격" \
-              --body "원본 digest: \`$DIGEST\`. 병합 후 $c Argo CD에서 Sync합니다." || echo "::notice::$branch PR이 이미 있습니다."
+              --body "원본 digest: \`$DIGEST\`. ECR 스캔: \`$SCAN_COUNTS\`(CRITICAL 0건 통과). 병합 후 $c Argo CD에서 Sync합니다." || echo "::notice::$branch PR이 이미 있습니다."
           done
