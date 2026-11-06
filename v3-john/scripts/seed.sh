@@ -5,7 +5,6 @@ set -euo pipefail
 REGION=ap-northeast-2
 BUCKET=cosmos-db-backup-352635536602
 SOURCE_DB=cosmos-v2-stage-mysql
-SOURCE_FRONTEND=cosmos-v2-stage-frontend-352635536602
 HOST_TAG=cosmos-v2-stage-stateful
 ID="cosmos-eks-seed-$(date +%Y%m%d-%H%M)"
 # 원본 EC2에 S3 권한이 없어 서명된 업로드 주소를 쓴다.
@@ -35,6 +34,5 @@ for db in ai judge; do
   done
 done
 
-aws s3 sync "s3://$SOURCE_FRONTEND/" "s3://$BUCKET/eks-seed/frontend/" --delete
 printf %s "$ID" | aws s3 cp - "s3://$BUCKET/eks-seed/snapshot-id"
 echo "시드 완료: $ID"
