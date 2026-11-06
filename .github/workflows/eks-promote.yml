@@ -1,7 +1,8 @@
 name: EKS Prod Promote
 
 # cosmos-v2 ECR 이미지를 서비스 저장소로 복사하고, 훈련 클러스터(v3-john, v3-wade)마다 해시 변경 PR을 따로 연다.
-# 앱 저장소 stage CD가 병합 직후 repository_dispatch(promote)로 호출한다. 병합 후 해당 클러스터의 Argo CD에서 Sync한다.
+# 앱 저장소가 stage 병합 커밋을 cosmos-v2 ECR에 올리고 스캔이 CRITICAL 없이 끝나면, EventBridge(cosmos-ecr-scan-promote)가
+# repository_dispatch(promote)로 호출한다. 병합 후 해당 클러스터의 Argo CD에서 Sync한다.
 on:
   workflow_dispatch:
     inputs:
@@ -9,13 +10,13 @@ on:
         description: "승격할 이미지"
         required: true
         type: choice
-        options: [spring, fastapi]
+        options: [spring, fastapi, judge]
       image_tag:
         description: "cosmos-v2 ECR의 이미지 태그 (Git SHA)"
         required: true
         type: string
   repository_dispatch:
-    # {"event_type":"promote","client_payload":{"component":"spring","image_tag":"<40자리 SHA>"}}
+    # {"event_type":"promote","client_payload":{"repository":"cosmos-v2/spring","image_tag":"<40자리 SHA>"}}
     types: [promote]
 
 permissions:
@@ -34,6 +35,7 @@ jobs:
     env:
       AWS_REGION: ap-northeast-2
       COMPONENT: ${{ inputs.component || github.event.client_payload.component }}
+      SOURCE_REPO: ${{ github.event.client_payload.repository }}
       IMAGE_TAG: ${{ inputs.image_tag || github.event.client_payload.image_tag }}
       CLUSTERS: v3-john v3-wade
     steps:
@@ -41,7 +43,9 @@ jobs:
 
       - name: Validate input
         run: |
-          [[ "$COMPONENT" =~ ^(spring|fastapi)$ ]] || { echo "::error::component는 spring 또는 fastapi여야 합니다"; exit 1; }
+          # EventBridge 호출은 저장소 이름만 보내므로 component로 바꾼다.
+          [ -n "$SOURCE_REPO" ] && COMPONENT=${SOURCE_REPO#cosmos-v2/} && echo "COMPONENT=$COMPONENT" >> "$GITHUB_ENV"
+          [[ "$COMPONENT" =~ ^(spring|fastapi|judge)$ ]] || { echo "::error::component는 spring, fastapi, judge 중 하나여야 합니다"; exit 1; }
           [[ "$IMAGE_TAG" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::image_tag는 40자리 Git SHA여야 합니다"; exit 1; }
 
       - uses: aws-actions/configure-aws-credentials@v6
@@ -54,7 +58,7 @@ jobs:
 
       - name: Gate on ECR scan (block CRITICAL)
         run: |
-          case "$COMPONENT" in spring) repo=cosmos-v2/spring ;; fastapi) repo=cosmos-v2/fastapi ;; esac
+          repo=cosmos-v2/$COMPONENT
           id="imageTag=$IMAGE_TAG"
           # 푸시 시 기본 스캔이 끝날 때까지 기다린다.
           aws ecr wait image-scan-complete --repository-name "$repo" --image-id "$id"
@@ -84,6 +88,7 @@ jobs:
           case "$COMPONENT" in
             spring)  source_repo=cosmos-v2/spring;  targets="auth:cosmos-auth core:cosmos-core battle:cosmos-battle" ;;
             fastapi) source_repo=cosmos-v2/fastapi; targets="ai-llm:cosmos-ai-llm ai-make-problem:cosmos-ai-make-problem ai-problem-batch:cosmos-ai-problem-batch ai-migrate:cosmos-ai-make-problem" ;;
+            judge)   source_repo=cosmos-v2/judge;   targets="judge-api:cosmos-judge-api judge-worker:cosmos-judge-worker" ;;
           esac
           digest=$(aws ecr describe-images --repository-name "$source_repo" --image-ids imageTag="$IMAGE_TAG" --query 'imageDetails[0].imageDigest' --output text)
           [[ "$digest" == sha256:* ]] || { echo "::error::원본 이미지를 찾을 수 없습니다"; exit 1; }

@@ -39,6 +39,7 @@ module "eks" {
   ci_promote_images = {
     "cosmos-v2/spring"  = ["cosmos-auth", "cosmos-core", "cosmos-battle"]
     "cosmos-v2/fastapi" = ["cosmos-ai-llm", "cosmos-ai-make-problem", "cosmos-ai-problem-batch"]
+    "cosmos-v2/judge"   = ["cosmos-judge-api", "cosmos-judge-worker"]
   }
 
   workload_secrets = {
