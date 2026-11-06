@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 클러스터 전체를 띄운다. 먼저 ../../scripts/seed.sh가 끝나 있어야 한다.
+# 클러스터 전체를 띄운다. 먼저 scripts/seed.sh가 끝나 있어야 한다.
 source "$(dirname "$0")/common.sh"
 
 SNAPSHOT=$(aws s3 cp "s3://$SEED_BUCKET/eks-seed/snapshot-id" -)
@@ -51,6 +51,7 @@ sync_app prod-platform
 for a in prod-ai-postgres prod-judge-postgres prod-judge-redis; do sync_app "$a"; done
 for a in prod-ai-postgres prod-judge-postgres prod-judge-redis; do wait_healthy "$a"; done
 "$BASE/scripts/restore-postgres.sh"
+"$BASE/scripts/restore-mysql.sh"
 for a in auth core battle ai-llm ai-make-problem ai-problem-batch mlflow judge-api judge-worker; do sync_app "prod-$a"; done
 for a in auth core battle ai-llm mlflow judge-api judge-worker; do wait_healthy "prod-$a"; done
 
