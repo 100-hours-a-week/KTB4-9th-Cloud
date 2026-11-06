@@ -36,6 +36,7 @@ data "aws_iam_policy_document" "ci_promote" {
     actions = [
       "ecr:BatchCheckLayerAvailability",
       "ecr:BatchGetImage",
+      "ecr:DescribeImageScanFindings",
       "ecr:DescribeImages",
       "ecr:GetDownloadUrlForLayer",
     ]
