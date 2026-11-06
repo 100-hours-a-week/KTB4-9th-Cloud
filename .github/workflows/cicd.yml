@@ -34,17 +34,17 @@ jobs:
           filters: |
             v1:
               - 'v1/**'
-              - '.github/workflows/**'
+              - '.github/workflows/cicd.yml'
             v2_shared:
               - 'v2/environments/shared/**'
               - 'v2/modules/shared/**'
               - 'v2/tests/**'
-              - '.github/workflows/**'
+              - '.github/workflows/cicd.yml'
             v2_stage:
               - 'v2/environments/stage/**'
               - 'v2/modules/environment/**'
               - 'v2/tests/**'
-              - '.github/workflows/**'
+              - '.github/workflows/cicd.yml'
 
   v1:
     name: Validate and plan v1
