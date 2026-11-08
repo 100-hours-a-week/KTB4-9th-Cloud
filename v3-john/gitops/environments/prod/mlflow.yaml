@@ -1,0 +1,19 @@
+name: cosmos-mlflow
+component: ai
+image: 352635536602.dkr.ecr.ap-northeast-2.amazonaws.com/cosmos-mlflow@sha256:52e7392e7f7a55de6ce069f28e2d14279548fb10a8aa5b0448e1364671765b2d
+serviceAccount: mlflow-sa
+port: 5000
+service: { name: mlflow, port: 5000 }
+command: ["sh", "-c", 'exec mlflow server --backend-store-uri "postgresql://$(cat /mnt/secrets/DB_USER):$(cat /mnt/secrets/DB_PASSWORD)@ai-postgres:5432/mlflow" --default-artifact-root s3://cosmos-v3-john-mlflow-352635536602/ --host 0.0.0.0 --port 5000']
+env:
+  AWS_DEFAULT_REGION: ap-northeast-2
+secrets:
+  - secret: /cosmos-v2/stage/ai-postgres
+    keys: { username: DB_USER, password: DB_PASSWORD }
+resources:
+  requests: { cpu: 500m, memory: 1Gi }
+  limits: { cpu: "1", memory: 1Gi }
+probes:
+  startupProbe: { httpGet: { path: /health, port: 5000 }, periodSeconds: 5, timeoutSeconds: 2, failureThreshold: 24 }
+  readinessProbe: { httpGet: { path: /health, port: 5000 }, periodSeconds: 5, timeoutSeconds: 2, failureThreshold: 3 }
+  livenessProbe: { httpGet: { path: /health, port: 5000 }, periodSeconds: 10, timeoutSeconds: 2, failureThreshold: 3 }

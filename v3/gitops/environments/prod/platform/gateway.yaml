@@ -1,0 +1,79 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: cosmos
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: prod
+  namespace: prod
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyDeployment:
+        replicas: 2
+        container:
+          resources:
+            requests: { cpu: 250m, memory: 256Mi }
+            limits: { cpu: "1", memory: 512Mi }
+        pod:
+          nodeSelector: { workload-class: application }
+      envoyService:
+        type: LoadBalancer
+        loadBalancerClass: service.k8s.aws/nlb
+        annotations:
+          service.beta.kubernetes.io/aws-load-balancer-scheme: internal
+          service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+          service.beta.kubernetes.io/aws-load-balancer-name: cosmos-v3-prod
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: prod
+  namespace: prod
+spec:
+  gatewayClassName: cosmos
+  infrastructure:
+    parametersRef:
+      group: gateway.envoyproxy.io
+      kind: EnvoyProxy
+      name: prod
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchExpressions:
+              - key: kubernetes.io/metadata.name
+                operator: In
+                values: [prod, argocd, monitoring]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: cosmos-api
+  namespace: prod
+spec:
+  parentRefs:
+    - name: prod
+  rules:
+    - matches:
+        - path: { type: PathPrefix, value: /api/auth }
+        - path: { type: PathPrefix, value: /auth }
+      backendRefs:
+        - { name: auth-service, port: 80 }
+    - matches:
+        - path: { type: PathPrefix, value: /api/daily-battles }
+      backendRefs:
+        - { name: battle-service, port: 80 }
+    - matches:
+        - path: { type: PathPrefix, value: /api }
+      backendRefs:
+        - { name: core-service, port: 80 }

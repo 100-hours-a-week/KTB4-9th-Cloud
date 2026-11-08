@@ -1,0 +1,15 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: prod
+  namespace: argocd
+spec:
+  sourceRepos:
+    - https://github.com/100-hours-a-week/KTB4-9th-Cloud.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: prod
+  clusterResourceWhitelist:
+    - { group: gateway.networking.k8s.io, kind: GatewayClass }
+  namespaceResourceWhitelist:
+    - { group: "*", kind: "*" }

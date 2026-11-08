@@ -34,17 +34,16 @@ jobs:
           filters: |
             v1:
               - 'v1/**'
-              - '.github/workflows/**'
+              - '.github/workflows/cicd.yml'
+            # v2 리소스는 2026-11-06에 삭제했다. 폴더를 직접 고칠 때만 검사한다.
             v2_shared:
               - 'v2/environments/shared/**'
               - 'v2/modules/shared/**'
               - 'v2/tests/**'
-              - '.github/workflows/**'
             v2_stage:
               - 'v2/environments/stage/**'
               - 'v2/modules/environment/**'
               - 'v2/tests/**'
-              - '.github/workflows/**'
 
   v1:
     name: Validate and plan v1
@@ -86,7 +85,7 @@ jobs:
   v2-shared:
     name: Validate and plan v2 shared
     needs: changes
-    if: needs.changes.outputs.v2_shared == 'true' || github.event_name == 'workflow_dispatch'
+    if: needs.changes.outputs.v2_shared == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -129,7 +128,7 @@ jobs:
   v2-stage:
     name: Validate and plan v2 stage
     needs: changes
-    if: needs.changes.outputs.v2_stage == 'true' || github.event_name == 'workflow_dispatch'
+    if: needs.changes.outputs.v2_stage == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:

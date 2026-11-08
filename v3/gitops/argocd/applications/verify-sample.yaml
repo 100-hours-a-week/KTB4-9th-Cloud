@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: dev-verify-sample
+  namespace: argocd
+spec:
+  project: dev
+  source:
+    repoURL: https://github.com/100-hours-a-week/KTB4-9th-Cloud.git
+    targetRevision: main
+    path: v3/gitops/charts/verify-sample
+    helm:
+      valueFiles:
+        - ../../environments/dev/verify-sample/values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

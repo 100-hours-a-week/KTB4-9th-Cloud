@@ -1,0 +1,27 @@
+# 수치는 실측 전 초기값이다. Stateful과 AI Job 리소스 확정 후 재산정한다.
+namespaces:
+  dev:
+    podSecurity: { warn: restricted, audit: restricted }
+    quota: { pods: "20", requestsCpu: "4", requestsMemory: 8Gi, limitsCpu: "8", limitsMemory: 16Gi, pvcs: "2", storage: 20Gi }
+  stage:
+    podSecurity: { warn: restricted, audit: restricted }
+    quota: { pods: "30", requestsCpu: "8", requestsMemory: 16Gi, limitsCpu: "16", limitsMemory: 32Gi, pvcs: "5", storage: 100Gi }
+  # HPA·KEDA 최대치 합계: requests 56.5 CPU·58Gi, limits 75 CPU·75Gi에 Stateful과 Envoy 여유를 더한 값
+  prod:
+    podSecurity: { warn: restricted, audit: restricted }
+    quota: { pods: "60", requestsCpu: "64", requestsMemory: 72Gi, limitsCpu: "90", limitsMemory: 96Gi, pvcs: "5", storage: 100Gi }
+  monitoring:
+    podSecurity: {}
+    quota: { pods: "30", requestsCpu: "8", requestsMemory: 16Gi, limitsCpu: "24", limitsMemory: 32Gi, pvcs: "5", storage: 200Gi }
+
+limitRange:
+  defaultRequest: { cpu: 100m, memory: 128Mi }
+  default: { cpu: "1", memory: 1Gi }
+  max: { cpu: "4", memory: 8Gi }
+
+deployerNamespaces: [dev, stage, prod]
+
+priorityClasses:
+  cosmos-platform-critical: 1000000
+  cosmos-api: 100000
+  cosmos-batch: 1000

@@ -1,0 +1,47 @@
+# vCPU 한도 32 기간의 축소 구성. 설계 기준은 min 6, max 20, Prometheus oldest age 트리거 포함이다.
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: judge-redis-keda
+  namespace: prod
+spec:
+  secretTargetRef:
+    - parameter: password
+      name: judge-redis-keda
+      key: password
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: cosmos-judge-worker
+  namespace: prod
+spec:
+  scaleTargetRef:
+    name: cosmos-judge-worker
+  minReplicaCount: 1
+  maxReplicaCount: 3
+  pollingInterval: 10
+  fallback:
+    failureThreshold: 3
+    replicas: 1
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 0
+          selectPolicy: Max
+          policies:
+            - { type: Percent, value: 500, periodSeconds: 15 }
+            - { type: Pods, value: 30, periodSeconds: 15 }
+        scaleDown:
+          stabilizationWindowSeconds: 600
+          policies:
+            - { type: Percent, value: 20, periodSeconds: 60 }
+  triggers:
+    - type: redis
+      authenticationRef:
+        name: judge-redis-keda
+      metadata:
+        address: judge-redis-queue.prod.svc.cluster.local:6379
+        listName: prod:judge0:queue:1.13.1
+        listLength: "13"

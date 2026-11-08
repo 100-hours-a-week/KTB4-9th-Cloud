@@ -1,0 +1,124 @@
+name: EKS Prod Promote
+
+# cosmos-v2 ECR 이미지를 서비스 저장소로 복사하고, 훈련 클러스터(v3-john, v3-wade)마다 해시 변경 PR을 따로 연다.
+# 앱 저장소가 stage 병합 커밋을 cosmos-v2 ECR에 올리고 스캔이 CRITICAL 없이 끝나면, EventBridge(cosmos-ecr-scan-promote)가
+# repository_dispatch(promote)로 호출한다. 병합 후 해당 클러스터의 Argo CD에서 Sync한다.
+on:
+  workflow_dispatch:
+    inputs:
+      component:
+        description: "승격할 이미지"
+        required: true
+        type: choice
+        options: [spring, fastapi, judge]
+      image_tag:
+        description: "cosmos-v2 ECR의 이미지 태그 (Git SHA)"
+        required: true
+        type: string
+  repository_dispatch:
+    # {"event_type":"promote","client_payload":{"repository":"cosmos-v2/spring","image_tag":"<40자리 SHA>"}}
+    types: [promote]
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+concurrency:
+  group: eks-promote
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    environment: eks-prod
+    env:
+      AWS_REGION: ap-northeast-2
+      COMPONENT: ${{ inputs.component || github.event.client_payload.component }}
+      SOURCE_REPO: ${{ github.event.client_payload.repository }}
+      IMAGE_TAG: ${{ inputs.image_tag || github.event.client_payload.image_tag }}
+      CLUSTERS: v3-john v3-wade
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate input
+        run: |
+          # EventBridge 호출은 저장소 이름만 보내므로 component로 바꾼다.
+          [ -n "$SOURCE_REPO" ] && COMPONENT=${SOURCE_REPO#cosmos-v2/} && echo "COMPONENT=$COMPONENT" >> "$GITHUB_ENV"
+          [[ "$COMPONENT" =~ ^(spring|fastapi|judge)$ ]] || { echo "::error::component는 spring, fastapi, judge 중 하나여야 합니다"; exit 1; }
+          [[ "$IMAGE_TAG" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::image_tag는 40자리 Git SHA여야 합니다"; exit 1; }
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.EKS_PROMOTE_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
+
+      - name: Gate on ECR scan (block CRITICAL)
+        run: |
+          repo=cosmos-v2/$COMPONENT
+          id="imageTag=$IMAGE_TAG"
+          # 푸시 시 기본 스캔이 끝날 때까지 기다린다.
+          aws ecr wait image-scan-complete --repository-name "$repo" --image-id "$id"
+          counts=$(aws ecr describe-image-scan-findings --repository-name "$repo" --image-id "$id" \
+            --query 'imageScanFindings.findingSeverityCounts' --output json)
+          [ "$counts" = null ] && counts='{}'
+          {
+            echo "### ECR 스캔: \`$repo:${IMAGE_TAG:0:12}\`"
+            echo "| 심각도 | 건수 |"; echo "|---|---|"
+            jq -r 'to_entries[] | "| \(.key) | \(.value) |"' <<<"$counts"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "SCAN_COUNTS=$(jq -c . <<<"$counts")" >> "$GITHUB_ENV"
+          critical=$(jq -r '.CRITICAL // 0' <<<"$counts")
+          if [ "$critical" -gt 0 ]; then
+            echo "::error::CRITICAL 취약점 ${critical}건으로 승격을 중단합니다"
+            aws ecr describe-image-scan-findings --repository-name "$repo" --image-id "$id" \
+              --query 'imageScanFindings.findings[?severity==`CRITICAL`].[name,uri]' --output text >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Copy image to service repositories
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          case "$COMPONENT" in
+            spring)  source_repo=cosmos-v2/spring;  targets="auth:cosmos-auth core:cosmos-core battle:cosmos-battle" ;;
+            fastapi) source_repo=cosmos-v2/fastapi; targets="ai-llm:cosmos-ai-llm ai-make-problem:cosmos-ai-make-problem ai-problem-batch:cosmos-ai-problem-batch ai-migrate:cosmos-ai-make-problem" ;;
+            judge)   source_repo=cosmos-v2/judge;   targets="judge-api:cosmos-judge-api judge-worker:cosmos-judge-worker" ;;
+          esac
+          digest=$(aws ecr describe-images --repository-name "$source_repo" --image-ids imageTag="$IMAGE_TAG" --query 'imageDetails[0].imageDigest' --output text)
+          [[ "$digest" == sha256:* ]] || { echo "::error::원본 이미지를 찾을 수 없습니다"; exit 1; }
+          for target in $targets; do
+            file="${target%%:*}"; repo="${target##*:}"
+            docker buildx imagetools create -t "$REGISTRY/$repo:$IMAGE_TAG" -t "$REGISTRY/$repo:prod-${digest:7:12}" "$REGISTRY/$source_repo@$digest"
+            for c in $CLUSTERS; do
+              sed -i -E "s#^image: .*#image: $REGISTRY/$repo@$digest#" "$c/gitops/environments/prod/$file.yaml"
+            done
+          done
+          echo "DIGEST=$digest" >> "$GITHUB_ENV"
+
+      - name: Open promotion PR per cluster
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          base=$(git rev-parse HEAD)
+          for c in $CLUSTERS; do
+            branch="promote/$c-$COMPONENT-${IMAGE_TAG:0:12}"
+            git switch -q -C "$branch" "$base"
+            git add "$c/gitops/environments/prod"
+            if git diff --cached --quiet; then
+              echo "::notice::$c는 이미 같은 digest입니다."
+              continue
+            fi
+            git commit -q -m "deploy($c): $COMPONENT ${IMAGE_TAG:0:12} 승격"
+            git push -q -f origin "$branch"
+            gh pr create --base "${GITHUB_REF_NAME:-main}" --head "$branch" \
+              --title "deploy($c): $COMPONENT ${IMAGE_TAG:0:12} 승격" \
+              --body "원본 digest: \`$DIGEST\`. ECR 스캔: \`$SCAN_COUNTS\`(CRITICAL 0건 통과). 병합 후 $c Argo CD에서 Sync합니다." || echo "::notice::$branch PR이 이미 있습니다."
+          done

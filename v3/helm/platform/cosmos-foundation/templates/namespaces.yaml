@@ -1,0 +1,45 @@
+{{- range $name, $ns := .Values.namespaces }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $name }}
+  labels:
+    app.kubernetes.io/part-of: cosmos
+    {{- with $ns.podSecurity.warn }}
+    pod-security.kubernetes.io/warn: {{ . }}
+    {{- end }}
+    {{- with $ns.podSecurity.audit }}
+    pod-security.kubernetes.io/audit: {{ . }}
+    {{- end }}
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: cosmos-quota
+  namespace: {{ $name }}
+spec:
+  hard:
+    pods: {{ $ns.quota.pods | quote }}
+    requests.cpu: {{ $ns.quota.requestsCpu | quote }}
+    requests.memory: {{ $ns.quota.requestsMemory }}
+    limits.cpu: {{ $ns.quota.limitsCpu | quote }}
+    limits.memory: {{ $ns.quota.limitsMemory }}
+    persistentvolumeclaims: {{ $ns.quota.pvcs | quote }}
+    requests.storage: {{ $ns.quota.storage }}
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: cosmos-limits
+  namespace: {{ $name }}
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        {{- toYaml $.Values.limitRange.defaultRequest | nindent 8 }}
+      default:
+        {{- toYaml $.Values.limitRange.default | nindent 8 }}
+      max:
+        {{- toYaml $.Values.limitRange.max | nindent 8 }}
+{{- end }}

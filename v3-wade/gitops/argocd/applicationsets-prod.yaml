@@ -1,0 +1,61 @@
+# Prod는 자동 동기화하지 않는다. Merge 후 운영자가 Manual Sync한다.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: prod-services
+  namespace: argocd
+spec:
+  goTemplate: true
+  generators:
+    - list:
+        elements:
+          - { name: auth }
+          - { name: core }
+          - { name: battle }
+          - { name: ai-llm }
+          - { name: ai-make-problem }
+          - { name: ai-problem-batch }
+          - { name: ai-postgres }
+          - { name: mlflow }
+          - { name: judge-api }
+          - { name: judge-worker }
+          - { name: judge-postgres }
+          - { name: judge-redis }
+  template:
+    metadata:
+      name: "prod-{{ .name }}"
+    spec:
+      project: prod
+      source:
+        repoURL: https://github.com/100-hours-a-week/KTB4-9th-Cloud.git
+        targetRevision: main
+        path: v3-wade/gitops/charts/cosmos-app
+        helm:
+          valueFiles:
+            - "../../environments/prod/{{ .name }}.yaml"
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: prod
+      syncPolicy:
+        syncOptions:
+          - RespectIgnoreDifferences=true
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prod-platform
+  namespace: argocd
+spec:
+  project: prod
+  source:
+    repoURL: https://github.com/100-hours-a-week/KTB4-9th-Cloud.git
+    targetRevision: main
+    path: v3-wade/gitops/environments/prod/platform
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: prod

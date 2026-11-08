@@ -1,0 +1,4 @@
+apiVersion: v2
+name: cosmos-app
+description: COSMOS 워크로드 공통 차트
+version: 0.1.0

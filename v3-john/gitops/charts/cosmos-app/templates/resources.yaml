@@ -1,0 +1,137 @@
+{{- if .Values.createServiceAccount }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.serviceAccount }}
+  labels: {{- include "cosmos.labels" . | nindent 4 }}
+automountServiceAccountToken: false
+---
+{{- end }}
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: {{ .Values.name }}
+  labels: {{- include "cosmos.labels" . | nindent 4 }}
+spec:
+  provider: aws
+  parameters:
+    usePodIdentity: "true"
+    objects: |
+      {{- range .Values.secrets }}
+      - objectName: {{ .secret | quote }}
+        objectType: secretsmanager
+        objectAlias: {{ .secret | sha1sum | trunc 12 | quote }}
+        jmesPath:
+          {{- range $path, $alias := .keys }}
+          - path: {{ $path | quote }}
+            objectAlias: {{ $alias | quote }}
+          {{- end }}
+      {{- end }}
+{{- if and .Values.service.enabled .Values.service.name }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.service.name }}
+  labels: {{- include "cosmos.labels" . | nindent 4 }}
+spec:
+  {{- if .Values.stateful.enabled }}
+  clusterIP: None
+  {{- end }}
+  selector: {{- include "cosmos.selector" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: {{ .Values.port }}
+{{- end }}
+---
+{{- if .Values.cronJob.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .Values.name }}
+  labels: {{- include "cosmos.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.cronJob.schedule | quote }}
+  timeZone: Asia/Seoul
+  suspend: {{ .Values.cronJob.suspend }}
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 0
+  failedJobsHistoryLimit: 0
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      ttlSecondsAfterFinished: 300
+      activeDeadlineSeconds: {{ .Values.cronJob.activeDeadlineSeconds }}
+      template:
+        metadata:
+          labels: {{- include "cosmos.labels" . | nindent 12 }}
+        spec:
+          restartPolicy: Never
+          {{- include "cosmos.podSpec" . | nindent 10 }}
+{{- else if .Values.job.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Values.name }}
+  labels: {{- include "cosmos.labels" . | nindent 4 }}
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels: {{- include "cosmos.labels" . | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      {{- include "cosmos.podSpec" . | nindent 6 }}
+{{- else if .Values.stateful.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Values.name }}
+  labels: {{- include "cosmos.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ .Values.service.name }}
+  replicas: {{ .Values.replicas }}
+  persistentVolumeClaimRetentionPolicy: { whenDeleted: Retain, whenScaled: Retain }
+  selector:
+    matchLabels: {{- include "cosmos.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "cosmos.labels" . | nindent 8 }}
+    spec:
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- include "cosmos.podSpec" . | nindent 6 }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: {{ .Values.stateful.storageClass }}
+        resources:
+          requests:
+            storage: {{ .Values.stateful.storage }}
+{{- else }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.name }}
+  labels: {{- include "cosmos.labels" . | nindent 4 }}
+spec:
+  {{- if .Values.replicas }}
+  replicas: {{ .Values.replicas }}
+  {{- end }}
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {{ toJson .Values.rollingUpdate }}
+  selector:
+    matchLabels: {{- include "cosmos.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "cosmos.labels" . | nindent 8 }}
+    spec:
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- include "cosmos.podSpec" . | nindent 6 }}
+{{- end }}

@@ -1,0 +1,15 @@
+# chart: eks/aws-load-balancer-controller 3.6.2
+clusterName: cosmos-v3
+region: ap-northeast-2
+vpcId: vpc-0469fa38fd18fd7f0
+serviceAccount:
+  create: true
+  name: aws-load-balancer-controller
+replicaCount: 2
+nodeSelector: { workload-class: system }
+tolerations:
+  - key: CriticalAddonsOnly
+    operator: Exists
+resources:
+  requests: { cpu: 100m, memory: 128Mi }
+  limits: { cpu: 300m, memory: 256Mi }

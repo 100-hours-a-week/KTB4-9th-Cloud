@@ -1,0 +1,20 @@
+# chart: autoscaler/cluster-autoscaler 9.60.0
+autoDiscovery:
+  clusterName: cosmos-v3
+awsRegion: ap-northeast-2
+rbac:
+  serviceAccount:
+    create: true
+    name: cluster-autoscaler
+extraArgs:
+  balance-similar-node-groups: false
+  skip-nodes-with-system-pods: false
+nodeSelector:
+  workload-class: system
+tolerations:
+  - key: CriticalAddonsOnly
+    operator: Exists
+priorityClassName: system-cluster-critical
+resources:
+  requests: { cpu: 100m, memory: 300Mi }
+  limits: { cpu: 500m, memory: 600Mi }

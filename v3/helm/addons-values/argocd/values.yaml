@@ -1,0 +1,18 @@
+# chart: argo/argo-cd 10.12.1
+global:
+  domain: argocd.cosmoscode.site
+  nodeSelector:
+    workload-class: system
+  tolerations:
+    - key: CriticalAddonsOnly
+      operator: Exists
+configs:
+  params:
+    server.insecure: true
+dex:
+  enabled: false
+notifications:
+  enabled: false
+server:
+  service:
+    type: ClusterIP
