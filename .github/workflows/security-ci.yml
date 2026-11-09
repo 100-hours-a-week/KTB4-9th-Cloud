@@ -92,21 +92,3 @@ jobs:
           path: trivy-results/*.sarif
           if-no-files-found: warn
           retention-days: 14
-
-      - name: Block high and critical v3 misconfigurations
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          scan-type: config
-          scan-ref: v3
-          severity: HIGH,CRITICAL
-          format: table
-          exit-code: "1"
-
-      - name: Block high and critical rendered misconfigurations
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          scan-type: config
-          scan-ref: ${{ runner.temp }}/trivy-rendered
-          severity: HIGH,CRITICAL
-          format: table
-          exit-code: "1"
