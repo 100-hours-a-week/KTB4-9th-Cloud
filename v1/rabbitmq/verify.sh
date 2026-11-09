@@ -52,4 +52,10 @@ docker exec "${container_id}" rabbitmq-diagnostics -q ping >/dev/null || die "Ra
 listeners="$(docker exec "${container_id}" rabbitmq-diagnostics -q listeners)" || die "RabbitMQ listener query failed"
 grep -Eq 'port:? 5672|port: 5672' <<<"${listeners}" || die "RabbitMQ AMQP listener on port 5672 is missing"
 
-printf 'RabbitMQ is healthy and listening for AMQP on the cosmos-dev Docker network.\n'
+amqp_bindings="$(docker inspect --format '{{json (index .HostConfig.PortBindings "5672/tcp")}}' "${container_id}")" || die "RabbitMQ AMQP host binding is unavailable"
+[[ "${amqp_bindings}" == '[{"HostIp":"","HostPort":"5672"}]' ]] || die "RabbitMQ AMQP host binding must publish port 5672"
+
+management_bindings="$(docker inspect --format '{{json (index .HostConfig.PortBindings "15672/tcp")}}' "${container_id}")" || die "RabbitMQ management host binding is unavailable"
+[[ "${management_bindings}" == '[{"HostIp":"127.0.0.1","HostPort":"15672"}]' ]] || die "RabbitMQ management host binding must be exclusively 127.0.0.1:15672"
+
+printf 'RabbitMQ is healthy and accepting AMQP connections over the dedicated EC2 private network.\n'
