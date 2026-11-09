@@ -1,0 +1,26 @@
+services:
+  backend-consumer:
+    image: ${BACKEND_IMAGE:?BACKEND_IMAGE is required}
+    container_name: cosmos-backend-consumer
+    restart: unless-stopped
+    cpus: 0.50
+    mem_limit: 768m
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      APP_WORKER_ENABLED: "true"
+      SPRING_MAIN_WEB_APPLICATION_TYPE: none
+      RABBITMQ_HOST: ${RABBITMQ_HOST:?RABBITMQ_HOST is required}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:?RABBITMQ_DEFAULT_USER is required}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?RABBITMQ_DEFAULT_PASS is required}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_DEFAULT_VHOST:?RABBITMQ_DEFAULT_VHOST is required}
+      DB_URL: ${DB_URL:?DB_URL is required}
+      AI_SERVER_BASE_URL: ${AI_SERVER_BASE_URL:?AI_SERVER_BASE_URL is required}
+      JUDGE0_BASE_URL: ${JUDGE0_BASE_URL:?JUDGE0_BASE_URL is required}
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"

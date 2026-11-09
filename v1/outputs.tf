@@ -72,3 +72,18 @@ output "loadtest_runner_private_ip" {
   description = "k6 부하테스트 러너 서버 사설 IP"
   value       = aws_instance.loadtest_runner.private_ip
 }
+
+output "rabbitmq_server_private_ip" {
+  description = "RabbitMQ 전용 서버 사설 IP (Spring 연결 호스트)"
+  value       = aws_instance.rabbitmq_server.private_ip
+}
+
+output "rabbitmq_server_public_ip" {
+  description = "RabbitMQ 전용 서버 공인 IP (main EC2 ProxyJump 경유 관리용)"
+  value       = aws_instance.rabbitmq_server.public_ip
+}
+
+output "rabbitmq_connection_host" {
+  description = "V1 Spring에서 사용할 RabbitMQ private 연결 호스트"
+  value       = aws_instance.rabbitmq_server.private_ip
+}
