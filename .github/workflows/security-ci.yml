@@ -1,0 +1,94 @@
+name: Trivy Security CI
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "v3/**"
+      - ".github/workflows/security-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: trivy-security-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  iac-security:
+    name: Scan v3 IaC security
+    if: github.event.pull_request.draft != true
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v4.3.1
+
+      - name: Render production application manifests
+        env:
+          RENDERED_DIR: ${{ runner.temp }}/trivy-rendered
+        run: |
+          set -euo pipefail
+          mkdir -p "${RENDERED_DIR}" trivy-results
+
+          for values in v3/gitops/environments/prod/*.yaml; do
+            name=$(basename "${values}" .yaml)
+            helm lint v3/gitops/charts/cosmos-app -f "${values}"
+            helm template "${name}" v3/gitops/charts/cosmos-app \
+              --namespace prod \
+              -f "${values}" \
+              > "${RENDERED_DIR}/${name}.yaml"
+          done
+
+      - name: Scan v3 source with Trivy (SARIF)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: config
+          scan-ref: v3
+          format: sarif
+          output: trivy-results/trivy-iac-source.sarif
+          exit-code: "0"
+
+      - name: Scan rendered manifests with Trivy (SARIF)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: config
+          scan-ref: ${{ runner.temp }}/trivy-rendered
+          format: sarif
+          output: trivy-results/trivy-iac-rendered.sarif
+          exit-code: "0"
+
+      - name: Upload source scan to GitHub Security
+        if: ${{ always() && github.event.pull_request.head.repo.full_name == github.repository }}
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-results/trivy-iac-source.sarif
+          category: trivy-cloud-source
+
+      - name: Upload rendered scan to GitHub Security
+        if: ${{ always() && github.event.pull_request.head.repo.full_name == github.repository }}
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-results/trivy-iac-rendered.sarif
+          category: trivy-cloud-rendered
+
+      - name: Preserve Trivy reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-cloud-${{ github.run_id }}
+          path: trivy-results/*.sarif
+          if-no-files-found: warn
+          retention-days: 14
