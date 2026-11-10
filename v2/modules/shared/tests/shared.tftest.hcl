@@ -72,6 +72,16 @@ run "공유_ECR은_환경명_없이_세_개를_보호한다" {
     ])
     error_message = "ECR은 immutable/scan/AES256을 사용하고 환경명을 포함하지 않아야 합니다."
   }
+
+  assert {
+    condition = alltrue([
+      for policy in aws_ecr_lifecycle_policy.service :
+      jsondecode(policy.policy).rules[0].rulePriority == 1 &&
+      jsondecode(policy.policy).rules[0].selection.tagPrefixList == ["approved-"] &&
+      jsondecode(policy.policy).rules[0].selection.countNumber == 30
+    ])
+    error_message = "모든 Source ECR은 approved-* 이미지 최신 30개를 최우선 규칙으로 보호해야 합니다."
+  }
 }
 
 run "GitHub_Stage_CI는_저장소별_ECR만_push한다" {
@@ -120,6 +130,42 @@ run "GitHub_Stage_CI는_저장소별_ECR만_push한다" {
   assert {
     condition     = output.github_oidc_provider_arn == aws_iam_openid_connect_provider.github.arn
     error_message = "Shared output은 stage CD role trust에 사용할 GitHub OIDC provider ARN을 제공해야 합니다."
+  }
+}
+
+run "GitHub_Production_CI는_승인_이미지만_발행한다" {
+  command = plan
+
+  assert {
+    condition = (
+      toset(keys(aws_iam_role.github_production_ci)) == toset(["spring", "fastapi"]) &&
+      toset(keys(aws_iam_role_policy.github_production_ecr)) == toset(["spring", "fastapi"])
+    )
+    error_message = "Production CI role과 policy는 Spring과 FastAPI에 각각 하나씩 필요합니다."
+  }
+
+  assert {
+    condition = (
+      strcontains(aws_iam_role.github_production_ci["spring"].assume_role_policy, "repo:100-hours-a-week@167328634/KTB4-9th-BE@1344700709:environment:production-ci") &&
+      strcontains(aws_iam_role.github_production_ci["fastapi"].assume_role_policy, "repo:100-hours-a-week@167328634/KTB4-9th-AI@1344703221:environment:production-ci")
+    )
+    error_message = "Production role은 immutable 저장소 ID와 production-ci environment subject만 신뢰해야 합니다."
+  }
+
+  assert {
+    condition = alltrue([
+      for service, policy_resource in aws_iam_role_policy.github_production_ecr :
+      strcontains(policy_resource.policy, aws_ecr_repository.service[service].arn) &&
+      strcontains(policy_resource.policy, "ecr:DescribeImageScanFindings") &&
+      strcontains(policy_resource.policy, "ecr:BatchGetImage") &&
+      strcontains(policy_resource.policy, "ecr:PutImage")
+    ])
+    error_message = "Production CI policy는 자신의 ECR에 대한 scan 조회, manifest 조회, 승인 tag 생성 권한을 제공해야 합니다."
+  }
+
+  assert {
+    condition     = toset(keys(output.github_production_ci_role_arns)) == toset(["spring", "fastapi"])
+    error_message = "Shared output은 두 GitHub Production CI role ARN을 제공해야 합니다."
   }
 }
 

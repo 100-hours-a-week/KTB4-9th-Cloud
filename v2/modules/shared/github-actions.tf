@@ -18,6 +18,11 @@ locals {
       id   = "1374079744"
     }
   }
+
+  github_production_ci_repositories = {
+    for service, repository in local.github_stage_ci_repositories : service => repository
+    if contains(["spring", "fastapi"], service)
+  }
 }
 
 resource "aws_iam_role" "github_terraform_plan" {
@@ -205,6 +210,66 @@ resource "aws_iam_role_policy" "github_stage_ecr" {
         Action = [
           "ecr:BatchCheckLayerAvailability",
           "ecr:CompleteLayerUpload",
+          "ecr:DescribeImages",
+          "ecr:InitiateLayerUpload",
+          "ecr:PutImage",
+          "ecr:UploadLayerPart",
+        ]
+        Resource = aws_ecr_repository.service[each.key].arn
+      },
+    ]
+  })
+}
+
+resource "aws_iam_role" "github_production_ci" {
+  for_each = local.github_production_ci_repositories
+
+  name = "${var.project_name}-github-production-${each.key}-ci"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = "sts:AssumeRoleWithWebIdentity"
+      Principal = {
+        Federated = aws_iam_openid_connect_provider.github.arn
+      }
+      Condition = {
+        StringEquals = {
+          "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+          "token.actions.githubusercontent.com:sub" = "repo:${local.github_organization.name}@${local.github_organization.id}/${each.value.name}@${each.value.id}:environment:production-ci"
+        }
+      }
+    }]
+  })
+
+  tags = merge(local.common_tags, {
+    Service = each.key
+    Purpose = "GitHubProductionCI"
+  })
+}
+
+resource "aws_iam_role_policy" "github_production_ecr" {
+  for_each = local.github_production_ci_repositories
+
+  name = "publish-approved-image"
+  role = aws_iam_role.github_production_ci[each.key].id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "ECRAuthentication"
+        Effect   = "Allow"
+        Action   = ["ecr:GetAuthorizationToken"]
+        Resource = "*"
+      },
+      {
+        Sid    = "PublishAndApproveOwnRepository"
+        Effect = "Allow"
+        Action = [
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:BatchGetImage",
+          "ecr:CompleteLayerUpload",
+          "ecr:DescribeImageScanFindings",
           "ecr:DescribeImages",
           "ecr:InitiateLayerUpload",
           "ecr:PutImage",

@@ -161,6 +161,17 @@ variable "ecr_tagged_image_count" {
   }
 }
 
+variable "ecr_approved_image_count" {
+  description = "ECR별 보존할 approved-* 운영 이미지 수"
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = var.ecr_approved_image_count > 0
+    error_message = "ecr_approved_image_count는 0보다 커야 합니다."
+  }
+}
+
 variable "ecr_untagged_max_age_days" {
   description = "untagged image 최대 보존 일수"
   type        = number

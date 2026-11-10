@@ -27,6 +27,17 @@ resource "aws_ecr_lifecycle_policy" "service" {
     rules = [
       {
         rulePriority = 1
+        description  = "최근 approved 운영 이미지 30개 보존"
+        selection = {
+          tagStatus     = "tagged"
+          tagPrefixList = ["approved-"]
+          countType     = "imageCountMoreThan"
+          countNumber   = var.ecr_approved_image_count
+        }
+        action = { type = "expire" }
+      },
+      {
+        rulePriority = 2
         description  = "최근 tagged 이미지 보존"
         selection = {
           tagStatus      = "tagged"
@@ -37,7 +48,7 @@ resource "aws_ecr_lifecycle_policy" "service" {
         action = { type = "expire" }
       },
       {
-        rulePriority = 2
+        rulePriority = 3
         description  = "오래된 untagged 이미지 정리"
         selection = {
           tagStatus   = "untagged"

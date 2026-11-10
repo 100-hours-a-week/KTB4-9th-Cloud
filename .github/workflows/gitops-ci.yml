@@ -29,7 +29,13 @@ jobs:
       - name: Reject mutable images
         run: |
           set -euo pipefail
-          if grep -L 'image: .*@sha256:' v3/gitops/environments/prod/*.yaml | grep .; then
-            echo "::error::digest로 고정하지 않은 이미지가 있습니다"
+          while read -r file image; do
+            if [[ "${image}" =~ @sha256:[0-9a-f]{64}$ ]]; then
+              continue
+            fi
+            if [[ "${image}" =~ ^352635536602\.dkr\.ecr\.ap-northeast-2\.amazonaws\.com/cosmos-v2/(spring|fastapi):approved-[0-9a-f]{40}$ ]]; then
+              continue
+            fi
+            echo "::error file=${file}::digest 또는 approved-<40자리 SHA>로 고정하지 않은 이미지입니다: ${image}"
             exit 1
-          fi
+          done < <(awk '$1 == "image:" { print FILENAME, $2 }' v3/gitops/environments/prod/*.yaml)
