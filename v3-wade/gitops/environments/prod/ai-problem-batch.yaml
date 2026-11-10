@@ -1,6 +1,7 @@
 name: cosmos-ai-problem-batch
 component: ai
 image: 352635536602.dkr.ecr.ap-northeast-2.amazonaws.com/cosmos-ai-problem-batch@sha256:023356171f5055120bb769c560e263558cc58d222b0723752a22bde586dbbc2c
+sourceRevision: ""
 serviceAccount: ai-job-sa
 port: 0
 service: { enabled: false }

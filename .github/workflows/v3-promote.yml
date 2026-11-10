@@ -1,5 +1,7 @@
 name: V3 Production Promote
 
+# 승격 대상은 훈련 클러스터 v3-john, v3-wade다. v3 클러스터는 2026-11-06에 삭제했다.
+
 on:
   workflow_dispatch:
     inputs:
@@ -7,7 +9,7 @@ on:
         description: Production component to promote
         required: true
         type: choice
-        options: [spring, fastapi]
+        options: [spring, fastapi, judge]
       image_tag:
         description: 40-character source Git SHA
         required: true
@@ -48,6 +50,10 @@ jobs:
             fastapi)
               expected_ecr=cosmos-v2/fastapi
               expected_github=100-hours-a-week/KTB4-9th-AI
+              ;;
+            judge)
+              expected_ecr=cosmos-v2/judge
+              expected_github=100-hours-a-week/KTB4-9th-Judge
               ;;
             *) echo "::error::Unsupported component"; exit 1 ;;
           esac
@@ -95,8 +101,9 @@ jobs:
           echo "BASE_MAIN_SHA=$(git rev-parse HEAD)" >>"${GITHUB_ENV}"
           if git fetch origin "${PROMOTION_BRANCH}:refs/remotes/origin/${PROMOTION_BRANCH}" 2>/dev/null; then
             case "${COMPONENT}" in
-              spring) file=v3/gitops/environments/prod/auth.yaml ;;
-              fastapi) file=v3/gitops/environments/prod/ai-llm.yaml ;;
+              spring) file=v3-john/gitops/environments/prod/auth.yaml ;;
+              fastapi) file=v3-john/gitops/environments/prod/ai-llm.yaml ;;
+              judge) file=v3-john/gitops/environments/prod/judge-api.yaml ;;
             esac
             revision="$(git show "origin/${PROMOTION_BRANCH}:${file}" | awk '$1 == "sourceRevision:" { gsub(/"/, "", $2); print $2; exit }')"
             [[ -z "${revision}" ]] || echo "CURRENT_REVISION_OVERRIDE=${revision}" >>"${GITHUB_ENV}"
@@ -116,7 +123,7 @@ jobs:
           DIGEST: ${{ steps.promotion.outputs.digest }}
         run: |
           set -euo pipefail
-          if git diff --quiet -- v3/gitops/environments/prod; then
+          if git diff --quiet -- v3-john/gitops/environments/prod v3-wade/gitops/environments/prod; then
             echo "::notice::GitOps already declares this digest."
             exit 0
           fi

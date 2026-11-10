@@ -12,7 +12,12 @@ case "${COMPONENT}|${SOURCE_REPO}|${SOURCE_GITHUB_REPO}" in
     targets="auth:cosmos-auth core:cosmos-core battle:cosmos-battle"
     ;;
   fastapi\|cosmos-v2/fastapi\|100-hours-a-week/KTB4-9th-AI)
-    targets="ai-llm:cosmos-ai-llm ai-make-problem:cosmos-ai-make-problem ai-problem-batch:cosmos-ai-problem-batch"
+    targets="ai-llm:cosmos-ai-llm ai-make-problem:cosmos-ai-make-problem ai-problem-batch:cosmos-ai-problem-batch ai-migrate:cosmos-ai-make-problem"
+    ;;
+  judge\|cosmos-v2/judge\|100-hours-a-week/KTB4-9th-Judge)
+    # api와 worker는 같은 이미지를 명령만 달리해 쓴다. 장애 주입 실험 대상인 v3-john에만 올린다.
+    targets="judge-api:cosmos-judge-api judge-worker:cosmos-judge-worker"
+    default_clusters="v3-john"
     ;;
   *)
     printf 'ERROR: component, ECR repository, and GitHub repository tuple is not allowed\n' >&2
@@ -21,10 +26,15 @@ case "${COMPONENT}|${SOURCE_REPO}|${SOURCE_GITHUB_REPO}" in
 esac
 
 root="${GITOPS_ROOT:-${GITHUB_WORKSPACE:-$(pwd)}}"
-values_root="${root}/v3/gitops/environments/prod"
-for target in ${targets}; do
-  file="${target%%:*}"
-  [[ -f "${values_root}/${file}.yaml" ]] || { printf 'ERROR: missing values file %s\n' "${file}" >&2; exit 1; }
+# 승격 대상 훈련 클러스터. 두 클러스터의 값 파일을 함께 바꾼다.
+clusters="${PROMOTE_CLUSTERS:-${default_clusters:-v3-john v3-wade}}"
+values_files=()
+for cluster in ${clusters}; do
+  for target in ${targets}; do
+    file="${root}/${cluster}/gitops/environments/prod/${target%%:*}.yaml"
+    [[ -f "${file}" ]] || { printf 'ERROR: missing values file %s\n' "${file}" >&2; exit 1; }
+    values_files+=("${file}")
+  done
 done
 
 main_status="$(gh api "repos/${SOURCE_GITHUB_REPO}/compare/${IMAGE_TAG}...main" --jq .status)"
@@ -34,9 +44,8 @@ case "${main_status}" in
 esac
 
 main_revision=""
-for target in ${targets}; do
-  file="${target%%:*}"
-  revision="$(awk '$1 == "sourceRevision:" { gsub(/"/, "", $2); print $2; exit }' "${values_root}/${file}.yaml")"
+for file in "${values_files[@]}"; do
+  revision="$(awk '$1 == "sourceRevision:" { gsub(/"/, "", $2); print $2; exit }' "${file}")"
   if [[ -z "${main_revision}" ]]; then
     main_revision="${revision}"
   elif [[ "${revision}" != "${main_revision}" ]]; then
@@ -68,20 +77,27 @@ critical="$(aws ecr describe-image-scan-findings --repository-name "${SOURCE_REP
 digest="$(aws ecr describe-images --repository-name "${SOURCE_REPO}" --image-ids "imageTag=${IMAGE_TAG}" --region "${AWS_REGION}" --query 'imageDetails[0].imageDigest' --output text)"
 [[ "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]] || { printf 'ERROR: source digest was not found\n' >&2; exit 1; }
 
+copied=" "
 for target in ${targets}; do
   file="${target%%:*}"
   repository="${target##*:}"
-  docker buildx imagetools create \
-    -t "${REGISTRY}/${repository}:${IMAGE_TAG}" \
-    -t "${REGISTRY}/${repository}:prod-${digest:7:12}" \
-    "${REGISTRY}/${SOURCE_REPO}@${digest}"
-  ruby - "${values_root}/${file}.yaml" "${REGISTRY}/${repository}@${digest}" "${IMAGE_TAG}" <<'RUBY'
+  # 서비스 저장소는 태그 덮어쓰기 금지라 같은 저장소는 한 번만 복사한다.
+  if [[ "${copied}" != *" ${repository} "* ]]; then
+    docker buildx imagetools create \
+      -t "${REGISTRY}/${repository}:${IMAGE_TAG}" \
+      -t "${REGISTRY}/${repository}:prod-${digest:7:12}" \
+      "${REGISTRY}/${SOURCE_REPO}@${digest}"
+    copied+="${repository} "
+  fi
+  for cluster in ${clusters}; do
+    ruby - "${root}/${cluster}/gitops/environments/prod/${file}.yaml" "${REGISTRY}/${repository}@${digest}" "${IMAGE_TAG}" <<'RUBY'
 path, image, revision = ARGV
-text = File.read(path)
+text = File.read(path, encoding: "UTF-8")
 abort("missing image field in #{path}") unless text.sub!(/^image: .*$/, "image: #{image}")
 abort("missing sourceRevision field in #{path}") unless text.sub!(/^sourceRevision: .*$/, "sourceRevision: #{revision}")
 File.write(path, text)
 RUBY
+  done
 done
 
 [[ -n "${GITHUB_OUTPUT:-}" ]] && {

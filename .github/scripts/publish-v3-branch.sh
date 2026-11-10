@@ -17,6 +17,6 @@ fi
 git config user.name "cosmos-release[bot]"
 git config user.email "cosmos-release[bot]@users.noreply.github.com"
 git switch -C "${PROMOTION_BRANCH}"
-git add v3/gitops/environments/prod
-git commit -m "deploy(v3): ${COMPONENT} ${IMAGE_TAG:0:12} promote"
+git add v3-john/gitops/environments/prod v3-wade/gitops/environments/prod
+git commit -m "deploy(v3-john,v3-wade): ${COMPONENT} ${IMAGE_TAG:0:12} promote"
 git push --force-with-lease origin "HEAD:${PROMOTION_BRANCH}"

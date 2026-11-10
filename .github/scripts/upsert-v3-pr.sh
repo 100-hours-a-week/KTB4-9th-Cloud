@@ -12,7 +12,7 @@ if [[ -z "${pr_url}" ]]; then
     --repo "${GITHUB_REPOSITORY}" \
     --base main \
     --head "${PROMOTION_BRANCH}" \
-    --title "deploy(v3): ${COMPONENT} ${IMAGE_TAG:0:12} promote" \
+    --title "deploy(v3-john,v3-wade): ${COMPONENT} ${IMAGE_TAG:0:12} promote" \
     --body "Source: ${SOURCE_GITHUB_REPO}@${IMAGE_TAG}; image digest: ${DIGEST}; gates: Trivy passed before push and ECR Basic Scan CRITICAL 0.")"
 fi
 [[ "${pr_url}" == https://github.com/*/pull/* ]] || { printf 'ERROR: promotion PR URL was not returned\n' >&2; exit 1; }
