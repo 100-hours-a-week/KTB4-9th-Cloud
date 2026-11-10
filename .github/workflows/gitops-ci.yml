@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "v3/gitops/**"
+      - "v3-john/gitops/**"
+      - "v3-wade/gitops/**"
 
 permissions:
   contents: read
@@ -21,15 +23,17 @@ jobs:
       - name: Render prod values
         run: |
           set -euo pipefail
-          for values in v3/gitops/environments/prod/*.yaml; do
-            helm lint v3/gitops/charts/cosmos-app -f "$values"
-            helm template check v3/gitops/charts/cosmos-app -n prod -f "$values" > /dev/null
+          for env in v3 v3-john v3-wade; do
+            for values in $env/gitops/environments/prod/*.yaml; do
+              helm lint $env/gitops/charts/cosmos-app -f "$values"
+              helm template check $env/gitops/charts/cosmos-app -n prod -f "$values" > /dev/null
+            done
           done
 
       - name: Reject mutable images
         run: |
           set -euo pipefail
-          if grep -L 'image: .*@sha256:' v3/gitops/environments/prod/*.yaml | grep .; then
+          if grep -L 'image: .*@sha256:' v3*/gitops/environments/prod/*.yaml | grep .; then
             echo "::error::digest로 고정하지 않은 이미지가 있습니다"
             exit 1
           fi

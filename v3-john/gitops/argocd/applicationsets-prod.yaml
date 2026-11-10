@@ -1,4 +1,5 @@
-# Prod는 자동 동기화하지 않는다. Merge 후 운영자가 Manual Sync한다.
+# 상태 없는 애플리케이션만 자동 동기화한다. 상태 저장 서비스와 플랫폼은 Manual Sync한다.
+# 장애 주입 훈련용이라 selfHeal은 끈다. 켜 두면 주입한 장애를 Argo CD가 바로 되돌린다.
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -9,18 +10,18 @@ spec:
   generators:
     - list:
         elements:
-          - { name: auth }
-          - { name: core }
-          - { name: battle }
-          - { name: ai-llm }
-          - { name: ai-make-problem }
-          - { name: ai-problem-batch }
-          - { name: ai-postgres }
-          - { name: mlflow }
-          - { name: judge-api }
-          - { name: judge-worker }
-          - { name: judge-postgres }
-          - { name: judge-redis }
+          - { name: auth, autoSync: true }
+          - { name: core, autoSync: true }
+          - { name: battle, autoSync: true }
+          - { name: ai-llm, autoSync: true }
+          - { name: ai-make-problem, autoSync: true }
+          - { name: ai-problem-batch, autoSync: true }
+          - { name: ai-postgres, autoSync: false }
+          - { name: mlflow, autoSync: false }
+          - { name: judge-api, autoSync: false }
+          - { name: judge-worker, autoSync: false }
+          - { name: judge-postgres, autoSync: false }
+          - { name: judge-redis, autoSync: false }
   template:
     metadata:
       name: "prod-{{ .name }}"
@@ -44,6 +45,14 @@ spec:
           kind: Deployment
           jsonPointers:
             - /spec/replicas
+  templatePatch: |
+    {{- if .autoSync }}
+    spec:
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: false
+    {{- end }}
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
