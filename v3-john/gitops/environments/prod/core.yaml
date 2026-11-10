@@ -1,6 +1,7 @@
 name: cosmos-core
 component: core
 image: 352635536602.dkr.ecr.ap-northeast-2.amazonaws.com/cosmos-core@sha256:ebfbf1e12c010fb6a78db999f011995b7063c5150cda20b1de0b19ed353af849
+sourceRevision: ""
 serviceAccount: core-sa
 service: { name: core-service }
 extraPorts: [{ name: management, port: 9091 }]
