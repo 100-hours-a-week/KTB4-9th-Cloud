@@ -18,11 +18,6 @@ variable "edge_allowed_cidrs" {
   type        = list(string)
 }
 
-variable "seed_snapshot_identifier" {
-  description = "scripts/seed.sh가 만든 RDS 시드 스냅샷"
-  type        = string
-}
-
 variable "enable_edge" {
   type    = bool
   default = false

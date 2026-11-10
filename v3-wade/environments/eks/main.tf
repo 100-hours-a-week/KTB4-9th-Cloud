@@ -30,12 +30,11 @@ resource "random_password" "mysql" {
 }
 
 module "data" {
-  source              = "../../modules/data"
-  name                = local.name
-  vpc_id              = module.network.vpc_id
-  subnet_ids          = module.network.data_subnet_ids
-  snapshot_identifier = var.seed_snapshot_identifier
-  master_password     = random_password.mysql.result
+  source          = "../../modules/data"
+  name            = local.name
+  vpc_id          = module.network.vpc_id
+  subnet_ids      = module.network.data_subnet_ids
+  master_password = random_password.mysql.result
 }
 
 # 운영 Secret은 읽기만 하고 DB 접속 정보만 이 클러스터 값으로 만든다.
