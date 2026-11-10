@@ -16,6 +16,7 @@ spec:
           - { name: ai-make-problem, autoSync: true }
           - { name: ai-problem-batch, autoSync: true }
           - { name: ai-postgres, autoSync: false }
+          - { name: mlflow-db-init, autoSync: false }
           - { name: mlflow, autoSync: false }
           - { name: judge-api, autoSync: false }
           - { name: judge-worker, autoSync: false }

@@ -14,6 +14,7 @@ env:
   FRONTEND_BASE_URL: https://wade.cosmoscode.site
   KAKAO_REDIRECT_URI: https://wade.cosmoscode.site/api/auth/oauth/kakao/callback
   SPRING_JPA_OPEN_IN_VIEW: "true"
+  SPRING_JPA_HIBERNATE_DDL_AUTO: update
   SENTRY_ENVIRONMENT: stage
   AI_SERVER_BASE_URL: http://ai-llm-service
   JUDGE0_BASE_URL: http://judge-api-service

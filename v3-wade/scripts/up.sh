@@ -45,6 +45,10 @@ if ! kubectl get secret argocd-image-updater-git -n argocd >/dev/null 2>&1; then
     --dry-run=client -o yaml | kubectl apply -f -
 fi
 
+kubectl create secret generic argocd-image-updater-secret -n argocd \
+  --from-literal="webhook.cloudevents-secret=$(secret_key cosmos/wade/argocd-image-updater-webhook secret)" \
+  --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+
 inst argocd-image-updater oci://ghcr.io/argoproj/argo-helm/argocd-image-updater 1.4.2 argocd "$V/argocd-image-updater/values.yaml"
 for f in "$V"/monitoring/dashboards/*.json; do
   n="dash-$(basename "$f" .json)"
@@ -56,22 +60,86 @@ G="$BASE/gitops"
 kubectl apply -f "$G/argocd/projects/prod.yaml" -f "$G/argocd/image-updater.yaml"
 # 빈 데이터베이스가 준비되기 전에 애플리케이션이 기동되지 않도록 최초 부트스트랩에서만 autoSync를 끈다.
 sed 's/autoSync: true/autoSync: false/g' "$G/argocd/applicationsets-prod.yaml" | kubectl apply -f -
-sync_app() {
-  until kubectl get application -n argocd "$1" >/dev/null 2>&1; do sleep 3; done
-  kubectl patch application -n argocd "$1" --type merge -p '{"operation":{"initiatedBy":{"username":"up.sh"},"sync":{}}}'
+BOOTSTRAP_HEALTH_TIMEOUT_SECONDS="${BOOTSTRAP_HEALTH_TIMEOUT_SECONDS:-600}"
+wait_application_exists() {
+  local app="$1"
+  local deadline=$((SECONDS + BOOTSTRAP_HEALTH_TIMEOUT_SECONDS))
+  until kubectl get application -n argocd "${app}" >/dev/null 2>&1; do
+    if ((SECONDS >= deadline)); then
+      echo "오류: ${app} Application이 ${BOOTSTRAP_HEALTH_TIMEOUT_SECONDS}초 안에 생성되지 않았습니다." >&2
+      kubectl get applicationset -n argocd prod-services -o wide >&2 || true
+      return 1
+    fi
+    sleep 3
+  done
 }
-wait_healthy() { until [ "$(kubectl get application -n argocd "$1" -o jsonpath='{.status.health.status}')" = Healthy ]; do sleep 5; done; }
+sync_app() {
+  local app="$1"
+  local previous_started_at=""
+  local started_at=""
+  local phase=""
+  local sync_status=""
+  local message=""
+  local status=""
+  local deadline=$((SECONDS + BOOTSTRAP_HEALTH_TIMEOUT_SECONDS))
+  wait_application_exists "${app}"
+  previous_started_at="$(kubectl get application -n argocd "${app}" -o jsonpath='{.status.operationState.startedAt}' 2>/dev/null || true)"
+  kubectl patch application -n argocd "${app}" --type merge -p '{"operation":{"initiatedBy":{"username":"up.sh"},"sync":{}}}' >/dev/null
+  while true; do
+    status="$(kubectl get application -n argocd "${app}" -o jsonpath='{.status.operationState.startedAt}{"|"}{.status.operationState.phase}{"|"}{.status.sync.status}{"|"}{.status.operationState.message}' 2>/dev/null || true)"
+    IFS='|' read -r started_at phase sync_status message <<<"${status}"
+    if [[ -n "${started_at}" && "${started_at}" != "${previous_started_at}" ]]; then
+      if [[ "${phase}" == Succeeded && "${sync_status}" == Synced ]]; then
+        return 0
+      fi
+      if [[ "${phase}" == Failed || "${phase}" == Error ]]; then
+        echo "오류: ${app} Sync 실패: ${message:-원인 미상}" >&2
+        return 1
+      fi
+    fi
+    if ((SECONDS >= deadline)); then
+      echo "오류: ${app}의 새 Sync operation이 ${BOOTSTRAP_HEALTH_TIMEOUT_SECONDS}초 안에 완료되지 않았습니다." >&2
+      kubectl get application -n argocd "${app}" -o wide >&2 || true
+      return 1
+    fi
+    sleep 3
+  done
+}
+wait_healthy() {
+  local app="$1"
+  local deadline=$((SECONDS + BOOTSTRAP_HEALTH_TIMEOUT_SECONDS))
+  local health=""
+  while true; do
+    health="$(kubectl get application -n argocd "${app}" -o jsonpath='{.status.health.status}' 2>/dev/null || true)"
+    [[ "${health}" == Healthy ]] && return 0
+    if ((SECONDS >= deadline)); then
+      echo "오류: ${app}이(가) ${BOOTSTRAP_HEALTH_TIMEOUT_SECONDS}초 안에 Healthy가 되지 않았습니다. 현재 상태: ${health:-Unknown}" >&2
+      kubectl get application -n argocd "${app}" -o wide >&2 || true
+      kubectl get pods -n prod -o wide >&2 || true
+      return 1
+    fi
+    sleep 5
+  done
+}
 
 sync_app prod-platform
 for a in prod-ai-postgres prod-judge-postgres prod-judge-redis; do sync_app "$a"; done
 for a in prod-ai-postgres prod-judge-postgres prod-judge-redis; do wait_healthy "$a"; done
-# 빈 데이터베이스가 준비된 뒤 Git 선언 원본을 다시 적용해 지속적인 Auto Sync를 활성화한다.
+kubectl delete job -n prod cosmos-mlflow-db-init --ignore-not-found --wait=true
+sync_app prod-mlflow-db-init
+wait_healthy prod-mlflow-db-init
+sync_app prod-auth
+wait_healthy prod-auth
+for a in core battle ai-llm ai-make-problem ai-problem-batch mlflow judge-api judge-worker; do sync_app "prod-$a"; done
+for a in core battle ai-llm mlflow judge-api judge-worker; do wait_healthy "prod-$a"; done
+# 모든 초기 스키마와 애플리케이션이 준비된 뒤 지속적인 Auto Sync를 활성화한다.
 kubectl apply -f "$G/argocd/applicationsets-prod.yaml"
-for a in auth core battle ai-llm ai-make-problem ai-problem-batch mlflow judge-api judge-worker; do sync_app "prod-$a"; done
-for a in auth core battle ai-llm mlflow judge-api judge-worker; do wait_healthy "prod-$a"; done
 
 until kubectl get svc -n envoy-gateway-system -o jsonpath='{.items[*].status.loadBalancer.ingress[*].hostname}' | grep -q "$CLUSTER"; do sleep 10; done
-kubectl apply -f "$G/environments/argocd/route.yaml" -f "$G/environments/argocd/grafana-route.yaml"
+kubectl apply \
+  -f "$G/environments/argocd/route.yaml" \
+  -f "$G/environments/argocd/grafana-route.yaml" \
+  -f "$G/environments/argocd/image-updater-webhook-route.yaml"
 tf apply -input=false -auto-approve -var enable_edge=true
 "$BASE/scripts/build-frontend.sh"
 echo "완료: https://$ENV_NAME.cosmoscode.site"

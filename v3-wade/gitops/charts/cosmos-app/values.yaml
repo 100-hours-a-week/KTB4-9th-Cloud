@@ -20,7 +20,7 @@ tolerations: []
 terminationGracePeriodSeconds: 60
 stateful: { enabled: false, storage: 30Gi, mountPath: "", storageClass: gp3-retain }
 cronJob: { enabled: false, schedule: "", suspend: true, activeDeadlineSeconds: 5400 }
-job: { enabled: false }
+job: { enabled: false, activeDeadlineSeconds: null, ttlSecondsAfterFinished: 3600 }
 privileged: false
 rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
 hpa: { enabled: false, min: 1, max: 1, cpu: 70 }

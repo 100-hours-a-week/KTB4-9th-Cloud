@@ -3,19 +3,30 @@ replicaCount: 1
 
 extraArgs:
   - --interval
-  - 2m
-  - --max-concurrency
+  - 30m
+  - --max-concurrent-apps
   - "1"
 
 extraEnv:
   - name: AWS_REGION
     value: ap-northeast-2
   - name: GIT_COMMIT_METHOD
-    value: api
+    value: git
+  - name: WEBHOOK_REQUIRE_SECRET
+    value: "true"
+  - name: CLOUDEVENTS_WEBHOOK_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: argocd-image-updater-secret
+        key: webhook.cloudevents-secret
 
 config:
   kube.events: true
   log.level: info
+  webhook.enable: true
+  webhook.port: 8082
+  webhook.ratelimit-allowed: 120
+  disable-tls: true
   registries:
     - name: Amazon ECR Seoul
       api_url: https://352635536602.dkr.ecr.ap-northeast-2.amazonaws.com
@@ -39,6 +50,11 @@ authScripts:
 serviceAccount:
   create: true
   name: argocd-image-updater
+
+service:
+  enabled: true
+  type: ClusterIP
+  port: 8080
 
 extraObjects:
   - apiVersion: v1

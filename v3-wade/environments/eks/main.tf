@@ -186,3 +186,17 @@ module "edge_grafana" {
   vpc_origin_id = module.edge[0].vpc_origin_id
   web_acl_arn   = module.edge[0].web_acl_arn
 }
+
+module "edge_image_updater_webhook" {
+  count  = var.enable_edge ? 1 : 0
+  source = "../../modules/edge-internal"
+  providers = {
+    aws.us_east_1 = aws.us_east_1
+  }
+
+  domain        = "image-updater-wade.cosmoscode.site"
+  zone_id       = data.aws_route53_zone.main.zone_id
+  nlb_dns_name  = data.aws_lb.prod[0].dns_name
+  vpc_origin_id = module.edge[0].vpc_origin_id
+  web_acl_arn   = null
+}
