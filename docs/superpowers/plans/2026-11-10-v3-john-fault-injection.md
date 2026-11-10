@@ -68,35 +68,42 @@
 
 **Interfaces:**
 - Produces: k6 Job 이름 `k6-<실험ID>`, 환경 변수 `EXPERIMENT_ID`, `DURATION`(기본 `12m`), `VUS`(기본 `10`). 지표는 `k6_*`로 Prometheus에 들어가고 `testid=<실험ID>` 태그를 갖는다.
-- Produces: 시나리오 태그 `step`(login, problem, submit, result, ai). 채점 처리 시간은 `k6_judge_turnaround_seconds` 추세 지표로 낸다.
+- Produces: 시나리오 태그 `step`(login, problem, submit, result, ai). 채점 처리 시간은 `k6_judge_turnaround_seconds` 추세 지표로 낸다. 채점 완료율은 카운터 `k6_judge_submitted_total`, `k6_judge_completed_total`로 내고, 제출 후 5분 안에 결과를 못 받으면 `k6_judge_lost_total`을 올린다.
 - Produces: 환경 변수 `PROFILE`(`steady` 기본, `spike`). `spike`는 처음 2분은 `steady`와 같고, 이후 30초 동안 제출 도착률을 `SPIKE_RPS`(기본 `20`)까지 올려 3분 유지한 뒤 내린다(`ramping-arrival-rate`).
 - Produces: `ai` 시나리오. core를 거쳐 ai-llm을 호출하는 사용자 API 하나를 `constant-arrival-rate` 0.2 rps로 부른다.
 - Produces: 가짜 Gemini 서버 파드 라벨 `app.kubernetes.io/name: gemini-stub`(Task 6 E8 대상). 매핑은 `POST /v1beta/models/.+:generateContent`에 `candidates[0].content.parts[0].text`가 `ai` 시나리오 API가 기대하는 구조화 응답(JSON 문자열)인 고정 응답을, `:embedContent`와 `:batchEmbedContents`에 고정 길이 벡터를 돌려준다. 그 밖의 요청은 404다.
 
 - [ ] **Step 1: 사전 조건 확인.** `v3-john/gitops/environments/prod/core.yaml`의 이미지 소스가 BE `main`의 `LoadTestFixtureController` 포함 커밋 이후인지 확인한다. 아니면 `v3-promote`로 승격하거나 사용자에게 승격을 요청하고 이 Task를 멈춘다.
-- [ ] **Step 2: 실패하는 테스트 작성.** `tests/k6_test.sh`: `k6 inspect chaos/k6/user-journey.js`가 성공하고, 출력에 `"step"` 태그 다섯 종류와 `k6_judge_turnaround_seconds`가 있어야 한다. `PROFILE=spike`로 inspect하면 제출 시나리오의 최대 도착률이 `SPIKE_RPS`이고, `ai` 시나리오의 rate가 1분당 12 이하다. ai-llm 렌더링 결과에 `GOOGLE_GEMINI_BASE_URL=http://gemini-stub.chaos:8080`이 있고, 매핑 JSON이 모두 파싱된다. `helm template`으로 core를 렌더링했을 때 `LOADTEST_FIXTURES_ENABLED`가 있어야 한다.
+- [ ] **Step 2: 실패하는 테스트 작성.** `tests/k6_test.sh`: `k6 inspect chaos/k6/user-journey.js`가 성공하고, 출력에 `"step"` 태그 다섯 종류와 `k6_judge_turnaround_seconds`, `k6_judge_submitted_total`, `k6_judge_completed_total`, `k6_judge_lost_total`이 있어야 한다. `PROFILE=spike`로 inspect하면 제출 시나리오의 최대 도착률이 `SPIKE_RPS`이고, `ai` 시나리오의 rate가 1분당 12 이하다. ai-llm 렌더링 결과에 `GOOGLE_GEMINI_BASE_URL=http://gemini-stub.chaos:8080`이 있고, 매핑 JSON이 모두 파싱된다. `helm template`으로 core를 렌더링했을 때 `LOADTEST_FIXTURES_ENABLED`가 있어야 한다.
 - [ ] **Step 3: 테스트 실패 확인.** `bash v3-john/tests/k6_test.sh` → 파일 없음으로 실패.
 - [ ] **Step 4: 구현.** 토큰은 `setup()`에서 `POST http://core-service.prod/api/internal/load-test/battle/users`(헤더 `X-Load-Test-Secret`)로 받고, 사용자 요청은 `https://john.cosmoscode.site/api`로 보낸다(쿠키 `accessToken`). 문제 ID와 제출 코드는 `__ENV.PROBLEM_ID`(기본 `1`)와 파일 상단 상수로 둔다. `ai` 시나리오의 엔드포인트는 BE 저장소에서 `AI_SERVER_BASE_URL`을 쓰는 클라이언트를 호출하는 컨트롤러로 정하고, 파일 상단 주석에 근거(클래스 이름)를 적는다. 가짜 Gemini 응답 본문은 그 요청이 AI 저장소에서 쓰는 Pydantic 응답 모델에 맞춰 만들고, 매핑 파일에 모델 이름을 적는다. Gemini SDK가 `GOOGLE_GEMINI_BASE_URL`을 기본 주소로 쓰는 근거는 `google-genai` `_base_url.py`의 `get_base_url`이다(현재 AI 의존성 `google-genai` 2.23.0, `langchain-google-genai` 4.4.0). Job은 `grafana/k6` 이미지에 `--out experimental-prometheus-rw`, `K6_PROMETHEUS_RW_SERVER_URL=http://kube-prometheus-stack-prometheus.monitoring:9090/api/v1/write`, `K6_PROMETHEUS_RW_TREND_STATS=p(95),p(99)`를 쓴다.
 - [ ] **Step 5: 테스트 통과 확인.** `bash v3-john/tests/k6_test.sh` → PASS.
 - [ ] **Step 6: 클러스터 검증.** `up.sh` 후 `kubectl apply -f chaos/k6/job.yaml`(EXPERIMENT_ID=smoke, DURATION=2m) → Job 성공, Prometheus에서 `k6_http_reqs_total{testid="smoke"}` 값이 0보다 크다. gemini-stub 요청 로그에 `generateContent`가 찍히고, ai-llm 파드에서 `generativelanguage.googleapis.com`으로 나간 연결이 없다(Alloy 또는 VPC 흐름 로그로 확인).
 - [ ] **Step 7: 커밋.** `feat(v3-john): 실험용 k6 사용자 시나리오와 remote write 수신`
 
-### Task 2: SLO 규칙, burn rate 알림, 대시보드
+### Task 2: SLO 규칙, 알림, 대시보드
 
 **Files:**
 - Create: `v3-john/gitops/environments/prod/platform/slo-rules.yaml`, `v3-john/tests/slo-rules.test.yaml`, `v3-john/tests/slo_test.sh`
 - Create: `v3-john/helm/addons-values/monitoring/dashboards/slo-red.json`
 
 **Interfaces:**
-- Produces: 기록 규칙 `slo:api_errors:ratio_rate5m`, `..._rate1h`, `..._rate6h`, `slo:submission_latency:p95_5m`.
-- Produces: 알림 `ApiErrorBudgetBurnFast`(5m 그리고 1h 비율 > 14.4 × 0.005), `ApiErrorBudgetBurnPage`(1h, 14.4배), `ApiErrorBudgetBurnTicket`(6h, 6배), `SubmissionLatencyHigh`(p95 > 1s, 5분). 레이블 `slo="api-availability"` 등.
+- Consumes: Task 1 k6 지표(`k6_judge_*`, `step` 태그).
+- Produces: 기능 묶음 레이블 `journey`(`core`: 로그인·문제 조회·제출 경로, `ai`: AI 기능 경로). 경로와 묶음의 대응은 규칙 파일 상단 주석에 표로 적는다.
+- Produces: 기록 규칙 `slo:core_errors:ratio_rate5m`, `..._rate1h`, `..._rate6h`, `slo:ai_errors:ratio_rate5m`, `slo:read_latency:p95_5m`, `slo:submission_latency:p95_5m`, `slo:judge_turnaround:p95_5m`, `slo:judge_completion:ratio`.
+- Produces: 알림 `CoreErrorBudgetBurnFast`(5m 그리고 1h 비율 > 14.4 × 0.005), `CoreErrorBudgetBurnPage`(1h > 14.4 × 0.005), `CoreErrorBudgetBurnTicket`(6h > 6 × 0.005), `AiErrorRateHigh`(5m > 0.05), `SubmissionLatencyHigh`, `JudgeTurnaroundHigh`(5분 지속). 레이블 `slo`(`core-availability`, `ai-availability`, `submission-latency`, `judge-turnaround`).
+- Produces: 지연 목표값은 규칙 파일 상단의 상수 주석과 알림 식에 같이 적고, Task 7 기준선 후 확정값으로 바꾼다. 초기값은 제출 1초, 채점 처리 30초다.
 
-- [ ] **Step 1: 실패하는 테스트 작성.** `slo-rules.test.yaml`(promtool 단위 테스트): Envoy 지표 `envoy_cluster_upstream_rq_xx{envoy_response_code_class="5"}`가 전체의 10%인 시계열을 10분 주면 `ApiErrorBudgetBurnFast`가 발생하고, 0.1%면 발생하지 않는다. 지연 히스토그램 p95 1.5초면 `SubmissionLatencyHigh`가 발생한다.
+- [ ] **Step 1: 실패하는 테스트 작성.** `slo-rules.test.yaml`(promtool 단위 테스트):
+  - AI 경로만 5xx 10%, 핵심 경로 5xx 0%를 10분 주면 `AiErrorRateHigh`만 발생하고 `CoreErrorBudgetBurnFast`는 발생하지 않는다(E4, E8 판정 분리).
+  - 핵심 경로 5xx 10%를 10분 주면 `CoreErrorBudgetBurnFast`가 발생하고, 0.1%면 발생하지 않는다.
+  - 제출 지연 히스토그램 p95 1.5초면 `SubmissionLatencyHigh`가 발생한다.
+  - `k6_judge_submitted_total` 100, `k6_judge_completed_total` 97이면 `slo:judge_completion:ratio`가 0.97이다.
 - [ ] **Step 2: 테스트 실패 확인.** `bash v3-john/tests/slo_test.sh`(PrometheusRule에서 `spec`만 추출해 `promtool test rules`) → 규칙 없음으로 실패.
-- [ ] **Step 3: 구현.** 분모와 분자는 Envoy Gateway가 내보내는 `/api` 라우트 지표로 계산한다. 실제 지표 이름과 레이블은 Step 1 전에 `up.sh` 클러스터에서 `envoy_cluster_upstream_rq` 계열을 조회해 확정하고 테스트와 규칙에 같은 이름을 쓴다. 대시보드는 서비스별 RED 패널, SLO 남은 예산, `k6_*` 사용자 지표, 실험 주석(Grafana annotation 태그 `chaos`)을 포함한다.
+- [ ] **Step 3: 구현.** 가용성 분모와 분자는 Envoy Gateway의 라우트별 요청 지표로 계산한다. 실제 지표 이름과 라우트 레이블은 Step 1 전에 `up.sh` 클러스터에서 `envoy_cluster_upstream_rq` 계열을 조회해 확정하고 테스트와 규칙에 같은 이름을 쓴다. 라우트 레이블로 경로를 나눌 수 없으면 Gateway HTTPRoute를 기능 묶음별로 나눠 레이블을 만든다. 대시보드는 기능 묶음별 가용성, 지연, 채점 완료율, 핵심 기능 남은 예산, `k6_*` 요청 수, 실험 주석(태그 `chaos`, `deploy`)을 포함한다.
 - [ ] **Step 4: 테스트 통과 확인.** `bash v3-john/tests/slo_test.sh` → `SUCCESS`.
-- [ ] **Step 5: 클러스터 검증.** Argo CD `prod-platform` Sync 후 `kubectl get prometheusrule -n prod slo-rules`가 있고 Prometheus Rules 화면에 오류가 없다.
-- [ ] **Step 6: 커밋.** `feat(v3-john): API 가용성과 제출 지연 SLO, burn rate 알림`
+- [ ] **Step 5: 클러스터 검증.** Argo CD `prod-platform` Sync 후 `kubectl get prometheusrule -n prod slo-rules`가 있고 Prometheus Rules 화면에 오류가 없다. k6 smoke 후 `slo:core_errors:ratio_rate5m`과 `slo:ai_errors:ratio_rate5m`이 각각 값을 가진다.
+- [ ] **Step 6: 커밋.** `feat(v3-john): 기능 묶음별 SLO와 burn rate 알림`
 
 ### Task 3: 실험 실행기와 기록 양식
 
@@ -107,11 +114,11 @@
 - Consumes: Task 1 k6 Job, Task 2 대시보드 주석 태그 `chaos`.
 - Produces: `run-experiment.sh <실험ID> [--baseline]`. 순서: Grafana 주석(start) → k6 Job 시작 → 2분 대기(정상 구간) → 주입(`chaos/experiments/<ID>-*.yaml` 적용 또는 `<ID>-*.sh` 실행) → 주입 `duration` 대기 → 정리 → 3분 회복 구간 → 주석(end) → 결과 수집. `--baseline`은 주입을 건너뛴다.
 - Produces: `--k6-profile <steady|spike>`(기본 `steady`)를 k6 Job의 `PROFILE`로 넘긴다. `run-experiment.sh annotate <실험ID> <내용>`은 Grafana 주석 하나만 남긴다(E9 수동 단계 기록용).
-- Produces: 결과 파일 `summary.json`(시작·주입·종료 시각, k6 실패율, p95, 알림 발생 시각 목록)과 Grafana 패널 PNG를 S3 경로에 올린다.
+- Produces: 결과 파일 `summary.json`(시작·주입·종료 시각, 판정 구간의 SLO 지표 6종과 목표, 핵심 기능 요청 수, 판정 `pass`·`fail`·`insufficient`, 복구 시각, 알림 발생 시각 목록)과 Grafana 패널 PNG를 S3 경로에 올린다.
 
-- [ ] **Step 1: 실패하는 테스트 작성.** `run_experiment_test.sh`는 PATH 앞에 `kubectl`, `curl`, `aws` 스텁을 두고 실행한다. 확인할 것: (a) 정상 실행 시 `kubectl apply`가 실험 파일로 한 번, `kubectl delete`가 같은 파일로 한 번 호출된다. (b) 주입 대기 중 SIGINT를 보내면 종료 코드가 0이 아니고 `kubectl delete`가 호출된다. (c) `--baseline`이면 apply가 호출되지 않는다. (d) `aws s3 cp`의 목적지가 `s3://cosmos-db-backup-352635536602/chaos/john/E1/`로 시작한다. (e) `--k6-profile spike`면 k6 Job 매니페스트에 `PROFILE=spike`가 들어간다. (f) `annotate`는 Grafana 주석 API만 한 번 호출하고 k6, kubectl apply를 호출하지 않는다. (g) 스텁 `kubectl`이 ai-llm 파드의 `GOOGLE_GEMINI_BASE_URL`을 빈 값이나 다른 주소로 돌려주면 종료 코드가 0이 아니고 k6와 주입을 호출하지 않는다.
+- [ ] **Step 1: 실패하는 테스트 작성.** `run_experiment_test.sh`는 PATH 앞에 `kubectl`, `curl`, `aws` 스텁을 두고 실행한다. 확인할 것: (a) 정상 실행 시 `kubectl apply`가 실험 파일로 한 번, `kubectl delete`가 같은 파일로 한 번 호출된다. (b) 주입 대기 중 SIGINT를 보내면 종료 코드가 0이 아니고 `kubectl delete`가 호출된다. (c) `--baseline`이면 apply가 호출되지 않는다. (d) `aws s3 cp`의 목적지가 `s3://cosmos-db-backup-352635536602/chaos/john/E1/`로 시작한다. (e) `--k6-profile spike`면 k6 Job 매니페스트에 `PROFILE=spike`가 들어간다. (f) `annotate`는 Grafana 주석 API만 한 번 호출하고 k6, kubectl apply를 호출하지 않는다. (g) 스텁 `kubectl`이 ai-llm 파드의 `GOOGLE_GEMINI_BASE_URL`을 빈 값이나 다른 주소로 돌려주면 종료 코드가 0이 아니고 k6와 주입을 호출하지 않는다. (h) 스텁 Prometheus 응답에서 판정 구간 핵심 기능 요청 수가 999면 판정이 `insufficient`, 1000이고 지표가 목표 안이면 `pass`다.
 - [ ] **Step 2: 테스트 실패 확인.** `bash v3-john/tests/run_experiment_test.sh` → 실패.
-- [ ] **Step 3: 구현.** Grafana 주소와 계정은 `kubectl port-forward`와 Secret `grafana-admin`으로 얻는다. 알림 발생 시각은 Alertmanager API(`/api/v2/alerts`)에서 실험 구간에 시작된 알림을 모은다. 정리는 `trap cleanup EXIT INT TERM`으로 보장한다.
+- [ ] **Step 3: 구현.** Grafana 주소와 계정은 `kubectl port-forward`와 Secret `grafana-admin`으로 얻는다. 알림 발생 시각은 Alertmanager API(`/api/v2/alerts`)에서 실험 구간에 시작된 알림을 모은다. 판정 구간은 주입 시작부터 회복 구간 끝까지이고, SLO 지표는 Task 2 기록 규칙을 그 구간에 대해 Prometheus API로 조회한다. 복구 시각은 지표가 목표 안으로 돌아와 1분 유지된 첫 시점이다. 정리는 `trap cleanup EXIT INT TERM`으로 보장한다.
 - [ ] **Step 4: 테스트 통과 확인.** → PASS.
 - [ ] **Step 5: 기록 양식 작성.** `TEMPLATE.md` 항목: 가설, 주입, 영향 범위, 중단 조건, 탐지 시간, 원인 파악 시간, 복구 시간, 사용자 영향, 대응 타임라인, 발견한 약점, 조치, 재실험 결과, 근거 화면.
 - [ ] **Step 6: 커밋.** `feat(v3-john): 장애 주입 실험 실행기와 기록 양식`
@@ -181,9 +188,9 @@
 **Files:**
 - Create: `v3-john/chaos/records/BASELINE-<날짜>.md`, `v3-john/chaos/records/E1..E9-<날짜>.md`
 
-- [ ] **Step 1: 기준선.** `run-experiment.sh BASELINE --baseline`을 3회 실행하고 가용성, 제출 p95, 채점 처리 p95, 서비스 구간별 p99(core → ai-llm, core → judge-api)의 평균을 기록한다.
+- [ ] **Step 1: 기준선.** `run-experiment.sh BASELINE --baseline`을 3회 실행하고 SLO 지표 6종과 서비스 구간별 p99(core → ai-llm, core → judge-api)의 평균을 기록한다. 설계 문서 6.1 규칙으로 지연 목표를 확정해 `slo-rules.yaml`에 반영하고 커밋한다. 세 번 모두 판정 구간 핵심 기능 요청이 1,000건 이상인지 확인하고, 아니면 `VUS`를 올린다.
 - [ ] **Step 2: E1~E9 실행.** E7은 `--k6-profile spike`로 실행한다. 실험마다 대응자가 알림을 받은 순간부터 원인을 확정할 때까지 지표와 로그만으로 진단하고, 원인 파악 시간과 막힌 지점을 기록한다.
-- [ ] **Step 3: 결정 기록.** 각 기록 끝에 설계 문서 4절 조건 판정을 적는다. E5 원인 파악 시간 10분 초과 → Task 9 진행. E4 또는 E8에서 직접 장애가 아닌 서비스(로그인, 제출)의 SLO 위반 → Task 10 진행. 넘지 못한 조건은 해당 Task를 "미도입"으로 기록하고 건너뛴다.
+- [ ] **Step 3: 결정 기록.** 각 기록 끝에 설계 문서 4절 조건 판정을 적는다. E5 원인 파악 시간 10분 초과 → Task 9 진행. E4 또는 E8에서 핵심 기능 가용성이나 조회 지연 목표 위반 → Task 10 진행. 넘지 못한 조건은 해당 Task를 "미도입"으로 기록하고 건너뛴다.
 - [ ] **Step 4: 커밋.** `docs(v3-john): 기준선과 1단계 실험 기록`
 
 ### Task 8: 1단계 개선 (가용성, 채점 용량, 배포 표시)
@@ -248,7 +255,7 @@ E1, E3, E7, E9 결과가 가설대로였다면(약점 없음) 이 Task는 해당
 - [ ] **Step 3: 구현.** 타임아웃 계산값과 근거(기준선 p99)를 파일 주석에 남긴다.
 - [ ] **Step 4: 테스트 통과 확인.** → PASS.
 - [ ] **Step 5: 클러스터 검증.** core, auth, battle, ai-llm, judge-api 파드가 `2/2`이고, 제외 대상은 `1/1`이며, ai-migrate Job이 완료된다. `istioctl analyze -n prod` 오류 0건.
-- [ ] **Step 6: 재실험.** E8은 재실험하지 않는다. 실험에서는 가짜 서버가 HTTP라 sidecar 정책이 걸리지만, 실제 Gemini 호출은 앱이 직접 여는 HTTPS라 sidecar가 L7 정책을 걸 수 없어 결과가 운영으로 이어지지 않는다. 앱 타임아웃 개선 제안으로 기록한다. E4, E5를 다시 실행하고 로그인, 제출 SLO와 k6 실패율을 1단계와 비교한다. Kiali는 설치하지 않고 Tempo 서비스 그래프와 Istio 지표 대시보드로 확인한다.
+- [ ] **Step 6: 재실험.** E8은 재실험하지 않는다. 실험에서는 가짜 서버가 HTTP라 sidecar 정책이 걸리지만, 실제 Gemini 호출은 앱이 직접 여는 HTTPS라 sidecar가 L7 정책을 걸 수 없어 결과가 운영으로 이어지지 않는다. 앱 타임아웃 개선 제안으로 기록한다. E4, E5를 다시 실행하고 핵심 기능 가용성, 조회 지연과 k6 실패율을 1단계와 비교한다. Kiali는 설치하지 않고 Tempo 서비스 그래프와 Istio 지표 대시보드로 확인한다.
 - [ ] **Step 7: 커밋.** `feat(v3-john): Istio sidecar와 서비스 구간 회복 정책`
 
 ### Task 11: 런북, 포스트모템, 최종 보고서
