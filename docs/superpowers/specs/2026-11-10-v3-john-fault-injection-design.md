@@ -11,6 +11,7 @@
 - v3-john은 작업할 때만 `up.sh`로 띄우고 `down.sh`로 내린다. 모든 도구와 실험은 `up.sh` 한 번으로 재현되어야 하고, 실험 결과는 S3와 문서로 남긴다.
 - 수정은 인프라와 설정만 한다(Helm 값, 환경 변수, 쿠버네티스 리소스, Istio 정책). 예외는 Judge(Rails)의 OTel gem 추가 하나이며, 사용자가 Judge 저장소 브랜치에서 직접 한다. 앱 코드 수정이 필요한 문제는 개선 제안으로만 기록한다.
 - Spot vCPU 한도는 32개다. 현재 노드는 system 1대(2 vCPU), stateful 1대(2), judge 1대(4), application 2대(8)로 16 vCPU다. 1단계 개선 후 최대치는 application 3대, judge 3대로 28 vCPU다.
+- v3-john은 실제 Gemini API를 호출하지 않는다. ai-llm은 환경 변수 `GOOGLE_GEMINI_BASE_URL`로 클러스터 안의 가짜 Gemini 서버를 본다. Gemini SDK(`google-genai`)가 이 변수를 기본 접속 주소로 쓰므로 앱 코드는 바꾸지 않는다.
 - 승격 파이프라인(`v3-promote`)이 `v3-john` 값 파일을 자동으로 고치므로, 실험용 변경은 값 파일의 `image`, `sourceRevision` 줄을 건드리지 않는다.
 
 ## 3. 현재 구조에서 확인한 사실
@@ -44,6 +45,7 @@
 | Chaos Mesh | 파드, 네트워크 장애 주입. 실험을 YAML로 저장한다 | `chaos-mesh` 네임스페이스, `up.sh` |
 | AWS FIS | Spot 회수 장애 주입 | Terraform `environments/eks`, 실험 템플릿과 IAM 역할 |
 | k6 | 실험 중 사용자 흐름 생성. 결과는 Prometheus remote write로 보낸다 | `chaos` 네임스페이스 Job |
+| 가짜 Gemini 서버 | WireMock. ai-llm의 Gemini 호출을 받아 고정 응답을 준다. 실제 API 비용을 없앤다 | `chaos` 네임스페이스, Argo CD platform |
 | SLO 규칙 | 기록 규칙과 다중 창 burn rate 알림 | PrometheusRule |
 | 실험 실행기 | Grafana 주석 기록, k6와 장애 주입 실행, 결과 S3 저장 | `v3-john/chaos/run-experiment.sh` |
 | OTel Operator + Tempo | Java, Python은 Operator 자동 계측(init container로 에이전트 주입), Ruby는 gem. Alloy가 OTLP를 받아 Tempo로 보낸다. Tempo는 S3에 저장한다 | 2a 단계 |
@@ -72,14 +74,14 @@ burn rate 알림은 1시간 창 14.4배(긴급), 6시간 창 6배(경고)로 둔
 | E5 | judge-postgres 구간 지연 500ms | NetworkChaos | 지표와 로그만으로 10분 안에 원인을 찾는다 | 원인 파악 지연 → 2a 트레이스 근거 |
 | E6 | core → RDS 연결 차단 60초 | NetworkChaos | 차단 해제 후 1분 안에 자동 복구된다 | 커넥션 풀 복구 실패 여부 확인 |
 | E7 | 대회 시작 제출 폭주(30초 안에 기준선의 10배, 최대 20 rps) | k6 | 채점 처리 p95 30초 이하를 지킨다 | KEDA 최대 1개, judge 노드 최대 1대로 대기열 적체 → KEDA 최대 3, judge 노드 최대 3대 |
-| E8 | ai-llm → Gemini API 지연 10초 | NetworkChaos(externalTargets) | AI 기능만 시간 초과로 실패하고 로그인과 제출은 SLO를 지킨다 | 외부 의존성 대기로 core까지 연쇄 장애 → E4와 함께 2b 근거 |
+| E8 | ai-llm → 가짜 Gemini 서버 구간 지연 10초 | NetworkChaos | AI 기능만 시간 초과로 실패하고 로그인과 제출은 SLO를 지킨다 | 외부 의존성 대기로 core까지 연쇄 장애 → E4와 함께 2b 근거 |
 | E9 | 잘못된 설정 배포(core `AI_SERVER_BASE_URL` 포트 오류) | Git PR, Argo CD Sync | 10분 안에 탐지하고 되돌림 PR과 Sync로 10분 안에 복구한다 | 준비 상태 검사는 통과하고 기능만 깨져 탐지가 늦음 → 배포 이벤트를 Grafana 주석으로 표시 |
 
 E4는 judge-api 구간에도 같은 방식으로 반복할 수 있으나 범위에서 제외한다.
 
 E7은 Chaos 리소스 없이 k6 부하 형태만 바꾼다. Spot 용량이 부족해 노드가 늘지 않는 경우도 결과로 기록한다.
 
-E8은 실제 Gemini 호출이 생기므로 k6의 AI 시나리오는 0.2 rps로 제한한다.
+E8은 비용을 막기 위해 실제 Gemini 대신 가짜 Gemini 서버(WireMock)에 지연을 넣는다. 가짜 서버는 `generateContent`와 임베딩 요청에 고정된 정상 응답을 돌려주므로 기준선에서도 AI 기능이 성공한다. 실제 외부 호출과 다른 점(HTTPS가 아닌 HTTP, 응답 내용 고정)은 결과 해석에 함께 적는다. 실행기는 시작 전에 ai-llm 파드의 `GOOGLE_GEMINI_BASE_URL`이 가짜 서버를 가리키는지 확인하고, 아니면 실험을 시작하지 않는다.
 
 E9는 실제 운영과 같은 경로로 진행한다. `v3-john` 값 파일을 바꾸는 PR을 병합하고 Sync한 뒤, 되돌림 PR로 복구한다. 커밋 메시지는 `chaos(E9):`로 시작해 이력에서 실험임을 구분한다. 자동 롤백과 카나리 배포가 없어 생기는 복구 시간은 Argo Rollouts 도입 제안의 근거로 기록한다.
 
