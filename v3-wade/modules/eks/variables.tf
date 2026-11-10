@@ -13,7 +13,7 @@ variable "vpc_id" {
 }
 
 variable "private_route_table_ids" {
-  description = "Private Route Table. 키는 AZ 접미사(a, c)"
+  description = "v2 Shared의 Private Route Table. 키는 AZ 접미사(a, c)"
   type        = map(string)
 }
 
@@ -46,12 +46,10 @@ variable "log_retention_days" {
 variable "node_groups" {
   type = map(object({
     instance_types = list(string)
-    # Spot 재고가 없을 때 그룹별로 ON_DEMAND로 바꾼다.
-    capacity_type = optional(string, "SPOT")
-    min_size      = number
-    desired_size  = number
-    max_size      = number
-    labels        = map(string)
+    min_size       = number
+    desired_size   = number
+    max_size       = number
+    labels         = map(string)
     taints = list(object({
       key    = string
       value  = string
@@ -63,15 +61,15 @@ variable "node_groups" {
       instance_types = ["t3.large", "t3a.large"]
       min_size       = 1
       desired_size   = 1
-      max_size       = 1
+      max_size       = 3
       labels         = { "workload-class" = "system" }
       taints         = [{ key = "CriticalAddonsOnly", value = "true", effect = "NO_SCHEDULE" }]
     }
     stateful-ng = {
-      instance_types = ["m7i.large", "m6i.large", "m5.large", "m5a.large", "r5.large", "r6i.large", "t3.large", "t3a.large"]
+      instance_types = ["m7i.large", "m6i.large", "m5.large"]
       min_size       = 1
       desired_size   = 1
-      max_size       = 1
+      max_size       = 3
       labels         = { "workload-class" = "stateful" }
       taints         = [{ key = "workload", value = "stateful", effect = "NO_SCHEDULE" }]
     }
@@ -79,7 +77,7 @@ variable "node_groups" {
       instance_types = ["c7i.xlarge", "c6i.xlarge", "c5.xlarge"]
       min_size       = 1
       desired_size   = 1
-      max_size       = 1
+      max_size       = 3
       labels         = { "workload-class" = "judge" }
       taints         = [{ key = "workload", value = "judge", effect = "NO_SCHEDULE" }]
     }
@@ -87,11 +85,34 @@ variable "node_groups" {
       instance_types = ["t3.xlarge", "t3a.xlarge", "m5.xlarge"]
       min_size       = 2
       desired_size   = 2
-      max_size       = 2
+      max_size       = 6
       labels         = { "workload-class" = "application" }
       taints         = []
     }
   }
+}
+
+variable "ecr_repositories" {
+  type = list(string)
+  default = [
+    "cosmos-auth",
+    "cosmos-core",
+    "cosmos-battle",
+    "cosmos-ai-llm",
+    "cosmos-ai-make-problem",
+    "cosmos-ai-problem-batch",
+    "cosmos-judge-api",
+    "cosmos-judge-worker",
+    "cosmos-mlflow",
+  ]
+}
+
+variable "rds_security_group_id" {
+  type = string
+}
+
+variable "valkey_security_group_id" {
+  type = string
 }
 
 variable "workload_secrets" {
@@ -103,3 +124,16 @@ variable "mlflow_bucket_arn" {
   type = string
 }
 
+variable "github_oidc_provider_arn" {
+  type = string
+}
+
+variable "ci_promote_sub" {
+  description = "이미지 승격 워크플로의 OIDC sub"
+  type        = string
+}
+
+variable "ci_promote_images" {
+  description = "원본 ECR별 복사 대상 ECR"
+  type        = map(list(string))
+}

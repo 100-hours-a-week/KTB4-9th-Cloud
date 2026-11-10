@@ -15,7 +15,7 @@ spec:
     type: Kubernetes
     kubernetes:
       envoyDeployment:
-        replicas: 1
+        replicas: 2
         container:
           resources:
             requests: { cpu: 250m, memory: 256Mi }

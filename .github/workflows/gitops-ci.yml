@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "v3/gitops/**"
+      - "v3-wade/gitops/**"
 
 permissions:
   contents: read
@@ -21,9 +22,10 @@ jobs:
       - name: Render prod values
         run: |
           set -euo pipefail
-          for values in v3/gitops/environments/prod/*.yaml; do
-            helm lint v3/gitops/charts/cosmos-app -f "$values"
-            helm template check v3/gitops/charts/cosmos-app -n prod -f "$values" > /dev/null
+          for values in v3/gitops/environments/prod/*.yaml v3-wade/gitops/environments/prod/*.yaml; do
+            root="${values%%/gitops/*}"
+            helm lint "$root/gitops/charts/cosmos-app" -f "$values"
+            helm template check "$root/gitops/charts/cosmos-app" -n prod -f "$values" > /dev/null
           done
 
       - name: Reject mutable images
@@ -38,4 +40,6 @@ jobs:
             fi
             echo "::error file=${file}::digest 또는 approved-<40자리 SHA>로 고정하지 않은 이미지입니다: ${image}"
             exit 1
-          done < <(awk '$1 == "image:" { print FILENAME, $2 }' v3/gitops/environments/prod/*.yaml)
+          done < <(awk '$1 == "image:" { print FILENAME, $2 }' \
+            v3/gitops/environments/prod/*.yaml \
+            v3-wade/gitops/environments/prod/*.yaml)

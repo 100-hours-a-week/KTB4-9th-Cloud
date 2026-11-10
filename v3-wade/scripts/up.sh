@@ -33,6 +33,20 @@ kubectl create secret generic judge-redis-keda -n prod --from-literal="password=
 inst kube-prometheus-stack prometheus-community/kube-prometheus-stack 92.18.0 monitoring "$V/monitoring/kube-prometheus-stack.yaml"
 inst loki grafana/loki 7.5.0 monitoring "$V/monitoring/loki.yaml"
 inst alloy grafana/alloy 1.15.0 monitoring "$V/monitoring/alloy.yaml"
+
+if ! kubectl get secret argocd-image-updater-git -n argocd >/dev/null 2>&1; then
+  : "${GITHUB_APP_ID:?GITHUB_APP_ID is required for Argo CD Image Updater}"
+  : "${GITHUB_APP_INSTALLATION_ID:?GITHUB_APP_INSTALLATION_ID is required for Argo CD Image Updater}"
+  : "${GITHUB_APP_PRIVATE_KEY_FILE:?GITHUB_APP_PRIVATE_KEY_FILE is required for Argo CD Image Updater}"
+  [[ -f "${GITHUB_APP_PRIVATE_KEY_FILE}" ]] || { echo "GitHub App private key file not found" >&2; exit 1; }
+  kubectl create secret generic argocd-image-updater-git -n argocd \
+    --from-literal=githubAppID="${GITHUB_APP_ID}" \
+    --from-literal=githubAppInstallationID="${GITHUB_APP_INSTALLATION_ID}" \
+    --from-file=githubAppPrivateKey="${GITHUB_APP_PRIVATE_KEY_FILE}" \
+    --dry-run=client -o yaml | kubectl apply -f -
+fi
+
+inst argocd-image-updater oci://ghcr.io/argoproj/argo-helm/argocd-image-updater 1.4.2 argocd "$V/argocd-image-updater/values.yaml"
 for f in "$V"/monitoring/dashboards/*.json; do
   n="dash-$(basename "$f" .json)"
   kubectl create configmap "$n" -n monitoring --from-file="$f" --dry-run=client -o yaml | kubectl apply --server-side -f -
@@ -40,7 +54,9 @@ for f in "$V"/monitoring/dashboards/*.json; do
 done
 
 G="$BASE/gitops"
-kubectl apply -f "$G/argocd/projects/prod.yaml" -f "$G/argocd/applicationsets-prod.yaml"
+kubectl apply -f "$G/argocd/projects/prod.yaml" -f "$G/argocd/image-updater.yaml"
+# 데이터 복원 전에 애플리케이션이 자동 기동되지 않도록 최초 부트스트랩에서만 autoSync를 끈다.
+sed 's/autoSync: true/autoSync: false/g' "$G/argocd/applicationsets-prod.yaml" | kubectl apply -f -
 sync_app() {
   until kubectl get application -n argocd "$1" >/dev/null 2>&1; do sleep 3; done
   kubectl patch application -n argocd "$1" --type merge -p '{"operation":{"initiatedBy":{"username":"up.sh"},"sync":{}}}'
@@ -52,6 +68,8 @@ for a in prod-ai-postgres prod-judge-postgres prod-judge-redis; do sync_app "$a"
 for a in prod-ai-postgres prod-judge-postgres prod-judge-redis; do wait_healthy "$a"; done
 "$BASE/scripts/restore-postgres.sh"
 "$BASE/scripts/restore-mysql.sh"
+# 복원이 끝난 뒤 Git 선언 원본을 다시 적용해 지속적인 Auto Sync를 활성화한다.
+kubectl apply -f "$G/argocd/applicationsets-prod.yaml"
 for a in auth core battle ai-llm ai-make-problem ai-problem-batch mlflow judge-api judge-worker; do sync_app "prod-$a"; done
 for a in auth core battle ai-llm mlflow judge-api judge-worker; do wait_healthy "prod-$a"; done
 

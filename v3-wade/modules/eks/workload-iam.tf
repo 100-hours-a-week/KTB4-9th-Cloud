@@ -1,4 +1,4 @@
-# 앱 Secret은 운영 값을 읽기 전용으로 공유한다.
+# 전환 기간에는 ECS가 쓰는 기존 Secret을 읽기 전용으로 공유한다.
 data "aws_secretsmanager_secret" "workload" {
   for_each = toset(flatten(values(var.workload_secrets)))
 

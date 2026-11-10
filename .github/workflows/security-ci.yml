@@ -6,6 +6,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - "v3/**"
+      - "v3-wade/**"
       - ".github/workflows/security-ci.yml"
 
 permissions:
@@ -43,10 +44,11 @@ jobs:
           set -euo pipefail
           mkdir -p "${RENDERED_DIR}" trivy-results
 
-          for values in v3/gitops/environments/prod/*.yaml; do
-            name=$(basename "${values}" .yaml)
-            helm lint v3/gitops/charts/cosmos-app -f "${values}"
-            helm template "${name}" v3/gitops/charts/cosmos-app \
+          for values in v3/gitops/environments/prod/*.yaml v3-wade/gitops/environments/prod/*.yaml; do
+            root="${values%%/gitops/*}"
+            name="$(basename "${root}")-$(basename "${values}" .yaml)"
+            helm lint "${root}/gitops/charts/cosmos-app" -f "${values}"
+            helm template "${name}" "${root}/gitops/charts/cosmos-app" \
               --namespace prod \
               -f "${values}" \
               > "${RENDERED_DIR}/${name}.yaml"
@@ -59,6 +61,15 @@ jobs:
           scan-ref: v3
           format: sarif
           output: trivy-results/trivy-iac-source.sarif
+          exit-code: "0"
+
+      - name: Scan v3-wade source with Trivy (SARIF)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: config
+          scan-ref: v3-wade
+          format: sarif
+          output: trivy-results/trivy-iac-wade-source.sarif
           exit-code: "0"
 
       - name: Scan rendered manifests with Trivy (SARIF)
@@ -83,6 +94,13 @@ jobs:
         with:
           sarif_file: trivy-results/trivy-iac-rendered.sarif
           category: trivy-cloud-rendered
+
+      - name: Upload Wade source scan to GitHub Security
+        if: ${{ always() && github.event.pull_request.head.repo.full_name == github.repository }}
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-results/trivy-iac-wade-source.sarif
+          category: trivy-cloud-wade-source
 
       - name: Preserve Trivy reports
         if: always()
