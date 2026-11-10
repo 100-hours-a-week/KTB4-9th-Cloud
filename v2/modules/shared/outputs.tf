@@ -33,6 +33,11 @@ output "github_stage_ci_role_arns" {
   value       = { for key, role in aws_iam_role.github_stage_ci : key => role.arn }
 }
 
+output "github_production_ci_role_arns" {
+  description = "Spring/FastAPI GitHub Production CI ECR 승인 이미지 발행 role ARN"
+  value       = { for key, role in aws_iam_role.github_production_ci : key => role.arn }
+}
+
 output "github_oidc_provider_arn" {
   description = "GitHub Actions OIDC provider ARN"
   value       = aws_iam_openid_connect_provider.github.arn

@@ -19,7 +19,7 @@ spec:
   scaleTargetRef:
     name: cosmos-judge-worker
   minReplicaCount: 1
-  maxReplicaCount: 1
+  maxReplicaCount: 3
   pollingInterval: 10
   fallback:
     failureThreshold: 3

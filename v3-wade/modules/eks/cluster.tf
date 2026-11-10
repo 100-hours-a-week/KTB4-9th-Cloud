@@ -1,7 +1,7 @@
 resource "aws_kms_key" "secrets" {
   description             = "${var.cluster_name} Kubernetes Secret 암호화"
   enable_key_rotation     = true
-  deletion_window_in_days = 7
+  deletion_window_in_days = 30
 }
 
 resource "aws_kms_alias" "secrets" {

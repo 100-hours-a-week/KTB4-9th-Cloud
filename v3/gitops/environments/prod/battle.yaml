@@ -1,7 +1,6 @@
 name: cosmos-battle
 component: battle
-image: 352635536602.dkr.ecr.ap-northeast-2.amazonaws.com/cosmos-battle@sha256:ebfbf1e12c010fb6a78db999f011995b7063c5150cda20b1de0b19ed353af849
-sourceRevision: ""
+image: 352635536602.dkr.ecr.ap-northeast-2.amazonaws.com/cosmos-v2/spring@sha256:ebfbf1e12c010fb6a78db999f011995b7063c5150cda20b1de0b19ed353af849
 serviceAccount: battle-sa
 service: { name: battle-service }
 extraPorts: [{ name: management, port: 9091 }]

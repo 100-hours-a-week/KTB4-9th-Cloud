@@ -1,4 +1,8 @@
 output "cluster_name" { value = module.eks.cluster_name }
+output "cluster_endpoint" { value = module.eks.cluster_endpoint }
+output "eks_subnet_ids" { value = module.eks.subnet_ids }
+output "node_role_arn" { value = module.eks.node_role_arn }
+output "image_updater_role_arn" { value = module.eks.image_updater_role_arn }
 output "vpc_id" { value = module.network.vpc_id }
 output "mysql_address" { value = module.data.mysql_address }
 output "edge_bucket" { value = var.enable_edge ? module.edge[0].bucket : null }

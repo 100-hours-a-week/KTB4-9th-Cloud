@@ -78,7 +78,12 @@ metadata:
   labels: {{- include "cosmos.labels" . | nindent 4 }}
 spec:
   backoffLimit: 2
-  ttlSecondsAfterFinished: 3600
+  {{- if .Values.job.activeDeadlineSeconds }}
+  activeDeadlineSeconds: {{ .Values.job.activeDeadlineSeconds }}
+  {{- end }}
+  {{- if gt (int .Values.job.ttlSecondsAfterFinished) 0 }}
+  ttlSecondsAfterFinished: {{ .Values.job.ttlSecondsAfterFinished }}
+  {{- end }}
   template:
     metadata:
       labels: {{- include "cosmos.labels" . | nindent 8 }}

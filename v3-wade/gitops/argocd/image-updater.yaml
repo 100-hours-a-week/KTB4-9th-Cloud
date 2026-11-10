@@ -1,0 +1,76 @@
+apiVersion: argocd-image-updater.argoproj.io/v1alpha1
+kind: ImageUpdater
+metadata:
+  name: prod-applications
+  namespace: argocd
+spec:
+  commonUpdateSettings:
+    updateStrategy: newest-build
+    allowTags: "regexp:^approved-[0-9a-f]{40}$"
+    forceUpdate: true
+  writeBackConfig:
+    method: "git:secret:argocd/argocd-image-updater-git"
+    gitConfig:
+      repository: https://github.com/100-hours-a-week/KTB4-9th-Cloud.git
+      branch: main
+  applicationRefs:
+    - namePattern: "prod-auth"
+      writeBackConfig:
+        gitConfig:
+          writeBackTarget: helmvalues:/v3-wade/gitops/environments/prod/auth.yaml
+      images:
+        - alias: spring
+          imageName: 352635536602.dkr.ecr.ap-northeast-2.amazonaws.com/cosmos-v2/spring
+          manifestTargets:
+            helm:
+              spec: image
+    - namePattern: "prod-core"
+      writeBackConfig:
+        gitConfig:
+          writeBackTarget: helmvalues:/v3-wade/gitops/environments/prod/core.yaml
+      images:
+        - alias: spring
+          imageName: 352635536602.dkr.ecr.ap-northeast-2.amazonaws.com/cosmos-v2/spring
+          manifestTargets:
+            helm:
+              spec: image
+    - namePattern: "prod-battle"
+      writeBackConfig:
+        gitConfig:
+          writeBackTarget: helmvalues:/v3-wade/gitops/environments/prod/battle.yaml
+      images:
+        - alias: spring
+          imageName: 352635536602.dkr.ecr.ap-northeast-2.amazonaws.com/cosmos-v2/spring
+          manifestTargets:
+            helm:
+              spec: image
+    - namePattern: "prod-ai-llm"
+      writeBackConfig:
+        gitConfig:
+          writeBackTarget: helmvalues:/v3-wade/gitops/environments/prod/ai-llm.yaml
+      images:
+        - alias: fastapi
+          imageName: 352635536602.dkr.ecr.ap-northeast-2.amazonaws.com/cosmos-v2/fastapi
+          manifestTargets:
+            helm:
+              spec: image
+    - namePattern: "prod-ai-make-problem"
+      writeBackConfig:
+        gitConfig:
+          writeBackTarget: helmvalues:/v3-wade/gitops/environments/prod/ai-make-problem.yaml
+      images:
+        - alias: fastapi
+          imageName: 352635536602.dkr.ecr.ap-northeast-2.amazonaws.com/cosmos-v2/fastapi
+          manifestTargets:
+            helm:
+              spec: image
+    - namePattern: "prod-ai-problem-batch"
+      writeBackConfig:
+        gitConfig:
+          writeBackTarget: helmvalues:/v3-wade/gitops/environments/prod/ai-problem-batch.yaml
+      images:
+        - alias: fastapi
+          imageName: 352635536602.dkr.ecr.ap-northeast-2.amazonaws.com/cosmos-v2/fastapi
+          manifestTargets:
+            helm:
+              spec: image

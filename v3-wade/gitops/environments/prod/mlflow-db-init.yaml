@@ -1,0 +1,29 @@
+name: cosmos-mlflow-db-init
+component: data-bootstrap
+image: pgvector/pgvector:pg17@sha256:ac08538c6f8b9904c33c8224c5e5706dbe760aca29db1d096972b4052c22a75d
+serviceAccount: ai-postgres-sa
+createServiceAccount: false
+port: 0
+service: { enabled: false }
+priorityClass: cosmos-batch
+command:
+  - sh
+  - -c
+  - |
+    set -eu
+    db_user="$(cat /mnt/secrets/DB_USER)"
+    export PGPASSWORD="$(cat /mnt/secrets/DB_PASSWORD)"
+    until pg_isready -h ai-postgres -p 5432 -U "${db_user}" -d postgres; do
+      sleep 2
+    done
+    database_exists="$(psql -h ai-postgres -p 5432 -U "${db_user}" -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = 'mlflow'")"
+    if [ "${database_exists}" != "1" ]; then
+      psql -h ai-postgres -p 5432 -U "${db_user}" -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE mlflow"
+    fi
+secrets:
+  - secret: /cosmos-v2/stage/ai-postgres
+    keys: { username: DB_USER, password: DB_PASSWORD }
+resources:
+  requests: { cpu: 50m, memory: 64Mi }
+  limits: { cpu: 250m, memory: 256Mi }
+job: { enabled: true, activeDeadlineSeconds: 300, ttlSecondsAfterFinished: 0 }

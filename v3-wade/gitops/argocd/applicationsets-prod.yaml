@@ -1,5 +1,4 @@
-# 상태 없는 애플리케이션만 자동 동기화한다. 상태 저장 서비스와 플랫폼은 Manual Sync한다.
-# 장애 주입 훈련용이라 selfHeal은 끈다. 켜 두면 주입한 장애를 Argo CD가 바로 되돌린다.
+# Stateless 애플리케이션만 자동 동기화한다. 상태 저장 서비스와 플랫폼은 Manual Sync한다.
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -17,6 +16,7 @@ spec:
           - { name: ai-make-problem, autoSync: true }
           - { name: ai-problem-batch, autoSync: true }
           - { name: ai-postgres, autoSync: false }
+          - { name: mlflow-db-init, autoSync: false }
           - { name: mlflow, autoSync: false }
           - { name: judge-api, autoSync: false }
           - { name: judge-worker, autoSync: false }
@@ -51,7 +51,7 @@ spec:
       syncPolicy:
         automated:
           prune: true
-          selfHeal: false
+          selfHeal: true
     {{- end }}
 ---
 apiVersion: argoproj.io/v1alpha1

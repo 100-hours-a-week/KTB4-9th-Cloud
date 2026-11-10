@@ -5,6 +5,17 @@ locals {
   rds_secret  = "cosmos/wade/main-db"
   url_secret  = "cosmos/wade/spring-config"
   spring      = [local.rds_secret, local.url_secret, "/cosmos-v2/stage/spring"]
+  service_ecr_repositories = [
+    "cosmos-v3-wade-auth",
+    "cosmos-v3-wade-core",
+    "cosmos-v3-wade-battle",
+    "cosmos-v3-wade-ai-llm",
+    "cosmos-v3-wade-ai-make-problem",
+    "cosmos-v3-wade-ai-problem-batch",
+    "cosmos-v3-wade-judge-api",
+    "cosmos-v3-wade-judge-worker",
+    "cosmos-v3-wade-mlflow",
+  ]
 }
 
 module "network" {
@@ -19,12 +30,11 @@ resource "random_password" "mysql" {
 }
 
 module "data" {
-  source              = "../../modules/data"
-  name                = local.name
-  vpc_id              = module.network.vpc_id
-  subnet_ids          = module.network.data_subnet_ids
-  snapshot_identifier = var.seed_snapshot_identifier
-  master_password     = random_password.mysql.result
+  source          = "../../modules/data"
+  name            = local.name
+  vpc_id          = module.network.vpc_id
+  subnet_ids      = module.network.data_subnet_ids
+  master_password = random_password.mysql.result
 }
 
 # 운영 Secret은 읽기만 하고 DB 접속 정보만 이 클러스터 값으로 만든다.
@@ -62,6 +72,16 @@ resource "aws_s3_bucket" "mlflow" {
   force_destroy = true
 }
 
+moved {
+  from = aws_vpc_security_group_ingress_rule.mysql_from_eks
+  to   = module.eks.aws_vpc_security_group_ingress_rule.rds_from_eks
+}
+
+moved {
+  from = aws_vpc_security_group_ingress_rule.valkey_from_eks
+  to   = module.eks.aws_vpc_security_group_ingress_rule.valkey_from_eks
+}
+
 module "eks" {
   source = "../../modules/eks"
 
@@ -74,6 +94,28 @@ module "eks" {
   }
   public_access_cidrs = var.public_access_cidrs
   mlflow_bucket_arn   = aws_s3_bucket.mlflow.arn
+
+  rds_security_group_id    = module.data.mysql_sg_id
+  valkey_security_group_id = module.data.valkey_sg_id
+  github_oidc_provider_arn = "arn:aws:iam::352635536602:oidc-provider/token.actions.githubusercontent.com"
+  ci_promote_sub           = "repo:100-hours-a-week@167328634/KTB4-9th-Cloud@1344702375:environment:eks-prod"
+  ecr_repositories         = local.service_ecr_repositories
+  ci_promote_images = {
+    "cosmos-v2/spring" = [
+      "cosmos-v3-wade-auth",
+      "cosmos-v3-wade-core",
+      "cosmos-v3-wade-battle",
+    ]
+    "cosmos-v2/fastapi" = [
+      "cosmos-v3-wade-ai-llm",
+      "cosmos-v3-wade-ai-make-problem",
+      "cosmos-v3-wade-ai-problem-batch",
+    ]
+    "cosmos-v2/judge" = [
+      "cosmos-v3-wade-judge-api",
+      "cosmos-v3-wade-judge-worker",
+    ]
+  }
 
   workload_secrets = {
     auth-sa           = local.spring
@@ -90,22 +132,6 @@ module "eks" {
   }
 
   depends_on = [aws_secretsmanager_secret_version.main_db, aws_secretsmanager_secret_version.spring_config]
-}
-
-resource "aws_vpc_security_group_ingress_rule" "mysql_from_eks" {
-  security_group_id            = module.data.mysql_sg_id
-  referenced_security_group_id = module.eks.cluster_security_group_id
-  ip_protocol                  = "tcp"
-  from_port                    = 3306
-  to_port                      = 3306
-}
-
-resource "aws_vpc_security_group_ingress_rule" "valkey_from_eks" {
-  security_group_id            = module.data.valkey_sg_id
-  referenced_security_group_id = module.eks.cluster_security_group_id
-  ip_protocol                  = "tcp"
-  from_port                    = 6379
-  to_port                      = 6379
 }
 
 data "aws_route53_zone" "main" {
@@ -159,4 +185,18 @@ module "edge_grafana" {
   nlb_dns_name  = data.aws_lb.prod[0].dns_name
   vpc_origin_id = module.edge[0].vpc_origin_id
   web_acl_arn   = module.edge[0].web_acl_arn
+}
+
+module "edge_image_updater_webhook" {
+  count  = var.enable_edge ? 1 : 0
+  source = "../../modules/edge-internal"
+  providers = {
+    aws.us_east_1 = aws.us_east_1
+  }
+
+  domain        = "image-updater-wade.cosmoscode.site"
+  zone_id       = data.aws_route53_zone.main.zone_id
+  nlb_dns_name  = data.aws_lb.prod[0].dns_name
+  vpc_origin_id = module.edge[0].vpc_origin_id
+  web_acl_arn   = null
 }

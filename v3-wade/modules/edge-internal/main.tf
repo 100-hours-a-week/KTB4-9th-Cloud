@@ -12,7 +12,11 @@ variable "domain" { type = string }
 variable "zone_id" { type = string }
 variable "nlb_dns_name" { type = string }
 variable "vpc_origin_id" { type = string }
-variable "web_acl_arn" { type = string }
+variable "web_acl_arn" {
+  type     = string
+  default  = null
+  nullable = true
+}
 
 resource "aws_acm_certificate" "main" {
   provider          = aws.us_east_1
