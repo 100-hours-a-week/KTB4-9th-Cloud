@@ -16,7 +16,7 @@
 - 수정은 인프라와 설정만 한다. 예외는 Judge 저장소의 OTel gem(Task 9, 사용자 수행)뿐이다.
 - 값 파일의 `image:`, `sourceRevision:` 줄은 건드리지 않는다(`v3-promote`가 자동 수정).
 - 새 도구는 모두 `v3-john/scripts/up.sh`에서 설치하고 `down.sh`에서 정리한다. Helm 차트는 정확한 버전을 고정한다. 버전은 작업 시점 `helm search repo <차트> --versions | head -2`의 최신 안정 버전으로 정하고 `up.sh`에 적는다.
-- Spot vCPU 합계는 32를 넘지 않는다(현재 16).
+- Spot vCPU 합계는 32를 넘지 않는다(현재 16, Task 8 이후 최대 28: application 3대, judge 3대).
 - 실험 결과 저장 위치: `s3://cosmos-db-backup-352635536602/chaos/john/<실험ID>/<UTC 시각>/`
 - 모든 Chaos 리소스는 `duration`을 갖고 최대 10분이다.
 - 문서는 서술체(~다)로 쓰고, 한글 뒤에 영어 괄호 병기를 하지 않는다.
@@ -28,6 +28,8 @@
 - default-deny NetworkPolicy가 새 구성 요소의 통신(k6 → core 픽스처, istio sidecar → istiod, Alloy OTLP 수신)을 막는다. 각 Task가 필요한 정책을 함께 추가한다(Task 1, 9, 10 검증 단계).
 - core 이미지가 부하 테스트 픽스처를 포함하지 않으면 k6가 토큰을 얻지 못한다. 현재 `cosmos-core` 이미지(소스 `441acef`)에는 `LoadTestFixtureController`가 없다(Task 1 사전 조건).
 - Istio sidecar가 Job(ai-migrate)과 CronJob의 종료를 막는다. 해당 워크로드는 sidecar 주입에서 제외한다(Task 10 테스트).
+- E9는 Git으로 잘못된 설정을 배포하므로 실행기가 중단되어도 자동으로 되돌릴 수 없다. E9 스크립트는 되돌림 브랜치를 주입 전에 미리 만들고, 중단 시그널을 받으면 되돌림 절차를 출력한다(Task 6 테스트).
+- E8은 실제 Gemini 호출을 만든다. k6의 AI 시나리오는 0.2 rps를 넘지 않는다(Task 1 테스트).
 
 ---
 
@@ -37,7 +39,7 @@
 |---|---|
 | `v3-john/chaos/k6/user-journey.js` | 로그인 토큰 확보 → 문제 조회 → 코드 제출 → 결과 조회 |
 | `v3-john/chaos/k6/job.yaml` | k6를 `chaos` 네임스페이스 Job으로 실행 |
-| `v3-john/chaos/experiments/E1..E6-*.yaml` | Chaos Mesh 실험 정의(E3은 FIS 래퍼 스크립트) |
+| `v3-john/chaos/experiments/E1..E9-*` | 실험 정의. Chaos Mesh yaml, E3은 FIS 래퍼, E7은 부하 구간 대기, E9는 배포 절차 스크립트 |
 | `v3-john/chaos/run-experiment.sh` | 주석 기록, k6, 주입, 정리, 결과 S3 업로드 |
 | `v3-john/chaos/records/TEMPLATE.md` | 실험 기록 양식 |
 | `v3-john/chaos/runbooks/*.md`, `REPORT.md` | 런북, 최종 보고서 |
@@ -60,12 +62,14 @@
 
 **Interfaces:**
 - Produces: k6 Job 이름 `k6-<실험ID>`, 환경 변수 `EXPERIMENT_ID`, `DURATION`(기본 `12m`), `VUS`(기본 `10`). 지표는 `k6_*`로 Prometheus에 들어가고 `testid=<실험ID>` 태그를 갖는다.
-- Produces: 시나리오 태그 `step`(login, problem, submit, result). 채점 처리 시간은 `k6_judge_turnaround_seconds` 추세 지표로 낸다.
+- Produces: 시나리오 태그 `step`(login, problem, submit, result, ai). 채점 처리 시간은 `k6_judge_turnaround_seconds` 추세 지표로 낸다.
+- Produces: 환경 변수 `PROFILE`(`steady` 기본, `spike`). `spike`는 처음 2분은 `steady`와 같고, 이후 30초 동안 제출 도착률을 `SPIKE_RPS`(기본 `20`)까지 올려 3분 유지한 뒤 내린다(`ramping-arrival-rate`).
+- Produces: `ai` 시나리오. core를 거쳐 ai-llm을 호출하는 사용자 API 하나를 `constant-arrival-rate` 0.2 rps로 부른다.
 
 - [ ] **Step 1: 사전 조건 확인.** `v3-john/gitops/environments/prod/core.yaml`의 이미지 소스가 BE `main`의 `LoadTestFixtureController` 포함 커밋 이후인지 확인한다. 아니면 `v3-promote`로 승격하거나 사용자에게 승격을 요청하고 이 Task를 멈춘다.
-- [ ] **Step 2: 실패하는 테스트 작성.** `tests/k6_test.sh`: `k6 inspect chaos/k6/user-journey.js`가 성공하고, 출력에 `"step"` 태그 네 종류와 `k6_judge_turnaround_seconds`가 있어야 한다. `helm template`으로 core를 렌더링했을 때 `LOADTEST_FIXTURES_ENABLED`가 있어야 한다.
+- [ ] **Step 2: 실패하는 테스트 작성.** `tests/k6_test.sh`: `k6 inspect chaos/k6/user-journey.js`가 성공하고, 출력에 `"step"` 태그 다섯 종류와 `k6_judge_turnaround_seconds`가 있어야 한다. `PROFILE=spike`로 inspect하면 제출 시나리오의 최대 도착률이 `SPIKE_RPS`이고, `ai` 시나리오의 rate가 1분당 12 이하다. `helm template`으로 core를 렌더링했을 때 `LOADTEST_FIXTURES_ENABLED`가 있어야 한다.
 - [ ] **Step 3: 테스트 실패 확인.** `bash v3-john/tests/k6_test.sh` → 파일 없음으로 실패.
-- [ ] **Step 4: 구현.** 토큰은 `setup()`에서 `POST http://core-service.prod/api/internal/load-test/battle/users`(헤더 `X-Load-Test-Secret`)로 받고, 사용자 요청은 `https://john.cosmoscode.site/api`로 보낸다(쿠키 `accessToken`). 문제 ID와 제출 코드는 `__ENV.PROBLEM_ID`(기본 `1`)와 파일 상단 상수로 둔다. Job은 `grafana/k6` 이미지에 `--out experimental-prometheus-rw`, `K6_PROMETHEUS_RW_SERVER_URL=http://kube-prometheus-stack-prometheus.monitoring:9090/api/v1/write`, `K6_PROMETHEUS_RW_TREND_STATS=p(95),p(99)`를 쓴다.
+- [ ] **Step 4: 구현.** 토큰은 `setup()`에서 `POST http://core-service.prod/api/internal/load-test/battle/users`(헤더 `X-Load-Test-Secret`)로 받고, 사용자 요청은 `https://john.cosmoscode.site/api`로 보낸다(쿠키 `accessToken`). 문제 ID와 제출 코드는 `__ENV.PROBLEM_ID`(기본 `1`)와 파일 상단 상수로 둔다. `ai` 시나리오의 엔드포인트는 BE 저장소에서 `AI_SERVER_BASE_URL`을 쓰는 클라이언트를 호출하는 컨트롤러로 정하고, 파일 상단 주석에 근거(클래스 이름)를 적는다. Job은 `grafana/k6` 이미지에 `--out experimental-prometheus-rw`, `K6_PROMETHEUS_RW_SERVER_URL=http://kube-prometheus-stack-prometheus.monitoring:9090/api/v1/write`, `K6_PROMETHEUS_RW_TREND_STATS=p(95),p(99)`를 쓴다.
 - [ ] **Step 5: 테스트 통과 확인.** `bash v3-john/tests/k6_test.sh` → PASS.
 - [ ] **Step 6: 클러스터 검증.** `up.sh` 후 `kubectl apply -f chaos/k6/job.yaml`(EXPERIMENT_ID=smoke, DURATION=2m) → Job 성공, Prometheus에서 `k6_http_reqs_total{testid="smoke"}` 값이 0보다 크다.
 - [ ] **Step 7: 커밋.** `feat(v3-john): 실험용 k6 사용자 시나리오와 remote write 수신`
@@ -95,9 +99,10 @@
 **Interfaces:**
 - Consumes: Task 1 k6 Job, Task 2 대시보드 주석 태그 `chaos`.
 - Produces: `run-experiment.sh <실험ID> [--baseline]`. 순서: Grafana 주석(start) → k6 Job 시작 → 2분 대기(정상 구간) → 주입(`chaos/experiments/<ID>-*.yaml` 적용 또는 `<ID>-*.sh` 실행) → 주입 `duration` 대기 → 정리 → 3분 회복 구간 → 주석(end) → 결과 수집. `--baseline`은 주입을 건너뛴다.
+- Produces: `--k6-profile <steady|spike>`(기본 `steady`)를 k6 Job의 `PROFILE`로 넘긴다. `run-experiment.sh annotate <실험ID> <내용>`은 Grafana 주석 하나만 남긴다(E9 수동 단계 기록용).
 - Produces: 결과 파일 `summary.json`(시작·주입·종료 시각, k6 실패율, p95, 알림 발생 시각 목록)과 Grafana 패널 PNG를 S3 경로에 올린다.
 
-- [ ] **Step 1: 실패하는 테스트 작성.** `run_experiment_test.sh`는 PATH 앞에 `kubectl`, `curl`, `aws` 스텁을 두고 실행한다. 확인할 것: (a) 정상 실행 시 `kubectl apply`가 실험 파일로 한 번, `kubectl delete`가 같은 파일로 한 번 호출된다. (b) 주입 대기 중 SIGINT를 보내면 종료 코드가 0이 아니고 `kubectl delete`가 호출된다. (c) `--baseline`이면 apply가 호출되지 않는다. (d) `aws s3 cp`의 목적지가 `s3://cosmos-db-backup-352635536602/chaos/john/E1/`로 시작한다.
+- [ ] **Step 1: 실패하는 테스트 작성.** `run_experiment_test.sh`는 PATH 앞에 `kubectl`, `curl`, `aws` 스텁을 두고 실행한다. 확인할 것: (a) 정상 실행 시 `kubectl apply`가 실험 파일로 한 번, `kubectl delete`가 같은 파일로 한 번 호출된다. (b) 주입 대기 중 SIGINT를 보내면 종료 코드가 0이 아니고 `kubectl delete`가 호출된다. (c) `--baseline`이면 apply가 호출되지 않는다. (d) `aws s3 cp`의 목적지가 `s3://cosmos-db-backup-352635536602/chaos/john/E1/`로 시작한다. (e) `--k6-profile spike`면 k6 Job 매니페스트에 `PROFILE=spike`가 들어간다. (f) `annotate`는 Grafana 주석 API만 한 번 호출하고 k6, kubectl apply를 호출하지 않는다.
 - [ ] **Step 2: 테스트 실패 확인.** `bash v3-john/tests/run_experiment_test.sh` → 실패.
 - [ ] **Step 3: 구현.** Grafana 주소와 계정은 `kubectl port-forward`와 Secret `grafana-admin`으로 얻는다. 알림 발생 시각은 Alertmanager API(`/api/v2/alerts`)에서 실험 구간에 시작된 알림을 모은다. 정리는 `trap cleanup EXIT INT TERM`으로 보장한다.
 - [ ] **Step 4: 테스트 통과 확인.** → PASS.
@@ -134,10 +139,10 @@
 - [ ] **Step 3: 검증.** validate 통과, plan 결과가 Step 1 기준과 같다.
 - [ ] **Step 4: 커밋.** `feat(v3-john): FIS Spot 회수 실험 템플릿`
 
-### Task 6: 실험 정의 E1~E6
+### Task 6: 실험 정의 E1~E9
 
 **Files:**
-- Create: `v3-john/chaos/experiments/E1-core-pod-kill.yaml`, `E2-judge-worker-kill.yaml`, `E3-spot-interruption.sh`, `E4-core-to-ai-delay.yaml`, `E5-judge-postgres-delay.yaml`, `E6-core-to-rds-partition.yaml`
+- Create: `v3-john/chaos/experiments/E1-core-pod-kill.yaml`, `E2-judge-worker-kill.yaml`, `E3-spot-interruption.sh`, `E4-core-to-ai-delay.yaml`, `E5-judge-postgres-delay.yaml`, `E6-core-to-rds-partition.yaml`, `E7-submission-spike.sh`, `E8-ai-to-gemini-delay.yaml`, `E9-bad-config.sh`
 - Create: `v3-john/tests/experiments_test.sh`
 
 **Interfaces:**
@@ -151,43 +156,49 @@
 | E4 | NetworkChaos `delay` 3s, 출발 `cosmos-core`, 목적지 `cosmos-ai-llm` 파드, direction `to`, duration `5m` |
 | E5 | NetworkChaos `delay` 500ms, jitter 50ms, 출발 `cosmos-judge-api`·`cosmos-judge-worker`, 목적지 `judge-postgres` 파드, duration `5m` |
 | E6 | NetworkChaos `partition`, 출발 `cosmos-core`, externalTargets RDS 엔드포인트(실행기가 `terraform output -raw mysql_address`로 치환), duration `60s` |
+| E7 | Chaos 리소스 없음. `run-experiment.sh E7 --k6-profile spike`로 실행하고, 스크립트는 부하 구간 3분 30초 동안 10초마다 judge-worker 파드 수, Pending 파드 수, 대기열 길이(`redis_list_length` 또는 KEDA 지표)를 `e7-capacity.csv`로 남긴다 |
+| E8 | NetworkChaos `delay` 10s, 출발 `cosmos-ai-llm`, externalTargets `generativelanguage.googleapis.com`, direction `to`, duration `5m` |
+| E9 | 대화형 스크립트. ① 주입 전 `chaos/e9-<날짜>` 브랜치(core `AI_SERVER_BASE_URL: http://ai-llm-service:9999`, 커밋 `chaos(E9): 잘못된 AI 주소 배포`)와 되돌림 브랜치를 만들어 푸시 ② 운영자가 PR 병합과 Sync 후 Enter → `annotate E9 deploy` ③ 원인 확정 후 Enter → `annotate E9 diagnosed` ④ 되돌림 PR 병합과 Sync 후 Enter → `annotate E9 reverted`. 중단 시그널을 받으면 되돌림 브랜치 이름과 절차를 출력한다 |
 
-- [ ] **Step 1: 실패하는 테스트 작성.** `experiments_test.sh`: 모든 yaml이 파싱되고 `metadata.namespace: prod`, `spec.duration`이 10분 이하이며, E1~E6 파일이 모두 있다.
+- [ ] **Step 1: 실패하는 테스트 작성.** `experiments_test.sh`: 모든 yaml이 파싱되고 `metadata.namespace: prod`, `spec.duration`이 10분 이하이며, E1~E9 파일이 모두 있다. E9를 `GIT=echo` 스텁으로 실행하면 되돌림 브랜치 푸시가 잘못된 설정 푸시보다 먼저 나오고, SIGINT를 보내면 출력에 되돌림 브랜치 이름이 있다. E9가 바꾸는 줄은 `AI_SERVER_BASE_URL` 하나다.
 - [ ] **Step 2: 테스트 실패 확인.** → 실패.
 - [ ] **Step 3: 구현.**
 - [ ] **Step 4: 테스트 통과 확인.** → PASS.
 - [ ] **Step 5: 클러스터 검증.** 각 yaml에 `kubectl apply --dry-run=server`가 성공한다.
-- [ ] **Step 6: 커밋.** `feat(v3-john): 장애 주입 실험 E1~E6 정의`
+- [ ] **Step 6: 커밋.** `feat(v3-john): 장애 주입 실험 E1~E9 정의`
 
 ### Task 7: 기준선 측정과 1단계 실험 실행
 
 이 Task는 코드가 아니라 실험 실행과 기록이다. 결과가 Task 8~10의 진행 여부를 정한다.
 
 **Files:**
-- Create: `v3-john/chaos/records/BASELINE-<날짜>.md`, `v3-john/chaos/records/E1..E6-<날짜>.md`
+- Create: `v3-john/chaos/records/BASELINE-<날짜>.md`, `v3-john/chaos/records/E1..E9-<날짜>.md`
 
 - [ ] **Step 1: 기준선.** `run-experiment.sh BASELINE --baseline`을 3회 실행하고 가용성, 제출 p95, 채점 처리 p95, 서비스 구간별 p99(core → ai-llm, core → judge-api)의 평균을 기록한다.
-- [ ] **Step 2: E1~E6 실행.** 실험마다 대응자가 알림을 받은 순간부터 원인을 확정할 때까지 지표와 로그만으로 진단하고, 원인 파악 시간과 막힌 지점을 기록한다.
-- [ ] **Step 3: 결정 기록.** 각 기록 끝에 설계 문서 4절 조건 판정을 적는다. E5 원인 파악 시간 10분 초과 → Task 9 진행. E4에서 직접 장애가 아닌 서비스(로그인, 제출)의 SLO 위반 → Task 10 진행. 넘지 못한 조건은 해당 Task를 "미도입"으로 기록하고 건너뛴다.
+- [ ] **Step 2: E1~E9 실행.** E7은 `--k6-profile spike`로 실행한다. 실험마다 대응자가 알림을 받은 순간부터 원인을 확정할 때까지 지표와 로그만으로 진단하고, 원인 파악 시간과 막힌 지점을 기록한다.
+- [ ] **Step 3: 결정 기록.** 각 기록 끝에 설계 문서 4절 조건 판정을 적는다. E5 원인 파악 시간 10분 초과 → Task 9 진행. E4 또는 E8에서 직접 장애가 아닌 서비스(로그인, 제출)의 SLO 위반 → Task 10 진행. 넘지 못한 조건은 해당 Task를 "미도입"으로 기록하고 건너뛴다.
 - [ ] **Step 4: 커밋.** `docs(v3-john): 기준선과 1단계 실험 기록`
 
-### Task 8: 1단계 개선 (가용성 설정)
+### Task 8: 1단계 개선 (가용성, 채점 용량, 배포 표시)
 
 **Files:**
 - Create: `v3-john/gitops/charts/cosmos-app/templates/pdb.yaml`, `v3-john/tests/chart_test.sh`
 - Modify: `v3-john/gitops/charts/cosmos-app/values.yaml` (`pdb: { enabled: false, minAvailable: 1 }`, `topologySpread: false`)
 - Modify: `v3-john/gitops/charts/cosmos-app/templates/_pod.tpl` (`topologySpread`가 true면 `kubernetes.io/hostname`, `topology.kubernetes.io/zone` 기준 `maxSkew: 1`, `whenUnsatisfiable: ScheduleAnyway`)
 - Modify: `core.yaml`, `auth.yaml`, `battle.yaml`, `judge-api.yaml` (`hpa.min: 2`, `pdb.enabled: true`, `topologySpread: true`)
-- Modify: `v3-john/modules/eks/variables.tf` (application 노드 그룹 `max_size = 3`)
+- Modify: `v3-john/modules/eks/variables.tf` (application 노드 그룹 `max_size = 3`, `judge-base-ng` `max_size = 3`)
+- Modify: `v3-john/gitops/environments/prod/platform/judge-worker-keda.yaml` (`maxReplicaCount: 3`. worker가 CPU 2개를 요청해 judge 노드 한 대에 하나씩 들어간다)
+- Modify: `v3-john/helm/addons-values/argocd/values.yaml` (notifications `service.grafana`, `trigger.on-sync-succeeded`, `prod` 프로젝트 앱 구독. 주석 태그 `deploy`, 앱 이름, 리비전)
+- Modify: `v3-john/scripts/up.sh` (Grafana 설치 후 서비스 계정 토큰을 API로 만들어 Secret `argocd-notifications-secret`의 `grafana-token`에 넣는다)
 
-E1, E3 결과가 가설대로였다면(약점 없음) 이 Task는 해당 항목만 건너뛰고 근거를 기록에 남긴다.
+E1, E3, E7, E9 결과가 가설대로였다면(약점 없음) 이 Task는 해당 항목만 건너뛰고 근거를 기록에 남긴다.
 
-- [ ] **Step 1: 실패하는 테스트 작성.** `chart_test.sh`: core 값으로 렌더링하면 `PodDisruptionBudget`(`minAvailable: 1`)과 `topologySpreadConstraints` 두 개가 나오고, 기본 값(mlflow)으로는 둘 다 없다.
+- [ ] **Step 1: 실패하는 테스트 작성.** `chart_test.sh`: core 값으로 렌더링하면 `PodDisruptionBudget`(`minAvailable: 1`)과 `topologySpreadConstraints` 두 개가 나오고, 기본 값(mlflow)으로는 둘 다 없다. `judge-worker-keda.yaml`의 `maxReplicaCount`가 3이다. Argo CD 값 렌더링 결과 ConfigMap `argocd-notifications-cm`에 `service.grafana`와 `trigger.on-sync-succeeded`가 있다.
 - [ ] **Step 2: 테스트 실패 확인.** → 실패.
 - [ ] **Step 3: 구현.**
 - [ ] **Step 4: 테스트 통과 확인.** → PASS. `.github/workflows/gitops-ci.yml`과 같은 명령(`helm lint`, `helm template`)으로 모든 값 파일이 통과한다.
-- [ ] **Step 5: 재실험.** E1, E3을 다시 실행하고 기록에 전후 비교(가용성, 복구 시간, k6 실패율)를 적는다. application 노드 3대 기준 Spot vCPU 합계가 20인지 확인한다.
-- [ ] **Step 6: 커밋.** `feat(v3-john): 주요 API 최소 2개, PDB, topology spread 적용`
+- [ ] **Step 5: 재실험.** E1, E3, E7, E9를 다시 실행하고 기록에 전후 비교를 적는다. E1, E3은 가용성, 복구 시간, k6 실패율, E7은 채점 처리 p95와 대기열 최대 길이, E9는 원인 파악 시간(배포 주석 유무 비교)이다. 최대 확장 시 Spot vCPU 합계가 28 이하인지 확인한다.
+- [ ] **Step 6: 커밋.** `feat(v3-john): 가용성 설정, 채점 용량 확장, 배포 주석`
 
 ### Task 9: 2a 트레이스 (OTel + Tempo) — Task 7 조건 충족 시
 
@@ -230,13 +241,13 @@ E1, E3 결과가 가설대로였다면(약점 없음) 이 Task는 해당 항목�
 - [ ] **Step 3: 구현.** 타임아웃 계산값과 근거(기준선 p99)를 파일 주석에 남긴다.
 - [ ] **Step 4: 테스트 통과 확인.** → PASS.
 - [ ] **Step 5: 클러스터 검증.** core, auth, battle, ai-llm, judge-api 파드가 `2/2`이고, 제외 대상은 `1/1`이며, ai-migrate Job이 완료된다. `istioctl analyze -n prod` 오류 0건.
-- [ ] **Step 6: 재실험.** E4, E5를 다시 실행하고 로그인, 제출 SLO와 k6 실패율을 1단계와 비교한다. Kiali는 설치하지 않고 Tempo 서비스 그래프와 Istio 지표 대시보드로 확인한다.
+- [ ] **Step 6: 재실험.** E8은 앱이 직접 HTTPS로 Gemini를 호출해 sidecar가 L7 정책을 걸 수 없으므로 재실험하지 않고, 앱 타임아웃 개선 제안으로 기록한다. E4, E5를 다시 실행하고 로그인, 제출 SLO와 k6 실패율을 1단계와 비교한다. Kiali는 설치하지 않고 Tempo 서비스 그래프와 Istio 지표 대시보드로 확인한다.
 - [ ] **Step 7: 커밋.** `feat(v3-john): Istio sidecar와 서비스 구간 회복 정책`
 
 ### Task 11: 런북, 포스트모템, 최종 보고서
 
 **Files:**
-- Create: `v3-john/chaos/runbooks/pod-failure.md`, `node-interruption.md`, `dependency-latency.md`, `dependency-outage.md`
+- Create: `v3-john/chaos/runbooks/pod-failure.md`, `node-interruption.md`, `dependency-latency.md`, `dependency-outage.md`, `traffic-spike.md`, `bad-deploy.md`
 - Create: `v3-john/chaos/REPORT.md`
 
 - [ ] **Step 1: 런북 작성.** 각 런북은 탐지 신호(알림 이름), 확인 쿼리(PromQL, LogQL, TraceQL), 조치, 복구 확인으로 구성하고, Task 7~10 기록에서 실제로 쓴 쿼리만 넣는다.
