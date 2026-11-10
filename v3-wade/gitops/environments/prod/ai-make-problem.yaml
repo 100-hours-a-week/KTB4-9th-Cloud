@@ -1,6 +1,6 @@
 name: cosmos-ai-make-problem
 component: ai
-image: 352635536602.dkr.ecr.ap-northeast-2.amazonaws.com/cosmos-v2/fastapi@sha256:023356171f5055120bb769c560e263558cc58d222b0723752a22bde586dbbc2c
+image: 352635536602.dkr.ecr.ap-northeast-2.amazonaws.com/cosmos-v2/fastapi:approved-76f850ab691c3d8bafbca7b8aa4d51e285eaf9db
 serviceAccount: ai-job-sa
 port: 0
 service: { enabled: false }
