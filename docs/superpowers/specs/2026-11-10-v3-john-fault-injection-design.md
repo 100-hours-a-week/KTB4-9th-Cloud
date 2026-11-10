@@ -73,7 +73,7 @@ E4는 judge-api 구간에도 같은 방식으로 반복할 수 있으나 범위�
 
 ## 8. 측정과 기록
 
-실험마다 같은 양식(`v3-john/chaos/records/<ID>-<날짜>.md`). 실험 정의는 `v3-john/chaos/experiments/`에 둔다으로 남긴다.
+실험마다 같은 양식으로 `v3-john/chaos/records/<ID>-<날짜>.md`에 남긴다. 실험 정의는 `v3-john/chaos/experiments/`에 둔다.
 
 - 가설, 주입 내용, 영향 범위, 중단 조건
 - 탐지 시간: 주입 시작 주석 → 첫 알림
