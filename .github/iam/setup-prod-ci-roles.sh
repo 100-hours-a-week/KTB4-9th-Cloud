@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# BE, AI main-ci가 cosmos-v2 ECR에 이미지를 올릴 때 쓰는 OIDC 역할을 만든다. 여러 번 실행해도 된다.
+# BE, AI, Judge main-ci가 cosmos-v2 ECR에 이미지를 올릴 때 쓰는 OIDC 역할을 만든다. 여러 번 실행해도 된다.
 # 각 저장소의 GitHub 환경 production-ci에 변수 AWS_PROD_CI_ROLE_ARN으로 출력된 ARN을 넣는다.
 set -euo pipefail
 ACCOUNT=352635536602
@@ -32,3 +32,4 @@ setup() {
 
 setup cosmos-v3-github-spring-prod-ci  "KTB4-9th-BE@1344700709" cosmos-v2/spring
 setup cosmos-v3-github-fastapi-prod-ci "KTB4-9th-AI@1344703221" cosmos-v2/fastapi
+setup cosmos-v3-github-judge-prod-ci   "KTB4-9th-Judge@1374079744" cosmos-v2/judge

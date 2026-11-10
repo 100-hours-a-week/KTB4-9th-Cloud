@@ -9,7 +9,7 @@ on:
         description: Production component to promote
         required: true
         type: choice
-        options: [spring, fastapi]
+        options: [spring, fastapi, judge]
       image_tag:
         description: 40-character source Git SHA
         required: true
@@ -50,6 +50,10 @@ jobs:
             fastapi)
               expected_ecr=cosmos-v2/fastapi
               expected_github=100-hours-a-week/KTB4-9th-AI
+              ;;
+            judge)
+              expected_ecr=cosmos-v2/judge
+              expected_github=100-hours-a-week/KTB4-9th-Judge
               ;;
             *) echo "::error::Unsupported component"; exit 1 ;;
           esac
@@ -99,6 +103,7 @@ jobs:
             case "${COMPONENT}" in
               spring) file=v3-john/gitops/environments/prod/auth.yaml ;;
               fastapi) file=v3-john/gitops/environments/prod/ai-llm.yaml ;;
+              judge) file=v3-john/gitops/environments/prod/judge-api.yaml ;;
             esac
             revision="$(git show "origin/${PROMOTION_BRANCH}:${file}" | awk '$1 == "sourceRevision:" { gsub(/"/, "", $2); print $2; exit }')"
             [[ -z "${revision}" ]] || echo "CURRENT_REVISION_OVERRIDE=${revision}" >>"${GITHUB_ENV}"

@@ -1,6 +1,7 @@
 name: cosmos-judge-worker
 component: judge
 image: 352635536602.dkr.ecr.ap-northeast-2.amazonaws.com/cosmos-judge-worker@sha256:84c7632c8e3d0911a64d1a5114cf0126b0f96e12700c9a2781dc832f7e0e5320
+sourceRevision: ""
 serviceAccount: judge-worker-sa
 replicas: null # KEDA가 관리
 port: 0

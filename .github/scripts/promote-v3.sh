@@ -14,6 +14,11 @@ case "${COMPONENT}|${SOURCE_REPO}|${SOURCE_GITHUB_REPO}" in
   fastapi\|cosmos-v2/fastapi\|100-hours-a-week/KTB4-9th-AI)
     targets="ai-llm:cosmos-ai-llm ai-make-problem:cosmos-ai-make-problem ai-problem-batch:cosmos-ai-problem-batch ai-migrate:cosmos-ai-make-problem"
     ;;
+  judge\|cosmos-v2/judge\|100-hours-a-week/KTB4-9th-Judge)
+    # api와 worker는 같은 이미지를 명령만 달리해 쓴다. 장애 주입 실험 대상인 v3-john에만 올린다.
+    targets="judge-api:cosmos-judge-api judge-worker:cosmos-judge-worker"
+    default_clusters="v3-john"
+    ;;
   *)
     printf 'ERROR: component, ECR repository, and GitHub repository tuple is not allowed\n' >&2
     exit 1
@@ -22,7 +27,7 @@ esac
 
 root="${GITOPS_ROOT:-${GITHUB_WORKSPACE:-$(pwd)}}"
 # 승격 대상 훈련 클러스터. 두 클러스터의 값 파일을 함께 바꾼다.
-clusters="${PROMOTE_CLUSTERS:-v3-john v3-wade}"
+clusters="${PROMOTE_CLUSTERS:-${default_clusters:-v3-john v3-wade}}"
 values_files=()
 for cluster in ${clusters}; do
   for target in ${targets}; do
