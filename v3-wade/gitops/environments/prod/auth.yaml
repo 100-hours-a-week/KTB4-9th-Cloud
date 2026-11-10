@@ -1,6 +1,6 @@
 name: cosmos-auth
 component: auth
-image: 352635536602.dkr.ecr.ap-northeast-2.amazonaws.com/cosmos-v2/spring@sha256:ebfbf1e12c010fb6a78db999f011995b7063c5150cda20b1de0b19ed353af849
+image: 352635536602.dkr.ecr.ap-northeast-2.amazonaws.com/cosmos-v2/spring:approved-6bb76d7ccde9a513ba6f79fcc2497dd0c415461b
 serviceAccount: auth-sa
 service: { name: auth-service }
 extraPorts: [{ name: management, port: 9091 }]
