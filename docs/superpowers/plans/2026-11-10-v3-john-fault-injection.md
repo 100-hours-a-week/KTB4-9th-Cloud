@@ -196,13 +196,13 @@ E1, E3 결과가 가설대로였다면(약점 없음) 이 Task는 해당 항목�
 - Create: `v3-john/helm/addons-values/monitoring/tempo.yaml`, `v3-john/helm/addons-values/otel-operator/values.yaml`, `v3-john/gitops/environments/prod/platform/instrumentation.yaml`
 - Modify: `v3-john/helm/addons-values/monitoring/alloy.yaml` (`otelcol.receiver.otlp` gRPC 4317 → `otelcol.exporter.otlp` Tempo), `kube-prometheus-stack.yaml` (Tempo 데이터소스, traces-to-logs Loki 연결, exemplar 활성화)
 - Modify: `v3-john/gitops/charts/cosmos-app/values.yaml`·`_pod.tpl` (`podAnnotations: {}` 추가)
-- Modify: `core.yaml`, `auth.yaml`, `battle.yaml`(`instrumentation.opentelemetry.io/inject-java: "prod/cosmos"`), `ai-llm.yaml`, `ai-make-problem.yaml`, `ai-problem-batch.yaml`(`inject-python`), `judge-api.yaml`, `judge-worker.yaml`(env `OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy.monitoring:4317`, `OTEL_SERVICE_NAME`)
-- Modify: `network-policies.yaml` (prod → `monitoring` Alloy 4317 허용)
+- Modify: `core.yaml`, `auth.yaml`, `battle.yaml`(`instrumentation.opentelemetry.io/inject-java: "prod/cosmos"`), `ai-llm.yaml`, `ai-make-problem.yaml`, `ai-problem-batch.yaml`(`inject-python`), `judge-api.yaml`, `judge-worker.yaml`(env `OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy.monitoring:4318`, `OTEL_SERVICE_NAME`, worker만 `OTEL_JUDGE_SPAN_PROCESSOR=simple`. Ruby 내보내기는 OTLP/HTTP만 지원한다)
+- Modify: `network-policies.yaml` (prod → `monitoring` Alloy 4317, 4318 허용)
 - Modify: `up.sh`, `down.sh`
 
 **Interfaces:**
 - Produces: Instrumentation 리소스 `prod/cosmos`(샘플링 `parentbased_traceidratio` 0.1, 에러 요청은 Alloy tail sampling으로 100% 보존).
-- Judge 저장소(사용자 수행): gem `opentelemetry-sdk`, `opentelemetry-exporter-otlp`, `opentelemetry-instrumentation-rails`, `-pg`, `-redis`, `-resque`, initializer `config/initializers/opentelemetry.rb`. 엔드포인트와 서비스 이름은 환경 변수로만 받는다.
+- Judge 저장소 브랜치 `feat/opentelemetry`: Ruby 2.7 호환 버전(sdk 1.2.1)의 Rails, PG, Redis, Resque 계측과 `config/initializers/opentelemetry.rb`. 엔드포인트가 없으면 꺼진다. Alloy는 OTLP HTTP 4318 수신을 켜야 한다.
 
 - [ ] **Step 1: 실패하는 테스트 작성.** `chart_test.sh`에 추가: core 렌더링 결과 파드에 `inject-java` 주석이 있다. OTel Operator 값 렌더링에 `admissionWebhooks.certManager.enabled: false`, `autoGenerateCert.enabled: true`가 있다(cert-manager 없이 동작).
 - [ ] **Step 2: 테스트 실패 확인.** → 실패.
