@@ -18,8 +18,8 @@ setup() {
   policy=$(jq -nc --arg arn "arn:aws:ecr:$REGION:$ACCOUNT:repository/$ecr" '{
     Version:"2012-10-17",
     Statement:[{Effect:"Allow",Action:"ecr:GetAuthorizationToken",Resource:"*"},
-      {Effect:"Allow",Action:["ecr:BatchCheckLayerAvailability","ecr:BatchGetImage","ecr:CompleteLayerUpload","ecr:DescribeImages",
-        "ecr:InitiateLayerUpload","ecr:PutImage","ecr:UploadLayerPart"],Resource:$arn}]}')
+      {Effect:"Allow",Action:["ecr:BatchCheckLayerAvailability","ecr:BatchGetImage","ecr:CompleteLayerUpload","ecr:DescribeImageScanFindings",
+        "ecr:DescribeImages","ecr:InitiateLayerUpload","ecr:PutImage","ecr:UploadLayerPart"],Resource:$arn}]}')
   if aws iam get-role --role-name "$name" >/dev/null 2>&1; then
     aws iam update-assume-role-policy --role-name "$name" --policy-document "$trust"
   else
