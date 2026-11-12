@@ -24,3 +24,4 @@ job: { enabled: false }
 privileged: false
 rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
 hpa: { enabled: false, min: 1, max: 1, cpu: 70 }
+metrics: { enabled: false, port: management, path: /actuator/prometheus, interval: 30s }

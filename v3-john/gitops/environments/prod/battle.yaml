@@ -5,6 +5,7 @@ sourceRevision: ""
 serviceAccount: battle-sa
 service: { name: battle-service }
 extraPorts: [{ name: management, port: 9091 }]
+metrics: { enabled: true }
 env:
   SPRING_PROFILES_ACTIVE: stage
   SPRING_CONFIG_IMPORT: optional:configtree:/mnt/secrets/

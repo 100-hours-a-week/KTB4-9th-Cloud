@@ -25,7 +25,6 @@ inst secrets-provider-aws aws-secrets-manager/secrets-store-csi-driver-provider-
 inst cluster-autoscaler autoscaler/cluster-autoscaler 9.60.0 kube-system "$V/cluster-autoscaler/values.yaml"
 inst keda kedacore/keda 2.21.0 keda "$V/keda/values.yaml"
 inst envoy-gateway oci://docker.io/envoyproxy/gateway-helm 1.9.3 envoy-gateway-system "$V/envoy-gateway/values.yaml"
-inst argocd argo/argo-cd 10.12.1 argocd "$V/argocd/values.yaml"
 
 kubectl create secret generic discord-webhook -n monitoring --from-literal="url=$(secret_json cosmos/monitoring/discord-webhook)" --dry-run=client -o yaml | kubectl apply -f -
 kubectl create secret generic grafana-admin -n monitoring --from-literal=admin-user=admin --from-literal="admin-password=$(secret_json /cosmos-v2/monitoring/grafana-admin)" --dry-run=client -o yaml | kubectl apply -f -
@@ -38,6 +37,11 @@ for f in "$V"/monitoring/dashboards/*.json; do
   kubectl create configmap "$n" -n monitoring --from-file="$f" --dry-run=client -o yaml | kubectl apply --server-side -f -
   kubectl label configmap "$n" -n monitoring grafana_dashboard=1 --overwrite
 done
+
+# Argo CD는 ServiceMonitor를 만들므로 kube-prometheus-stack(CRD) 다음에 설치한다.
+kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+kubectl create secret generic argocd-notifications-secret -n argocd --from-literal="discord-url=$(secret_json cosmos/monitoring/discord-webhook)" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+inst argocd argo/argo-cd 10.12.1 argocd "$V/argocd/values.yaml"
 
 G="$BASE/gitops"
 

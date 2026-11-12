@@ -5,6 +5,19 @@ kubeScheduler: { enabled: false }
 kubeControllerManager: { enabled: false }
 kubeProxy: { enabled: false }
 prometheus:
+  # Envoy 프록시가 사용자 요청을 모두 받으므로 서비스별 오류율과 지연 시간의 기준으로 쓴다.
+  additionalPodMonitors:
+    - name: envoy-proxy
+      namespaceSelector:
+        matchNames: [envoy-gateway-system]
+      selector:
+        matchLabels:
+          app.kubernetes.io/component: proxy
+          app.kubernetes.io/managed-by: envoy-gateway
+      podMetricsEndpoints:
+        - port: metrics
+          path: /stats/prometheus
+          interval: 15s
   prometheusSpec:
     retention: 15d
     retentionSize: 25GB
@@ -22,9 +35,11 @@ prometheus:
           resources: { requests: { storage: 30Gi } }
 alertmanager:
   config:
+    # 웹훅이 하나라 채널은 같고, 등급별로 대기 시간과 반복 주기만 다르게 둔다.
+    # critical은 사용자가 겪는 증상, warning은 원인 신호다.
     route:
       receiver: discord
-      group_by: [alertname, namespace]
+      group_by: [alertname, namespace, service]
       group_wait: 30s
       group_interval: 5m
       repeat_interval: 4h
@@ -32,12 +47,40 @@ alertmanager:
         - receiver: "null"
           matchers:
             - alertname=~"Watchdog|InfoInhibitor"
+        - receiver: discord
+          matchers:
+            - severity="critical"
+          group_wait: 10s
+          group_interval: 2m
+          repeat_interval: 1h
+    # 같은 서비스에 증상 알림이 떠 있으면 원인 알림은 묶어서 감춘다. 노드가 죽으면 파드 단위 알림을 감춘다.
+    inhibit_rules:
+      - source_matchers: ['severity = critical']
+        target_matchers: ['severity =~ warning|info']
+        equal: [namespace, alertname]
+      - source_matchers: ['severity = critical']
+        target_matchers: ['severity = warning']
+        equal: [namespace, service]
+      - source_matchers: ['alertname = KubeNodeNotReady']
+        target_matchers: ['alertname =~ KubePodNotReady|KubeDeploymentReplicasMismatch|KubeContainerWaiting|CosmosPodOOMKilled']
+      - source_matchers: ['severity = warning']
+        target_matchers: ['severity = info']
+        equal: [namespace, alertname]
+      - source_matchers: ['alertname = InfoInhibitor']
+        target_matchers: ['severity = info']
+        equal: [namespace]
+      - target_matchers: ['alertname = InfoInhibitor']
     receivers:
       - name: "null"
       - name: discord
         discord_configs:
           - webhook_url_file: /etc/alertmanager/secrets/discord-webhook/url
             send_resolved: true
+            title: '[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .CommonLabels.severity }} · {{ .CommonLabels.alertname }}{{ with .CommonLabels.service }} · {{ . }}{{ end }}'
+            message: |-
+              {{ range .Alerts }}• {{ .Annotations.summary }}{{ with .Annotations.description }}
+                {{ . }}{{ end }}
+              {{ end }}
   alertmanagerSpec:
     secrets: [discord-webhook]
     resources:
@@ -85,3 +128,144 @@ prometheus-node-exporter:
   resources:
     requests: { cpu: 50m, memory: 64Mi }
     limits: { cpu: 200m, memory: 128Mi }
+# 장애 주입 훈련용 SLO 기록 규칙과 알림. 증상은 critical, 원인은 warning으로 둔다.
+# HTTPRoute cosmos-api의 규칙 순서(0 auth, 1 battle, 2 core)로 Envoy 클러스터를 서비스 이름에 대응시킨다.
+additionalPrometheusRulesMap:
+  cosmos-slo:
+    groups:
+      - name: cosmos-slo.envoy
+        interval: 30s
+        rules:
+          - record: cosmos:envoy_upstream_rq:rate5m
+            expr: |
+              label_replace(label_replace(label_replace(
+                sum by (envoy_cluster_name) (rate(envoy_cluster_upstream_rq_total{envoy_cluster_name=~"httproute/prod/cosmos-api/rule/[0-9]+"}[5m]))
+                + sum by (envoy_cluster_name) (rate(envoy_cluster_upstream_cx_none_healthy{envoy_cluster_name=~"httproute/prod/cosmos-api/rule/[0-9]+"}[5m])),
+              "service", "auth", "envoy_cluster_name", ".*/rule/0"),
+              "service", "battle", "envoy_cluster_name", ".*/rule/1"),
+              "service", "core", "envoy_cluster_name", ".*/rule/2")
+          # 오류는 업스트림 5xx와 정상 엔드포인트가 없어 Envoy가 직접 503을 돌려준 요청을 더한다.
+          - record: cosmos:envoy_upstream_errors:rate5m
+            expr: |
+              label_replace(label_replace(label_replace(
+                sum by (envoy_cluster_name) (rate(envoy_cluster_upstream_rq_xx{envoy_cluster_name=~"httproute/prod/cosmos-api/rule/[0-9]+", envoy_response_code_class="5"}[5m]))
+                + sum by (envoy_cluster_name) (rate(envoy_cluster_upstream_cx_none_healthy{envoy_cluster_name=~"httproute/prod/cosmos-api/rule/[0-9]+"}[5m])),
+              "service", "auth", "envoy_cluster_name", ".*/rule/0"),
+              "service", "battle", "envoy_cluster_name", ".*/rule/1"),
+              "service", "core", "envoy_cluster_name", ".*/rule/2")
+          - record: cosmos:envoy_error_ratio:rate5m
+            expr: cosmos:envoy_upstream_errors:rate5m / cosmos:envoy_upstream_rq:rate5m
+          - record: cosmos:envoy_latency_p95_ms:rate5m
+            expr: |
+              label_replace(label_replace(label_replace(
+                histogram_quantile(0.95, sum by (envoy_cluster_name, le) (rate(envoy_cluster_upstream_rq_time_bucket{envoy_cluster_name=~"httproute/prod/cosmos-api/rule/[0-9]+"}[5m]))),
+              "service", "auth", "envoy_cluster_name", ".*/rule/0"),
+              "service", "battle", "envoy_cluster_name", ".*/rule/1"),
+              "service", "core", "envoy_cluster_name", ".*/rule/2")
+      - name: cosmos-slo.windows
+        interval: 1m
+        rules:
+          - record: cosmos:envoy_error_ratio:rate30m
+            expr: sum by (service) (avg_over_time(cosmos:envoy_upstream_errors:rate5m[30m])) / sum by (service) (avg_over_time(cosmos:envoy_upstream_rq:rate5m[30m]))
+          - record: cosmos:envoy_error_ratio:rate1h
+            expr: sum by (service) (avg_over_time(cosmos:envoy_upstream_errors:rate5m[1h])) / sum by (service) (avg_over_time(cosmos:envoy_upstream_rq:rate5m[1h]))
+          - record: cosmos:envoy_error_ratio:rate6h
+            expr: sum by (service) (avg_over_time(cosmos:envoy_upstream_errors:rate5m[6h])) / sum by (service) (avg_over_time(cosmos:envoy_upstream_rq:rate5m[6h]))
+  cosmos-alerts:
+    groups:
+      - name: cosmos-symptoms
+        rules:
+          # core SLO 99.5%. 1시간 창과 5분 창이 모두 14.4배(오류율 7.2%)를 넘으면 4주 예산의 2%를 1시간에 쓰는 속도다.
+          - alert: CosmosCoreErrorBudgetBurnFast
+            expr: |
+              sum by (service) (cosmos:envoy_error_ratio:rate1h{service="core"}) > 0.072
+              and sum by (service) (cosmos:envoy_error_ratio:rate5m{service="core"}) > 0.072
+            for: 2m
+            labels: { severity: critical, namespace: prod }
+            annotations:
+              summary: "core 오류율이 SLO 예산을 빠르게 소진 중 (1시간 {{ $value | humanizePercentage }})"
+              description: "Envoy 기준 core 5xx와 정상 엔드포인트 없음 비율이 7.2%를 넘었다. 최근 배포와 core 파드 상태를 먼저 본다."
+          - alert: CosmosCoreErrorBudgetBurnSlow
+            expr: |
+              sum by (service) (cosmos:envoy_error_ratio:rate6h{service="core"}) > 0.03
+              and sum by (service) (cosmos:envoy_error_ratio:rate30m{service="core"}) > 0.03
+            for: 15m
+            labels: { severity: warning, namespace: prod }
+            annotations:
+              summary: "core 오류율이 6시간째 SLO 예산을 6배 속도로 소진 중"
+          # auth, battle SLO 99%.
+          - alert: CosmosMajorErrorBudgetBurnFast
+            expr: |
+              sum by (service) (cosmos:envoy_error_ratio:rate1h{service=~"auth|battle"}) > 0.144
+              and sum by (service) (cosmos:envoy_error_ratio:rate5m{service=~"auth|battle"}) > 0.144
+            for: 2m
+            labels: { severity: critical, namespace: prod }
+            annotations:
+              summary: "{{ $labels.service }} 오류율이 SLO 예산을 빠르게 소진 중 (1시간 {{ $value | humanizePercentage }})"
+          - alert: CosmosServiceUnavailable
+            expr: |
+              label_replace(kube_deployment_status_replicas_available{namespace="prod", deployment=~"cosmos-(auth|core|battle)"}, "service", "$1", "deployment", "cosmos-(.*)") == 0
+            for: 1m
+            labels: { severity: critical }
+            annotations:
+              summary: "{{ $labels.service }} 사용 가능한 파드가 0개"
+              description: "모든 요청이 실패한다. kubectl -n prod describe deploy {{ $labels.deployment }}, 최근 Argo CD 동기화 이력을 확인한다."
+          # 기준선 측정 전 임시값 1초. 기준선을 잰 뒤 기준선의 2배로 바꾼다.
+          - alert: CosmosReadLatencyHigh
+            expr: cosmos:envoy_latency_p95_ms:rate5m{service="core"} > 1000
+            for: 5m
+            labels: { severity: critical, namespace: prod }
+            annotations:
+              summary: "core p95 지연 시간 {{ $value | humanize }}ms"
+      - name: cosmos-causes
+        rules:
+          - alert: CosmosPodOOMKilled
+            expr: |
+              label_replace(
+                (increase(kube_pod_container_status_restarts_total{namespace="prod"}[10m]) > 0)
+                and on (namespace, pod, container) (kube_pod_container_status_last_terminated_reason{namespace="prod", reason="OOMKilled"} == 1),
+              "service", "$1", "pod", "cosmos-(auth|core|battle)-.*")
+            labels: { severity: warning }
+            annotations:
+              summary: "{{ $labels.pod }} 컨테이너가 메모리 한도를 넘어 OOMKilled로 재시작"
+              description: "최근 배포에서 메모리 limit이나 JVM 옵션이 바뀌었는지 확인한다."
+          - alert: CosmosJvmHeapHigh
+            expr: |
+              sum by (namespace, app, pod) (jvm_memory_used_bytes{namespace="prod", area="heap"})
+              / sum by (namespace, app, pod) (jvm_memory_max_bytes{namespace="prod", area="heap"} > 0) > 0.9
+            for: 5m
+            labels: { severity: warning }
+            annotations:
+              summary: "{{ $labels.pod }} 힙 사용률 {{ $value | humanizePercentage }}"
+          - alert: CosmosDbConnectionPoolExhausted
+            expr: max by (namespace, app, pod) (hikaricp_connections_pending{namespace="prod"}) > 0
+            for: 2m
+            labels: { severity: warning }
+            annotations:
+              summary: "{{ $labels.pod }} Hikari 커넥션 대기 {{ $value }}건"
+              description: "DB 응답 지연이나 커넥션 누수를 의심한다. RDS 연결 수와 CPU를 함께 본다."
+          - alert: CosmosAppScrapeDown
+            expr: up{namespace="prod", job=~"prod/cosmos-.*"} == 0
+            for: 5m
+            labels: { severity: warning }
+            annotations:
+              summary: "{{ $labels.pod }} 메트릭 수집 실패"
+      - name: cosmos-delivery
+        rules:
+          - alert: CosmosArgoAppDegraded
+            expr: argocd_app_info{health_status="Degraded"} == 1
+            for: 5m
+            labels: { severity: warning, namespace: prod }
+            annotations:
+              summary: "Argo CD 앱 {{ $labels.name }} 상태 Degraded"
+          - alert: CosmosArgoSyncFailed
+            expr: increase(argocd_app_sync_total{phase=~"Error|Failed"}[10m]) > 0
+            labels: { severity: warning, namespace: prod }
+            annotations:
+              summary: "Argo CD 앱 {{ $labels.name }} 동기화 실패"
+          - alert: CosmosImageUpdaterErrors
+            expr: sum by (application) (increase(argocd_image_updater_images_errors_total[15m])) > 0
+            labels: { severity: warning, namespace: argocd }
+            annotations:
+              summary: "Image Updater가 {{ $labels.application }} 이미지 갱신에 실패"
+              description: "argocd-image-updater 로그에서 ECR 인증, Git 쓰기 오류를 확인한다."
