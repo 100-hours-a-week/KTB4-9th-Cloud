@@ -3,3 +3,4 @@ output "cluster_endpoint" { value = aws_eks_cluster.main.endpoint }
 output "subnet_ids" { value = { for key, subnet in aws_subnet.eks : key => subnet.id } }
 output "node_role_arn" { value = aws_iam_role.node.arn }
 output "cluster_security_group_id" { value = aws_eks_cluster.main.vpc_config[0].cluster_security_group_id }
+output "image_updater_role_arn" { value = aws_iam_role.image_updater.arn }

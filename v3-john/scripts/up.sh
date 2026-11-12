@@ -40,6 +40,30 @@ for f in "$V"/monitoring/dashboards/*.json; do
 done
 
 G="$BASE/gitops"
+
+# Image Updater: ECR에 approved-* 이미지가 올라오면 EventBridge 웹훅을 받아 v3-john 값 파일의 이미지를 갱신한다.
+# Git 쓰기용 GitHub App Secret이 없고 환경변수도 없으면 설치를 건너뛴다. 그때는 값 파일을 직접 고쳐 배포한다.
+IMAGE_UPDATER=false
+if kubectl get secret argocd-image-updater-git -n argocd >/dev/null 2>&1; then
+  IMAGE_UPDATER=true
+elif [[ -n "${GITHUB_APP_ID:-}" && -n "${GITHUB_APP_INSTALLATION_ID:-}" && -f "${GITHUB_APP_PRIVATE_KEY_FILE:-}" ]]; then
+  kubectl create secret generic argocd-image-updater-git -n argocd \
+    --from-literal=githubAppID="${GITHUB_APP_ID}" \
+    --from-literal=githubAppInstallationID="${GITHUB_APP_INSTALLATION_ID}" \
+    --from-file=githubAppPrivateKey="${GITHUB_APP_PRIVATE_KEY_FILE}" \
+    --dry-run=client -o yaml | kubectl apply -f -
+  IMAGE_UPDATER=true
+else
+  echo "알림: GITHUB_APP_ID, GITHUB_APP_INSTALLATION_ID, GITHUB_APP_PRIVATE_KEY_FILE이 없어 Image Updater 설치를 건너뜁니다." >&2
+fi
+if [[ "$IMAGE_UPDATER" == true ]]; then
+  kubectl create secret generic argocd-image-updater-secret -n argocd \
+    --from-literal="webhook.cloudevents-secret=$(secret_key cosmos/john/argocd-image-updater-webhook secret)" \
+    --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+  inst argocd-image-updater oci://ghcr.io/argoproj/argo-helm/argocd-image-updater 1.4.2 argocd "$V/argocd-image-updater/values.yaml"
+  kubectl apply -f "$G/argocd/image-updater.yaml"
+fi
+
 kubectl apply -f "$G/argocd/projects/prod.yaml" -f "$G/argocd/applicationsets-prod.yaml"
 sync_app() {
   until kubectl get application -n argocd "$1" >/dev/null 2>&1; do sleep 3; done
@@ -57,6 +81,7 @@ for a in auth core battle ai-llm mlflow judge-api judge-worker; do wait_healthy 
 
 until kubectl get svc -n envoy-gateway-system -o jsonpath='{.items[*].status.loadBalancer.ingress[*].hostname}' | grep -q "$CLUSTER"; do sleep 10; done
 kubectl apply -f "$G/environments/argocd/route.yaml" -f "$G/environments/argocd/grafana-route.yaml"
+[[ "$IMAGE_UPDATER" == true ]] && kubectl apply -f "$G/environments/argocd/image-updater-webhook-route.yaml"
 tf apply -input=false -auto-approve -var "seed_snapshot_identifier=$SNAPSHOT" -var enable_edge=true
 "$BASE/scripts/build-frontend.sh"
 echo "완료: https://$ENV_NAME.cosmoscode.site"
