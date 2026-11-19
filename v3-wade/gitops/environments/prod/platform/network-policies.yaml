@@ -181,6 +181,76 @@ spec:
       ports:
         - { protocol: TCP, port: 8000 }
 ---
+# RabbitMQ accepts AMQP only from the publishers and the dedicated consumer.
+# Its metrics endpoint is reachable only from Prometheus.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: rabbitmq
+  namespace: prod
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: rabbitmq }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - { key: app.kubernetes.io/name, operator: In, values: [cosmos-auth, cosmos-core, cosmos-battle, cosmos-battle-worker] }
+      ports:
+        - { protocol: TCP, port: 5672 }
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: monitoring }
+          podSelector:
+            matchLabels: { app.kubernetes.io/name: prometheus }
+      ports:
+        - { protocol: TCP, port: 15692 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: spring-to-rabbitmq
+  namespace: prod
+spec:
+  podSelector:
+    matchExpressions:
+      - { key: app.kubernetes.io/name, operator: In, values: [cosmos-auth, cosmos-core, cosmos-battle] }
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: rabbitmq }
+      ports:
+        - { protocol: TCP, port: 5672 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: battle-worker
+  namespace: prod
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: cosmos-battle-worker }
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: rabbitmq }
+      ports:
+        - { protocol: TCP, port: 5672 }
+    - to:
+        - ipBlock: { cidr: 10.40.20.0/23 }
+      ports:
+        - { protocol: TCP, port: 3306 }
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: monitoring }
+          podSelector:
+            matchLabels: { app.kubernetes.io/instance: otel-collector }
+      ports:
+        - { protocol: TCP, port: 4317 }
+---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

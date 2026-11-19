@@ -4,7 +4,8 @@ locals {
   domain      = "wade.cosmoscode.site"
   rds_secret  = "cosmos/wade/main-db"
   url_secret  = "cosmos/wade/spring-config"
-  spring      = [local.rds_secret, local.url_secret, "/cosmos-v2/stage/spring"]
+  mq_secret   = "cosmos/wade/rabbitmq"
+  spring      = [local.rds_secret, local.url_secret, local.mq_secret, "/cosmos-v2/stage/spring"]
   service_ecr_repositories = [
     "cosmos-v3-wade-auth",
     "cosmos-v3-wade-core",
@@ -67,6 +68,25 @@ resource "aws_secretsmanager_secret_version" "spring_config" {
   })
 }
 
+# Daily battle outbox/consumer 전용 계정. 운영 RabbitMQ 계정과 분리한다.
+resource "random_password" "rabbitmq" {
+  length  = 32
+  special = false
+}
+
+resource "aws_secretsmanager_secret" "rabbitmq" {
+  name                    = local.mq_secret
+  recovery_window_in_days = 0
+}
+
+resource "aws_secretsmanager_secret_version" "rabbitmq" {
+  secret_id = aws_secretsmanager_secret.rabbitmq.id
+  secret_string = jsonencode({
+    username = "cosmos"
+    password = random_password.rabbitmq.result
+  })
+}
+
 resource "aws_s3_bucket" "mlflow" {
   bucket        = "${local.name}-mlflow-352635536602"
   force_destroy = true
@@ -122,6 +142,7 @@ module "eks" {
     auth-sa           = local.spring
     core-sa           = local.spring
     battle-sa         = local.spring
+    battle-worker-sa  = local.spring
     ai-llm-sa         = ["/cosmos-v2/stage/fastapi", "/cosmos-v2/stage/ai-postgres"]
     ai-job-sa         = ["/cosmos-v2/stage/fastapi", "/cosmos-v2/stage/ai-postgres"]
     ai-postgres-sa    = ["/cosmos-v2/stage/ai-postgres"]
@@ -130,9 +151,10 @@ module "eks" {
     judge-worker-sa   = ["/cosmos-v2/stage/judge-api", "/cosmos-v2/stage/judge-postgres", "/cosmos-v2/stage/judge-redis"]
     judge-postgres-sa = ["/cosmos-v2/stage/judge-postgres"]
     judge-redis-sa    = ["/cosmos-v2/stage/judge-redis"]
+    rabbitmq-sa       = [local.mq_secret]
   }
 
-  depends_on = [aws_secretsmanager_secret_version.main_db, aws_secretsmanager_secret_version.spring_config]
+  depends_on = [aws_secretsmanager_secret_version.main_db, aws_secretsmanager_secret_version.spring_config, aws_secretsmanager_secret_version.rabbitmq]
 }
 
 data "aws_route53_zone" "main" {

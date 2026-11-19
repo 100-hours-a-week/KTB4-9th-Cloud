@@ -19,6 +19,10 @@ env:
   SENTRY_ENVIRONMENT: stage
   AI_SERVER_BASE_URL: http://ai-llm-service
   JUDGE0_BASE_URL: http://judge-api-service
+  RABBITMQ_HOST: rabbitmq
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_DEFAULT_VHOST: "/"
+  MANAGEMENT_HEALTH_RABBIT_ENABLED: "false"
   OTEL_SERVICE_NAME: cosmos-auth
   OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector.monitoring.svc.cluster.local:4317
   OTEL_EXPORTER_OTLP_PROTOCOL: grpc
@@ -32,6 +36,8 @@ secrets:
     keys: { DB_URL: DB_URL }
   - secret: cosmos/wade/main-db
     keys: { username: DB_USERNAME, password: DB_PASSWORD }
+  - secret: cosmos/wade/rabbitmq
+    keys: { username: spring.rabbitmq.username, password: spring.rabbitmq.password }
   - secret: /cosmos-v2/stage/spring
     keys: { kakao_client_id: KAKAO_CLIENT_ID, kakao_client_secret: KAKAO_CLIENT_SECRET, kakao_redirect_uri: KAKAO_REDIRECT_URI, jwt_secret: JWT_SECRET }
 resources:

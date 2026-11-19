@@ -128,9 +128,32 @@ wait_healthy() {
   done
 }
 
+wait_rabbitmq_consumer() {
+  local deadline=$((SECONDS + BOOTSTRAP_HEALTH_TIMEOUT_SECONDS))
+  local queue_table=""
+  local consumers=""
+  while true; do
+    queue_table="$(kubectl exec -n prod statefulset/rabbitmq -- rabbitmqctl -q list_queues name consumers 2>/dev/null || true)"
+    consumers="$(awk '$1 == "battle.grading.queue" { print $2 }' <<<"${queue_table}")"
+    if [[ "${consumers}" =~ ^[0-9]+$ ]] && (( consumers >= 1 )); then
+      return 0
+    fi
+    if ((SECONDS >= deadline)); then
+      echo "오류: battle.grading.queue에 Consumer가 ${BOOTSTRAP_HEALTH_TIMEOUT_SECONDS}초 안에 등록되지 않았습니다." >&2
+      kubectl get pods -n prod -l app.kubernetes.io/name=cosmos-battle-worker -o wide >&2 || true
+      kubectl logs -n prod -l app.kubernetes.io/name=cosmos-battle-worker --tail=100 >&2 || true
+      printf '%s\n' "${queue_table}" >&2
+      return 1
+    fi
+    sleep 5
+  done
+}
+
 sync_app prod-platform
 for a in prod-ai-postgres prod-judge-postgres prod-judge-redis; do sync_app "$a"; done
+sync_app prod-rabbitmq
 for a in prod-ai-postgres prod-judge-postgres prod-judge-redis; do wait_healthy "$a"; done
+wait_healthy prod-rabbitmq
 kubectl delete job -n prod cosmos-mlflow-db-init --ignore-not-found --wait=true
 sync_app prod-mlflow-db-init
 wait_healthy prod-mlflow-db-init
@@ -138,6 +161,9 @@ sync_app prod-auth
 wait_healthy prod-auth
 for a in core battle ai-llm ai-make-problem ai-problem-batch mlflow judge-api judge-worker; do sync_app "prod-$a"; done
 for a in core battle ai-llm mlflow judge-api judge-worker; do wait_healthy "prod-$a"; done
+sync_app prod-battle-worker
+wait_healthy prod-battle-worker
+wait_rabbitmq_consumer
 # 모든 초기 스키마와 애플리케이션이 준비된 뒤 지속적인 Auto Sync를 활성화한다.
 kubectl apply -f "$G/argocd/applicationsets-prod.yaml"
 

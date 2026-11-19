@@ -15,7 +15,7 @@ spec:
             matchExpressions:
               - key: app.kubernetes.io/name
                 operator: In
-                values: [cosmos-auth, cosmos-core, cosmos-battle, cosmos-ai-llm, cosmos-ai-make-problem, cosmos-ai-problem-batch]
+                values: [cosmos-auth, cosmos-core, cosmos-battle, cosmos-battle-worker, cosmos-ai-llm, cosmos-ai-make-problem, cosmos-ai-problem-batch]
       ports:
         - { protocol: TCP, port: 4317 }
         - { protocol: TCP, port: 4318 }
