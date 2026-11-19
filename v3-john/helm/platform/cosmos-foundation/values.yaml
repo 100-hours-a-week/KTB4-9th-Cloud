@@ -1,25 +1,22 @@
-# 수치는 실측 전 초기값이다. Stateful과 AI Job 리소스 확정 후 재산정한다.
+# v3-john 훈련 클러스터 기준이다. 노드 최대 구성(system 1, stateful 1, judge 2, application 2)의
+# 할당 가능량이 약 19.5 CPU, 57Gi이므로 쿼터 합계가 이를 크게 넘지 않게 둔다(KubeCPUQuotaOvercommit 기준 1.5배).
+# dev, stage는 v3-john에서 쓰지 않아 만들지 않는다.
 namespaces:
-  dev:
-    podSecurity: { warn: restricted, audit: restricted }
-    quota: { pods: "20", requestsCpu: "4", requestsMemory: 8Gi, limitsCpu: "8", limitsMemory: 16Gi, pvcs: "2", storage: 20Gi }
-  stage:
-    podSecurity: { warn: restricted, audit: restricted }
-    quota: { pods: "30", requestsCpu: "8", requestsMemory: 16Gi, limitsCpu: "16", limitsMemory: 32Gi, pvcs: "5", storage: 100Gi }
-  # HPA·KEDA 최대치 합계: requests 56.5 CPU·58Gi, limits 75 CPU·75Gi에 Stateful과 Envoy 여유를 더한 값
+  # HPA·KEDA 최대치 합계 requests 14 CPU·17Gi, limits 29 CPU·31Gi에 롤링 업데이트 1개와 복원·실험용 Job 여유를 더한 값
   prod:
     podSecurity: { warn: restricted, audit: restricted }
-    quota: { pods: "60", requestsCpu: "64", requestsMemory: 72Gi, limitsCpu: "90", limitsMemory: 96Gi, pvcs: "5", storage: 100Gi }
+    quota: { pods: "60", requestsCpu: "18", requestsMemory: 24Gi, limitsCpu: "34", limitsMemory: 40Gi, pvcs: "5", storage: 100Gi }
+  # 실측 사용량 requests 2.05 CPU·5Gi, limits 16.7 CPU·19Gi
   monitoring:
     podSecurity: {}
-    quota: { pods: "30", requestsCpu: "8", requestsMemory: 16Gi, limitsCpu: "24", limitsMemory: 32Gi, pvcs: "5", storage: 200Gi }
+    quota: { pods: "30", requestsCpu: "4", requestsMemory: 8Gi, limitsCpu: "24", limitsMemory: 32Gi, pvcs: "5", storage: 200Gi }
 
 limitRange:
   defaultRequest: { cpu: 100m, memory: 128Mi }
   default: { cpu: "1", memory: 1Gi }
   max: { cpu: "4", memory: 8Gi }
 
-deployerNamespaces: [dev, stage, prod]
+deployerNamespaces: [prod]
 
 priorityClasses:
   cosmos-platform-critical: 1000000

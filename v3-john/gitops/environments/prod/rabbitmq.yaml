@@ -1,0 +1,25 @@
+# Daily battle 채점 이벤트(outbox)를 받는 메시지 브로커. Spring이 grading 큐로 발행한다.
+# 계정은 Terraform이 만든 cosmos/john/rabbitmq 값이다. 메트릭은 rabbitmq_prometheus(15692)로 수집한다.
+name: rabbitmq
+component: data
+image: rabbitmq:4.1-management-alpine@sha256:71dc98bb14d16c7240efc1d9b6356e5ac1470a51c63e8cce16f246e09748a995
+serviceAccount: rabbitmq-sa
+port: 5672
+service: { name: rabbitmq, port: 5672 }
+extraPorts: [{ name: management, port: 15672 }, { name: prometheus, port: 15692 }]
+nodeSelector: { workload-class: stateful }
+tolerations: [{ key: workload, value: stateful, effect: NoSchedule }]
+priorityClass: cosmos-platform-critical
+stateful: { enabled: true, storage: 5Gi, mountPath: /var/lib/rabbitmq }
+command: ["sh", "-c", 'export RABBITMQ_DEFAULT_USER="$(cat /mnt/secrets/RABBITMQ_USER)" RABBITMQ_DEFAULT_PASS="$(cat /mnt/secrets/RABBITMQ_PASSWORD)"; exec docker-entrypoint.sh rabbitmq-server']
+secrets:
+  - secret: cosmos/john/rabbitmq
+    keys: { username: RABBITMQ_USER, password: RABBITMQ_PASSWORD }
+resources:
+  requests: { cpu: 250m, memory: 512Mi }
+  limits: { cpu: "1", memory: 1Gi }
+probes:
+  startupProbe: { exec: { command: ["rabbitmq-diagnostics", "-q", "ping"] }, periodSeconds: 10, timeoutSeconds: 10, failureThreshold: 18 }
+  readinessProbe: { exec: { command: ["rabbitmq-diagnostics", "-q", "check_port_connectivity"] }, periodSeconds: 15, timeoutSeconds: 10, failureThreshold: 3 }
+  livenessProbe: { exec: { command: ["rabbitmq-diagnostics", "-q", "ping"] }, periodSeconds: 30, timeoutSeconds: 10, failureThreshold: 3 }
+metrics: { enabled: true, port: prometheus, path: /metrics }

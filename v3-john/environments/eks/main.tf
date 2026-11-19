@@ -4,7 +4,8 @@ locals {
   domain      = "john.cosmoscode.site"
   rds_secret  = "cosmos/john/main-db"
   url_secret  = "cosmos/john/spring-config"
-  spring      = [local.rds_secret, local.url_secret, "/cosmos-v2/stage/spring"]
+  mq_secret   = "cosmos/john/rabbitmq"
+  spring      = [local.rds_secret, local.url_secret, local.mq_secret, "/cosmos-v2/stage/spring"]
 }
 
 module "network" {
@@ -57,6 +58,25 @@ resource "aws_secretsmanager_secret_version" "spring_config" {
   })
 }
 
+# Daily battle 채점 이벤트(outbox)를 받는 클러스터 내부 RabbitMQ 계정. 운영 값과 섞지 않고 이 클러스터에서 만든다.
+resource "random_password" "rabbitmq" {
+  length  = 32
+  special = false
+}
+
+resource "aws_secretsmanager_secret" "rabbitmq" {
+  name                    = local.mq_secret
+  recovery_window_in_days = 0
+}
+
+resource "aws_secretsmanager_secret_version" "rabbitmq" {
+  secret_id = aws_secretsmanager_secret.rabbitmq.id
+  secret_string = jsonencode({
+    username = "cosmos"
+    password = random_password.rabbitmq.result
+  })
+}
+
 resource "aws_s3_bucket" "mlflow" {
   bucket        = "${local.name}-mlflow-352635536602"
   force_destroy = true
@@ -87,9 +107,10 @@ module "eks" {
     judge-worker-sa   = ["/cosmos-v2/stage/judge-api", "/cosmos-v2/stage/judge-postgres", "/cosmos-v2/stage/judge-redis"]
     judge-postgres-sa = ["/cosmos-v2/stage/judge-postgres"]
     judge-redis-sa    = ["/cosmos-v2/stage/judge-redis"]
+    rabbitmq-sa       = [local.mq_secret]
   }
 
-  depends_on = [aws_secretsmanager_secret_version.main_db, aws_secretsmanager_secret_version.spring_config]
+  depends_on = [aws_secretsmanager_secret_version.main_db, aws_secretsmanager_secret_version.spring_config, aws_secretsmanager_secret_version.rabbitmq]
 }
 
 resource "aws_vpc_security_group_ingress_rule" "mysql_from_eks" {
@@ -159,4 +180,18 @@ module "edge_grafana" {
   nlb_dns_name  = data.aws_lb.prod[0].dns_name
   vpc_origin_id = module.edge[0].vpc_origin_id
   web_acl_arn   = module.edge[0].web_acl_arn
+}
+
+module "edge_image_updater_webhook" {
+  count  = var.enable_edge ? 1 : 0
+  source = "../../modules/edge-internal"
+  providers = {
+    aws.us_east_1 = aws.us_east_1
+  }
+
+  domain        = "image-updater-john.cosmoscode.site"
+  zone_id       = data.aws_route53_zone.main.zone_id
+  nlb_dns_name  = data.aws_lb.prod[0].dns_name
+  vpc_origin_id = module.edge[0].vpc_origin_id
+  web_acl_arn   = null
 }

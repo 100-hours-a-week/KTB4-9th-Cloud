@@ -378,3 +378,67 @@ spec:
             matchLabels: { kubernetes.io/metadata.name: keda }
       ports:
         - { protocol: TCP, port: 6379 }
+---
+# Prometheus가 Spring 관리 포트 9091의 /actuator/prometheus를 수집한다.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-scrape
+  namespace: prod
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values: [cosmos-auth, cosmos-core, cosmos-battle]
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: monitoring }
+          podSelector:
+            matchLabels: { app.kubernetes.io/name: prometheus }
+      ports:
+        - { protocol: TCP, port: 9091 }
+---
+# RabbitMQ는 Spring 3개의 발행(5672)과 Prometheus 수집(15692)만 받는다.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: rabbitmq
+  namespace: prod
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: rabbitmq }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - { key: app.kubernetes.io/name, operator: In, values: [cosmos-auth, cosmos-core, cosmos-battle] }
+      ports:
+        - { protocol: TCP, port: 5672 }
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: monitoring }
+          podSelector:
+            matchLabels: { app.kubernetes.io/name: prometheus }
+      ports:
+        - { protocol: TCP, port: 15692 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: spring-to-rabbitmq
+  namespace: prod
+spec:
+  podSelector:
+    matchExpressions:
+      - { key: app.kubernetes.io/name, operator: In, values: [cosmos-auth, cosmos-core, cosmos-battle] }
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: rabbitmq }
+      ports:
+        - { protocol: TCP, port: 5672 }
