@@ -50,6 +50,8 @@ if ((${#running[@]})); then
 fi
 aws s3 cp "s3://$SEED_BUCKET/eks-seed/mysql.sql.gz" - | gunzip \
   | kubectl exec -i -n prod mysql-restore -- sh -c 'mysql -h "$0" -u "$DB_USER" cosmos' "$HOST"
+# 덤프 이후 BE에 추가된 스키마를 맞춘다(stage는 ddl-auto: validate).
+kubectl exec -i -n prod mysql-restore -- sh -c 'mysql -h "$0" -u "$DB_USER" cosmos' "$HOST" < "$(dirname "$0")/schema-patches.sql"
 # HPA가 다시 관리하도록 1개로 되돌린다.
 ((${#running[@]})) && kubectl scale deploy -n prod "${running[@]}" --replicas=1 >/dev/null
 echo "mysql 복원 완료"
