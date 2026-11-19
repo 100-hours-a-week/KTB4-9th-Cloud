@@ -1,0 +1,36 @@
+[
+ {
+  "run": "run1",
+  "window": "1795075783~1795076387",
+  "core_req": 7676.84,
+  "core_5xx": 0.0,
+  "major_req": 7477.52,
+  "major_5xx": 0.0,
+  "read_p95_envoy_ms": 24.955569620253165,
+  "submit_p95_envoy_ms": 2277.0270270270266,
+  "read_p95_k6_ms": 73.99515,
+  "read_p99_k6_ms": 207.18772999999925,
+  "submit_p95_k6_ms": 1196.0460500000002,
+  "submit_max_k6_ms": 2142.709,
+  "judge_incomplete": 0,
+  "http_failed": 0,
+  "iterations": 2478
+ },
+ {
+  "run": "run2",
+  "window": "1795076507~1795077111",
+  "core_req": 7625.88717948718,
+  "core_5xx": 0.0,
+  "major_req": 7359.507692307693,
+  "major_5xx": 0.0,
+  "read_p95_envoy_ms": 23.50701196709049,
+  "submit_p95_envoy_ms": 2074.4186046511627,
+  "read_p95_k6_ms": 80.05174999999996,
+  "read_p99_k6_ms": 305.0715899999998,
+  "submit_p95_k6_ms": 1207.4854999999998,
+  "submit_max_k6_ms": 2760.504,
+  "judge_incomplete": 18,
+  "http_failed": 0.0012058685603269243,
+  "iterations": 2446
+ }
+]
