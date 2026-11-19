@@ -22,6 +22,7 @@ spec:
           - { name: judge-worker, autoSync: false }
           - { name: judge-postgres, autoSync: false }
           - { name: judge-redis, autoSync: false }
+          - { name: rabbitmq, autoSync: false }
   template:
     metadata:
       name: "prod-{{ .name }}"
