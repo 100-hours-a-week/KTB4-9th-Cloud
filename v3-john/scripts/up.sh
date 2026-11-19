@@ -76,8 +76,8 @@ sync_app() {
 wait_healthy() { until [ "$(kubectl get application -n argocd "$1" -o jsonpath='{.status.health.status}')" = Healthy ]; do sleep 5; done; }
 
 sync_app prod-platform
-for a in prod-ai-postgres prod-judge-postgres prod-judge-redis; do sync_app "$a"; done
-for a in prod-ai-postgres prod-judge-postgres prod-judge-redis; do wait_healthy "$a"; done
+for a in prod-ai-postgres prod-judge-postgres prod-judge-redis prod-rabbitmq; do sync_app "$a"; done
+for a in prod-ai-postgres prod-judge-postgres prod-judge-redis prod-rabbitmq; do wait_healthy "$a"; done
 "$BASE/scripts/restore-postgres.sh"
 "$BASE/scripts/restore-mysql.sh"
 for a in auth core battle ai-llm ai-make-problem ai-problem-batch mlflow judge-api judge-worker; do sync_app "prod-$a"; done
