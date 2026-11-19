@@ -38,17 +38,7 @@ inst loki grafana/loki 7.5.0 monitoring "$V/monitoring/loki.yaml"
 inst alloy grafana/alloy 1.15.0 monitoring "$V/monitoring/alloy.yaml"
 kubectl apply -f "$V/monitoring/network-policies.yaml"
 
-if ! kubectl get secret argocd-image-updater-git -n argocd >/dev/null 2>&1; then
-  : "${GITHUB_APP_ID:?GITHUB_APP_ID is required for Argo CD Image Updater}"
-  : "${GITHUB_APP_INSTALLATION_ID:?GITHUB_APP_INSTALLATION_ID is required for Argo CD Image Updater}"
-  : "${GITHUB_APP_PRIVATE_KEY_FILE:?GITHUB_APP_PRIVATE_KEY_FILE is required for Argo CD Image Updater}"
-  [[ -f "${GITHUB_APP_PRIVATE_KEY_FILE}" ]] || { echo "GitHub App private key file not found" >&2; exit 1; }
-  kubectl create secret generic argocd-image-updater-git -n argocd \
-    --from-literal=githubAppID="${GITHUB_APP_ID}" \
-    --from-literal=githubAppInstallationID="${GITHUB_APP_INSTALLATION_ID}" \
-    --from-file=githubAppPrivateKey="${GITHUB_APP_PRIVATE_KEY_FILE}" \
-    --dry-run=client -o yaml | kubectl apply -f -
-fi
+"$BASE/scripts/refresh-image-updater-git-credentials.sh" --ensure-parameter
 
 kubectl create secret generic argocd-image-updater-secret -n argocd \
   --from-literal="webhook.cloudevents-secret=$(secret_key cosmos/wade/argocd-image-updater-webhook secret)" \

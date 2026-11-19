@@ -5,6 +5,7 @@ ENV_NAME=wade
 CLUSTER=cosmos-v3-wade
 REGION=ap-northeast-2
 SEED_BUCKET=cosmos-db-backup-352635536602
+IMAGE_UPDATER_PAT_PARAMETER="${IMAGE_UPDATER_PAT_PARAMETER:-/cosmos/wade/github/image-updater-pat}"
 BASE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TF_DIR="$BASE/environments/eks"
 export KUBECONFIG="${TMPDIR:-/tmp}/kubeconfig-$CLUSTER"
