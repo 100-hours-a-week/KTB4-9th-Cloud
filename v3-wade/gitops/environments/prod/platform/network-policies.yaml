@@ -2,6 +2,50 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
+  name: allow-monitoring-scrape
+  namespace: prod
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values: [cosmos-auth, cosmos-core, cosmos-battle, cosmos-ai-llm]
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: monitoring }
+          podSelector:
+            matchLabels: { app.kubernetes.io/name: prometheus }
+      ports:
+        - { protocol: TCP, port: 9091 }
+        - { protocol: TCP, port: 8000 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-otel-export
+  namespace: prod
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values: [cosmos-auth, cosmos-core, cosmos-battle, cosmos-ai-llm, cosmos-ai-make-problem, cosmos-ai-problem-batch]
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: monitoring }
+          podSelector:
+            matchLabels: { app.kubernetes.io/instance: otel-collector }
+      ports:
+        - { protocol: TCP, port: 4317 }
+        - { protocol: TCP, port: 4318 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
   name: default-deny
   namespace: prod
 spec:
