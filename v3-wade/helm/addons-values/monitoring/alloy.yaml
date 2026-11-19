@@ -3,6 +3,9 @@ controller:
   type: daemonset
   tolerations:
     - operator: Exists
+serviceMonitor:
+  enabled: true
+  interval: 30s
 alloy:
   resources:
     requests: { cpu: 50m, memory: 128Mi }

@@ -6,6 +6,8 @@ kubeControllerManager: { enabled: false }
 kubeProxy: { enabled: false }
 prometheus:
   prometheusSpec:
+    enableRemoteWriteReceiver: true
+    enableFeatures: [exemplar-storage]
     retention: 15d
     retentionSize: 25GB
     serviceMonitorSelectorNilUsesHelmValues: false
@@ -66,13 +68,62 @@ grafana:
     size: 5Gi
   sidecar:
     dashboards: { enabled: true, label: grafana_dashboard, searchNamespace: monitoring }
-    datasources: { enabled: true, uid: prometheus-v2, name: Prometheus v2 }
+    datasources:
+      enabled: true
+      uid: prometheus-v2
+      name: Prometheus v2
+      exemplarTraceIdDestinations:
+        datasourceUid: tempo-wade
+        traceIdLabelName: trace_id
+        urlDisplayLabel: View trace
   additionalDataSources:
     - name: Loki v2
       uid: loki-v2
       type: loki
       access: proxy
       url: http://loki.monitoring.svc.cluster.local:3100
+      jsonData:
+        derivedFields:
+          - name: TraceID
+            matcherRegex: '(?:trace_id|traceId)[=:\" ]+([0-9a-f]{32})'
+            datasourceUid: tempo-wade
+            url: '$${__value.raw}'
+            urlDisplayLabel: View trace
+    - name: Tempo Wade
+      uid: tempo-wade
+      type: tempo
+      access: proxy
+      url: http://tempo.monitoring.svc.cluster.local:3200
+      jsonData:
+        httpMethod: GET
+        nodeGraph: { enabled: true }
+        serviceMap: { datasourceUid: prometheus-v2 }
+        tracesToLogsV2:
+          datasourceUid: loki-v2
+          spanStartTimeShift: -5m
+          spanEndTimeShift: 5m
+          filterByTraceID: true
+          filterBySpanID: false
+          customQuery: false
+          tags:
+            - { key: service.name, value: app }
+            - { key: k8s.namespace.name, value: namespace }
+            - { key: k8s.pod.name, value: pod }
+        tracesToMetrics:
+          datasourceUid: prometheus-v2
+          spanStartTimeShift: -5m
+          spanEndTimeShift: 5m
+          tags:
+            - { key: service.name, value: service }
+          queries:
+            - name: Request rate
+              query: 'sum(rate(traces_spanmetrics_calls_total{$${__tags}}[5m]))'
+            - name: Error rate
+              query: 'sum(rate(traces_spanmetrics_calls_total{$${__tags},status_code="STATUS_CODE_ERROR"}[5m]))'
+        traceQuery:
+          timeShiftEnabled: true
+          spanStartTimeShift: -5m
+          spanEndTimeShift: 5m
 prometheusOperator:
   resources:
     requests: { cpu: 100m, memory: 128Mi }

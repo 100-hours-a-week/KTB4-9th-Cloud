@@ -1,0 +1,122 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: wade-observability
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: cosmos-observability
+spec:
+  groups:
+    - name: wade.infrastructure
+      rules:
+        - alert: WadeNodeNotReady
+          expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+          for: 10m
+          labels: { severity: critical, team: platform }
+          annotations:
+            summary: "Kubernetes node is not ready"
+            description: "Node {{ $labels.node }} has been NotReady for 10 minutes."
+        - alert: WadeWorkloadUnavailable
+          expr: kube_deployment_spec_replicas{namespace=~"prod|monitoring"} > kube_deployment_status_replicas_available{namespace=~"prod|monitoring"}
+          for: 10m
+          labels: { severity: critical, team: platform }
+          annotations:
+            summary: "Deployment has unavailable replicas"
+            description: "{{ $labels.namespace }}/{{ $labels.deployment }} has fewer available replicas than requested."
+        - alert: WadePodCrashLooping
+          expr: max_over_time(kube_pod_container_status_waiting_reason{namespace=~"prod|monitoring",reason="CrashLoopBackOff"}[10m]) >= 1
+          for: 10m
+          labels: { severity: warning, team: platform }
+          annotations:
+            summary: "Pod is crash-looping"
+            description: "{{ $labels.namespace }}/{{ $labels.pod }} container {{ $labels.container }} is in CrashLoopBackOff."
+        - alert: WadePrometheusTargetDown
+          expr: (up{namespace="monitoring",service=~"kube-prometheus-stack-prometheus|kube-prometheus-stack-operator"} == 0) or absent(up{namespace="monitoring",service="kube-prometheus-stack-prometheus"})
+          for: 5m
+          labels: { severity: critical, team: platform }
+          annotations: { summary: "Prometheus component is down" }
+        - alert: WadeLokiTargetDown
+          expr: (up{namespace="monitoring",service=~"loki.*"} == 0) or absent(up{namespace="monitoring",service=~"loki.*"})
+          for: 5m
+          labels: { severity: critical, team: platform }
+          annotations: { summary: "Loki target is down" }
+        - alert: WadeTempoTargetDown
+          expr: (up{namespace="monitoring",service="tempo"} == 0) or absent(up{namespace="monitoring",service="tempo"})
+          for: 5m
+          labels: { severity: critical, team: platform }
+          annotations: { summary: "Tempo target is down" }
+    - name: wade.collector
+      rules:
+        - alert: WadeCollectorRefusedSpans
+          expr: sum(rate(otelcol_receiver_refused_spans_total[5m])) > 0
+          for: 5m
+          labels: { severity: warning, team: platform }
+          annotations:
+            summary: "OpenTelemetry Collector is refusing spans"
+            description: "Collector refused spans continuously during the last five minutes."
+        - alert: WadeCollectorExportFailed
+          expr: sum(rate(otelcol_exporter_send_failed_spans_total[5m])) > 0
+          for: 5m
+          labels: { severity: critical, team: platform }
+          annotations:
+            summary: "OpenTelemetry Collector cannot export spans"
+            description: "Collector export failures indicate traces may be delayed or dropped."
+        - alert: WadeApplicationTracesMissing
+          expr: |
+            (
+              label_replace(vector(1), "service", "cosmos-auth", "", "")
+              or label_replace(vector(1), "service", "cosmos-core", "", "")
+              or label_replace(vector(1), "service", "cosmos-battle", "", "")
+              or label_replace(vector(1), "service", "cosmos-ai-llm", "", "")
+            )
+            unless on (service)
+            sum by (service) (increase(traces_spanmetrics_calls_total{service=~"cosmos-(auth|core|battle|ai-llm)"}[30m])) > 0
+          for: 10m
+          labels: { severity: warning, team: platform }
+          annotations:
+            summary: "Continuous application traces are missing"
+            description: "No span metrics were generated for a continuously running Wade application during the observation window."
+    - name: wade.application
+      rules:
+        - alert: WadeHttpHighErrorRate
+          expr: sum by (service) (rate(http_server_requests_seconds_count{namespace="prod",status=~"5.."}[5m])) / clamp_min(sum by (service) (rate(http_server_requests_seconds_count{namespace="prod"}[5m])), 0.001) > 0.05
+          for: 10m
+          labels: { severity: critical, team: application }
+          annotations: { summary: "HTTP 5xx rate is above 5%" }
+        - alert: WadeHttpHighLatency
+          expr: histogram_quantile(0.95, sum by (le, service) (rate(http_server_requests_seconds_bucket{namespace="prod"}[10m]))) > 1
+          for: 10m
+          labels: { severity: warning, team: application }
+          annotations: { summary: "HTTP p95 latency is above one second" }
+        - alert: WadeCronJobFailed
+          expr: kube_job_status_failed{namespace="prod",job_name=~"cosmos-ai-(make-problem|problem-batch).*"} > 0
+          for: 5m
+          labels: { severity: critical, team: ai }
+          annotations: { summary: "AI CronJob execution failed" }
+        - alert: WadeCronJobStale
+          expr: (time() - kube_cronjob_status_last_successful_time{namespace="prod",cronjob=~"cosmos-ai-(make-problem|problem-batch)"} > 93600) and on (namespace, cronjob) (kube_cronjob_spec_suspend{namespace="prod"} == 0)
+          for: 30m
+          labels: { severity: warning, team: ai }
+          annotations: { summary: "AI CronJob has no success within 26 hours" }
+    - name: wade.llm
+      rules:
+        - alert: WadeLlmHighErrorRate
+          expr: sum by (provider, model) (rate(cosmos_llm_requests_total{result="error"}[10m])) / clamp_min(sum by (provider, model) (rate(cosmos_llm_requests_total[10m])), 0.001) > 0.10
+          for: 10m
+          labels: { severity: critical, team: ai }
+          annotations: { summary: "LLM error rate is above 10%" }
+        - alert: WadeLlmHighLatency
+          expr: histogram_quantile(0.95, sum by (le, provider, model) (rate(cosmos_llm_request_duration_seconds_bucket[10m]))) > 15
+          for: 10m
+          labels: { severity: warning, team: ai }
+          annotations: { summary: "LLM p95 latency is above 15 seconds" }
+        - alert: WadeLlmTokenSpike
+          expr: sum(increase(cosmos_llm_tokens_total[1h])) > 1000000
+          for: 15m
+          labels: { severity: warning, team: ai }
+          annotations: { summary: "LLM token use exceeded one million in one hour" }
+        - alert: WadeLlmCostSpike
+          expr: sum(increase(cosmos_llm_estimated_cost_usd_total[1h])) > 20
+          for: 15m
+          labels: { severity: warning, team: ai }
+          annotations: { summary: "Estimated LLM cost exceeded USD 20 in one hour" }

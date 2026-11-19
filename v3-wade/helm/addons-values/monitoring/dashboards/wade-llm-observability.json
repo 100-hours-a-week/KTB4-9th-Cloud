@@ -1,0 +1,89 @@
+{
+  "annotations": { "list": [] },
+  "editable": false,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-v2" },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [{ "expr": "sum by (provider, model, operation) (rate(cosmos_llm_requests_total[5m]))", "legendFormat": "{{provider}} / {{model}} / {{operation}}", "refId": "A" }],
+      "title": "LLM Request Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-v2" },
+      "fieldConfig": { "defaults": { "unit": "percentunit" }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 0 },
+      "id": 2,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [{ "expr": "sum by (provider, model) (rate(cosmos_llm_requests_total{result=\"error\"}[10m])) / clamp_min(sum by (provider, model) (rate(cosmos_llm_requests_total[10m])), 0.001)", "legendFormat": "{{provider}} / {{model}}", "refId": "A" }],
+      "title": "LLM Error Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-v2" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 0 },
+      "id": 3,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [{ "expr": "histogram_quantile(0.95, sum by (le, provider, model) (rate(cosmos_llm_request_duration_seconds_bucket[10m])))", "legendFormat": "{{provider}} / {{model}}", "refId": "A" }],
+      "title": "LLM p95 Duration",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-v2" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 7 },
+      "id": 4,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [{ "expr": "sum by (provider, model, token_type) (rate(cosmos_llm_tokens_total[5m])) or vector(0)", "legendFormat": "{{provider}} / {{model}} / {{token_type}}", "refId": "A" }],
+      "title": "Token Throughput (when usage is available)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-v2" },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 7 },
+      "id": 5,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [{ "expr": "sum by (provider, model, pricing_version) (increase(cosmos_llm_estimated_cost_usd_total[$__range]))", "legendFormat": "{{provider}} / {{model}} / {{pricing_version}}", "refId": "A" }],
+      "title": "Estimated Cost (when pricing is configured)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-v2" },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
+      "id": 6,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "expr": "sum by (provider, model) (increase(cosmos_llm_retries_total[1h])) or vector(0)", "legendFormat": "retry {{provider}} / {{model}}", "refId": "A" },
+        { "expr": "sum by (provider, model) (increase(cosmos_llm_fallbacks_total[1h])) or vector(0)", "legendFormat": "fallback {{provider}} / {{model}}", "refId": "B" }
+      ],
+      "title": "Retries and Fallbacks (1h)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-v2" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [{ "expr": "histogram_quantile(0.95, sum by (le, provider, model) (rate(cosmos_llm_time_to_first_token_seconds_bucket[10m]))) or vector(0)", "legendFormat": "{{provider}} / {{model}}", "refId": "A" }],
+      "title": "Time to First Token (streaming only)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 41,
+  "tags": ["cosmos", "wade", "ai", "llm"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timezone": "browser",
+  "title": "COSMOS Wade / LLM Observability",
+  "uid": "wade-llm-observability",
+  "version": 1
+}

@@ -9,7 +9,7 @@
       "gridPos": { "h": 7, "w": 12, "x": 0, "y": 0 },
       "id": 1,
       "options": { "legend": { "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
-      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus-v2" }, "expr": "up{job=~\"prometheus|grafana|loki|node-exporter\"}", "legendFormat": "{{job}}", "refId": "A" }],
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus-v2" }, "expr": "up{namespace=\"monitoring\"}", "legendFormat": "{{service}} / {{job}}", "refId": "A" }],
       "title": "Monitoring Targets Up",
       "type": "timeseries"
     },
@@ -49,9 +49,33 @@
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 14 },
       "id": 5,
       "options": { "dedupStrategy": "none", "enableLogDetails": true, "prettifyLogMessage": false, "showCommonLabels": false, "showLabels": false, "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true },
-      "targets": [{ "datasource": { "type": "loki", "uid": "loki-v2" }, "expr": "{source=\"monitoring\"} |= \"error\"", "refId": "A" }],
+      "targets": [{ "datasource": { "type": "loki", "uid": "loki-v2" }, "expr": "{namespace=\"monitoring\"} |= \"error\"", "refId": "A" }],
       "title": "Monitoring Errors (available after log forwarding)",
       "type": "logs"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-v2" },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 22 },
+      "id": 6,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "expr": "sum(rate(otelcol_receiver_accepted_spans_total[5m]))", "legendFormat": "accepted", "refId": "A" },
+        { "expr": "sum(rate(otelcol_receiver_refused_spans_total[5m]))", "legendFormat": "refused", "refId": "B" },
+        { "expr": "sum(rate(otelcol_exporter_send_failed_spans_total[5m]))", "legendFormat": "export failed", "refId": "C" }
+      ],
+      "title": "Collector Span Pipeline",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-v2" },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 22 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [{ "expr": "sum(rate(tempo_distributor_spans_received_total[5m]))", "legendFormat": "received", "refId": "A" }],
+      "title": "Tempo Span Ingestion",
+      "type": "timeseries"
     }
   ],
   "refresh": "30s",

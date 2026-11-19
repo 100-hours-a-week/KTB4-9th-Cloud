@@ -1,0 +1,118 @@
+# chart: grafana/tempo 1.24.4 (Tempo 2.9.0)
+replicas: 1
+
+tempo:
+  reportingEnabled: false
+  retention: 336h
+  receivers:
+    otlp:
+      protocols:
+        grpc: { endpoint: "0.0.0.0:4317" }
+        http: { endpoint: "0.0.0.0:4318" }
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: "1", memory: 2Gi }
+  metricsGenerator:
+    enabled: true
+    remoteWriteUrl: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/api/v1/write
+    processor:
+      service_graphs:
+        wait: 10s
+        max_items: 10000
+      span_metrics:
+        enable_target_info: true
+    registry:
+      collection_interval: 15s
+      max_exemplars: 10000
+      external_labels:
+        cluster: cosmos-v3-wade
+        environment: wade
+    storage:
+      path: /var/tempo/metrics
+    traces_storage:
+      path: /var/tempo/traces-wal
+  overrides:
+    defaults:
+      metrics_generator:
+        processors: [service-graphs, span-metrics]
+  storage:
+    trace:
+      backend: s3
+      s3:
+        bucket: ""
+        endpoint: s3.dualstack.ap-northeast-2.amazonaws.com
+        region: ap-northeast-2
+        insecure: false
+      wal:
+        path: /var/tempo/wal
+
+# The deprecated chart renders legacy container ports, but Tempo only starts the
+# OTLP listeners below. NetworkPolicy separately permits only 4317 from Collector.
+config: |
+  memberlist:
+    cluster_label: "{{ .Release.Name }}.{{ .Release.Namespace }}"
+  multitenancy_enabled: {{ .Values.tempo.multitenancyEnabled }}
+  usage_report:
+    reporting_enabled: {{ .Values.tempo.reportingEnabled }}
+  compactor:
+    compaction:
+      block_retention: {{ .Values.tempo.retention }}
+  distributor:
+    receivers:
+      otlp:
+        protocols:
+          grpc: { endpoint: "0.0.0.0:4317" }
+          http: { endpoint: "0.0.0.0:4318" }
+  ingester:
+    {{- toYaml .Values.tempo.ingester | nindent 4 }}
+  server:
+    {{- toYaml .Values.tempo.server | nindent 4 }}
+  storage:
+    {{- toYaml .Values.tempo.storage | nindent 4 }}
+  querier:
+    {{- toYaml .Values.tempo.querier | nindent 4 }}
+  query_frontend:
+    {{- toYaml .Values.tempo.queryFrontend | nindent 4 }}
+  overrides:
+    {{- toYaml .Values.tempo.overrides | nindent 4 }}
+    {{- if .Values.tempo.metricsGenerator.enabled }}
+  metrics_generator:
+    processor:
+      {{- toYaml .Values.tempo.metricsGenerator.processor | nindent 6 }}
+    registry:
+      {{- toYaml .Values.tempo.metricsGenerator.registry | nindent 6 }}
+    storage:
+      path: {{ .Values.tempo.metricsGenerator.storage.path | quote }}
+      remote_write:
+        - url: {{ .Values.tempo.metricsGenerator.remoteWriteUrl }}
+    traces_storage:
+      path: {{ .Values.tempo.metricsGenerator.traces_storage.path | quote }}
+    {{- end }}
+
+serviceAccount:
+  create: true
+  name: tempo-sa
+  automountServiceAccountToken: true
+
+serviceMonitor:
+  enabled: true
+  interval: 30s
+
+persistence:
+  enabled: true
+  storageClassName: gp3-retain
+  accessModes: [ReadWriteOnce]
+  size: 10Gi
+
+nodeSelector: { workload-class: system }
+tolerations:
+  - key: CriticalAddonsOnly
+    operator: Equal
+    value: "true"
+    effect: NoSchedule
+
+securityContext:
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  runAsNonRoot: true
