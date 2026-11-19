@@ -12,6 +12,7 @@ spec:
           - { name: auth, autoSync: true }
           - { name: core, autoSync: true }
           - { name: battle, autoSync: true }
+          - { name: battle-worker, autoSync: true }
           - { name: ai-llm, autoSync: true }
           - { name: ai-make-problem, autoSync: true }
           - { name: ai-problem-batch, autoSync: true }
@@ -22,6 +23,7 @@ spec:
           - { name: judge-worker, autoSync: false }
           - { name: judge-postgres, autoSync: false }
           - { name: judge-redis, autoSync: false }
+          - { name: rabbitmq, autoSync: false }
   template:
     metadata:
       name: "prod-{{ .name }}"

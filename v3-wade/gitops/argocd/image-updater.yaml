@@ -44,6 +44,16 @@ spec:
           manifestTargets:
             helm:
               spec: image
+    - namePattern: "prod-battle-worker"
+      writeBackConfig:
+        gitConfig:
+          writeBackTarget: helmvalues:/v3-wade/gitops/environments/prod/battle-worker.yaml
+      images:
+        - alias: spring
+          imageName: 352635536602.dkr.ecr.ap-northeast-2.amazonaws.com/cosmos-v2/spring
+          manifestTargets:
+            helm:
+              spec: image
     - namePattern: "prod-ai-llm"
       writeBackConfig:
         gitConfig:

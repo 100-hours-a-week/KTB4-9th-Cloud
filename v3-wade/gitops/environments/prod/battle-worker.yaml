@@ -1,0 +1,52 @@
+# Headless Spring process dedicated to the RabbitMQ daily-battle grading consumer.
+name: cosmos-battle-worker
+component: worker
+image: 352635536602.dkr.ecr.ap-northeast-2.amazonaws.com/cosmos-v2/spring:approved-6bb76d7ccde9a513ba6f79fcc2497dd0c415461b
+serviceAccount: battle-worker-sa
+replicas: 1
+port: null
+service: { enabled: false }
+priorityClass: cosmos-batch
+nodeSelector: { workload-class: application }
+env:
+  SPRING_PROFILES_ACTIVE: stage
+  SPRING_CONFIG_IMPORT: optional:configtree:/mnt/secrets/
+  SPRING_MAIN_WEB_APPLICATION_TYPE: none
+  SPRING_JPA_OPEN_IN_VIEW: "false"
+  APP_WORKER_ENABLED: "true"
+  APP_LEGACY_DB_WORKER_ENABLED: "false"
+  EVALUATION_WORKER_ENABLED: "false"
+  EVALUATION_MQ_ENABLED: "false"
+  RABBITMQ_HOST: rabbitmq
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_DEFAULT_VHOST: "/"
+  RABBITMQ_CONSUMER_PREFETCH: "1"
+  RABBITMQ_CONSUMER_CONCURRENCY: "1"
+  AI_SERVER_BASE_URL: http://ai-llm-service
+  JUDGE0_BASE_URL: http://judge-api-service
+  FRONTEND_BASE_URL: https://wade.cosmoscode.site
+  APP_REGION: ap-northeast-2
+  APP_VERSION: v3
+  SENTRY_ENVIRONMENT: stage
+  OTEL_SERVICE_NAME: cosmos-battle-worker
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector.monitoring.svc.cluster.local:4317
+  OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+  OTEL_TRACES_EXPORTER: otlp
+  OTEL_METRICS_EXPORTER: none
+  OTEL_LOGS_EXPORTER: none
+  OTEL_PROPAGATORS: tracecontext,baggage
+  OTEL_RESOURCE_ATTRIBUTES: deployment.environment.name=wade,service.namespace=cosmos,k8s.cluster.name=cosmos-v3-wade
+secrets:
+  - secret: cosmos/wade/spring-config
+    keys: { DB_URL: DB_URL }
+  - secret: cosmos/wade/main-db
+    keys: { username: DB_USERNAME, password: DB_PASSWORD }
+  - secret: cosmos/wade/rabbitmq
+    keys: { username: spring.rabbitmq.username, password: spring.rabbitmq.password }
+  - secret: /cosmos-v2/stage/spring
+    keys: { kakao_client_id: KAKAO_CLIENT_ID, kakao_client_secret: KAKAO_CLIENT_SECRET, kakao_redirect_uri: KAKAO_REDIRECT_URI, jwt_secret: JWT_SECRET }
+resources:
+  requests: { cpu: 250m, memory: 512Mi }
+  limits: { cpu: "1", memory: 1Gi }
+terminationGracePeriodSeconds: 120
+rollingUpdate: { maxUnavailable: 1, maxSurge: 0 }

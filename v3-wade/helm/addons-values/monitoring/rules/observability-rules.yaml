@@ -98,6 +98,29 @@ spec:
           for: 30m
           labels: { severity: warning, team: ai }
           annotations: { summary: "AI CronJob has no success within 26 hours" }
+    - name: wade.rabbitmq
+      rules:
+        - alert: WadeRabbitMqTargetDown
+          expr: (up{namespace="prod",service="rabbitmq"} == 0) or absent(up{namespace="prod",service="rabbitmq"})
+          for: 5m
+          labels: { severity: critical, team: platform }
+          annotations:
+            summary: "Wade RabbitMQ target is down"
+            description: "Prometheus cannot scrape the Wade RabbitMQ broker for five minutes."
+        - alert: WadeRabbitMqNoConsumers
+          expr: (sum(rabbitmq_queue_consumers{namespace="prod",queue="battle.grading.queue"}) < 1) and on() (sum(up{namespace="prod",service="rabbitmq"} == 1) > 0)
+          for: 5m
+          labels: { severity: critical, team: application }
+          annotations:
+            summary: "Daily battle grading queue has no consumer"
+            description: "The dedicated Spring battle worker has not consumed the grading queue for five minutes."
+        - alert: WadeRabbitMqQueueBacklog
+          expr: sum(rabbitmq_queue_messages_ready{namespace="prod",queue="battle.grading.queue"}) > 100
+          for: 10m
+          labels: { severity: warning, team: application }
+          annotations:
+            summary: "Daily battle grading queue backlog is above 100"
+            description: "More than 100 grading messages have remained ready for ten minutes."
     - name: wade.llm
       rules:
         - alert: WadeLlmHighErrorRate
