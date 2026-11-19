@@ -50,3 +50,33 @@ resource "aws_iam_role_policy" "mlflow_s3" {
   role   = aws_iam_role.workload["mlflow-sa"].id
   policy = data.aws_iam_policy_document.mlflow_s3.json
 }
+
+data "aws_iam_policy_document" "tempo_s3" {
+  statement {
+    actions   = ["s3:ListBucket"]
+    resources = [var.tempo_bucket_arn]
+  }
+
+  statement {
+    actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+    resources = ["${var.tempo_bucket_arn}/*"]
+  }
+}
+
+resource "aws_iam_role" "tempo" {
+  name               = "${var.cluster_name}-tempo-role"
+  assume_role_policy = data.aws_iam_policy_document.pod_identity_assume.json
+}
+
+resource "aws_iam_role_policy" "tempo_s3" {
+  name   = "tempo-traces"
+  role   = aws_iam_role.tempo.id
+  policy = data.aws_iam_policy_document.tempo_s3.json
+}
+
+resource "aws_eks_pod_identity_association" "tempo" {
+  cluster_name    = aws_eks_cluster.main.name
+  namespace       = "monitoring"
+  service_account = "tempo-sa"
+  role_arn        = aws_iam_role.tempo.arn
+}

@@ -94,6 +94,7 @@ module "eks" {
   }
   public_access_cidrs = var.public_access_cidrs
   mlflow_bucket_arn   = aws_s3_bucket.mlflow.arn
+  tempo_bucket_arn    = aws_s3_bucket.tempo.arn
 
   rds_security_group_id    = module.data.mysql_sg_id
   valkey_security_group_id = module.data.valkey_sg_id
