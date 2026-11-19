@@ -87,9 +87,10 @@ variable "node_groups" {
       instance_types = ["t3.xlarge", "t3a.xlarge", "m5.xlarge"]
       min_size       = 2
       desired_size   = 2
-      max_size       = 2
-      labels         = { "workload-class" = "application" }
-      taints         = []
+      # 노드 1대가 빠져도 나머지에 다시 올릴 수 있게 1대 여유를 둔다(KubeCPUOvercommit). Spot vCPU 최대 20, 한도 32.
+      max_size = 3
+      labels   = { "workload-class" = "application" }
+      taints   = []
     }
   }
 }
