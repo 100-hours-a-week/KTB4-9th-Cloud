@@ -7,7 +7,7 @@
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "time": {
     "from": "now-3h",
     "to": "now"
@@ -61,7 +61,7 @@
     {
       "id": 1,
       "type": "row",
-      "title": "사용자 증상 (Envoy 기준)",
+      "title": "사용자 증상 (Envoy, 기능 묶음 기준)",
       "collapsed": false,
       "gridPos": {
         "x": 0,
@@ -74,7 +74,7 @@
     {
       "id": 2,
       "type": "timeseries",
-      "title": "서비스별 요청 수",
+      "title": "기능 묶음별 요청 수",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus-v2"
@@ -115,15 +115,15 @@
             "type": "prometheus",
             "uid": "prometheus-v2"
           },
-          "expr": "sum by (service) (cosmos:envoy_upstream_rq:rate5m)",
-          "legendFormat": "{{service}}"
+          "expr": "sum by (journey) (cosmos:route_requests:rate5m)",
+          "legendFormat": "{{journey}}"
         }
       ]
     },
     {
       "id": 3,
       "type": "timeseries",
-      "title": "서비스별 오류율 (5xx + 정상 엔드포인트 없음)",
+      "title": "기능 묶음별 오류율 (5xx + 정상 엔드포인트 없음)",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus-v2"
@@ -132,23 +132,34 @@
         "x": 8,
         "y": 1,
         "w": 8,
-        "h": [
-          [
-            0.005,
-            "orange"
-          ],
-          [
-            0.072,
-            "red"
-          ]
-        ]
+        "h": 8
       },
       "fieldConfig": {
         "defaults": {
           "unit": "percentunit",
           "custom": {
             "lineWidth": 1,
-            "fillOpacity": 10
+            "fillOpacity": 10,
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.005
+              },
+              {
+                "color": "red",
+                "value": 0.072
+              }
+            ]
           }
         },
         "overrides": []
@@ -173,15 +184,15 @@
             "type": "prometheus",
             "uid": "prometheus-v2"
           },
-          "expr": "sum by (service) (cosmos:envoy_error_ratio:rate5m)",
-          "legendFormat": "{{service}}"
+          "expr": "cosmos:journey_error_ratio:rate5m",
+          "legendFormat": "{{journey}}"
         }
       ]
     },
     {
       "id": 4,
       "type": "timeseries",
-      "title": "서비스별 p95 지연 시간",
+      "title": "조회 p95 (로그인, 문제 조회)와 라우트별 p95",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus-v2"
@@ -190,19 +201,30 @@
         "x": 16,
         "y": 1,
         "w": 8,
-        "h": [
-          [
-            1000,
-            "red"
-          ]
-        ]
+        "h": 8
       },
       "fieldConfig": {
         "defaults": {
           "unit": "ms",
           "custom": {
             "lineWidth": 1,
-            "fillOpacity": 10
+            "fillOpacity": 10,
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1000
+              }
+            ]
           }
         },
         "overrides": []
@@ -227,15 +249,24 @@
             "type": "prometheus",
             "uid": "prometheus-v2"
           },
-          "expr": "max by (service) (cosmos:envoy_latency_p95_ms:rate5m)",
-          "legendFormat": "{{service}}"
+          "expr": "cosmos:read_latency_p95_ms:rate5m",
+          "legendFormat": "조회 SLO"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-v2"
+          },
+          "expr": "max by (route) (cosmos:route_latency_p95_ms:rate5m)",
+          "legendFormat": "{{route}}"
         }
       ]
     },
     {
       "id": 5,
       "type": "timeseries",
-      "title": "core 에러 예산 소진 속도 (배수)",
+      "title": "핵심 기능 에러 예산 소진 속도 (배수)",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus-v2"
@@ -296,7 +327,7 @@
             "type": "prometheus",
             "uid": "prometheus-v2"
           },
-          "expr": "sum(cosmos:envoy_error_ratio:rate1h{service=\"core\"}) / 0.005",
+          "expr": "cosmos:journey_error_ratio:rate1h{journey=\"core\"} / 0.005",
           "legendFormat": "1시간"
         },
         {
@@ -305,7 +336,7 @@
             "type": "prometheus",
             "uid": "prometheus-v2"
           },
-          "expr": "sum(cosmos:envoy_error_ratio:rate5m{service=\"core\"}) / 0.005",
+          "expr": "cosmos:journey_error_ratio:rate5m{journey=\"core\"} / 0.005",
           "legendFormat": "5분"
         },
         {
@@ -314,7 +345,7 @@
             "type": "prometheus",
             "uid": "prometheus-v2"
           },
-          "expr": "sum(cosmos:envoy_error_ratio:rate6h{service=\"core\"}) / 0.005",
+          "expr": "cosmos:journey_error_ratio:rate6h{journey=\"core\"} / 0.005",
           "legendFormat": "6시간"
         }
       ]
@@ -504,19 +535,30 @@
         "x": 0,
         "y": 26,
         "w": 8,
-        "h": [
-          [
-            0.9,
-            "red"
-          ]
-        ]
+        "h": 8
       },
       "fieldConfig": {
         "defaults": {
           "unit": "percentunit",
           "custom": {
             "lineWidth": 1,
-            "fillOpacity": 10
+            "fillOpacity": 10,
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.9
+              }
+            ]
           }
         },
         "overrides": []
@@ -558,19 +600,30 @@
         "x": 8,
         "y": 26,
         "w": 8,
-        "h": [
-          [
-            0.9,
-            "red"
-          ]
-        ]
+        "h": 8
       },
       "fieldConfig": {
         "defaults": {
           "unit": "percentunit",
           "custom": {
             "lineWidth": 1,
-            "fillOpacity": 10
+            "fillOpacity": 10,
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.9
+              }
+            ]
           }
         },
         "overrides": []
@@ -704,6 +757,55 @@
           },
           "expr": "sum by (app) (rate(http_server_requests_seconds_count{namespace=\"prod\", status=~\"5..\"}[5m])) / sum by (app) (rate(http_server_requests_seconds_count{namespace=\"prod\"}[5m]))",
           "legendFormat": "{{app}}"
+        }
+      ]
+    },
+    {
+      "id": 99,
+      "type": "timeseries",
+      "title": "라우트별 오류율",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-v2"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 41,
+        "w": 24,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-v2"
+          },
+          "expr": "sum by (route) (cosmos:route_errors:rate5m) / sum by (route) (cosmos:route_requests:rate5m)",
+          "legendFormat": "{{route}}"
         }
       ]
     }
