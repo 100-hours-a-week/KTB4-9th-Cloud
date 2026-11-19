@@ -53,3 +53,4 @@ if ! compose config --quiet >/dev/null 2>&1; then
 fi
 compose up -d --remove-orphans
 "${script_dir}/verify.sh" "${env_file}"
+"${script_dir}/setup-https.sh"

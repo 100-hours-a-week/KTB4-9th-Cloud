@@ -87,3 +87,8 @@ output "rabbitmq_connection_host" {
   description = "V1 Spring에서 사용할 RabbitMQ private 연결 호스트"
   value       = aws_instance.rabbitmq_server.private_ip
 }
+
+output "rabbitmq_management_url" {
+  description = "RabbitMQ HTTPS management UI URL"
+  value       = "https://${aws_route53_record.rabbitmq.name}"
+}

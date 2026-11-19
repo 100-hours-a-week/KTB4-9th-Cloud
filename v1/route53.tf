@@ -113,3 +113,13 @@ resource "aws_route53_record" "grafana" {
   ttl     = 300
   records = [aws_instance.monitoring_server.public_ip]
 }
+
+# 11. Route 53 RabbitMQ management UI subdomain
+resource "aws_route53_record" "rabbitmq" {
+  allow_overwrite = true
+  zone_id         = aws_route53_zone.main.zone_id
+  name            = "rabbitmq.${var.domain_name}"
+  type            = "A"
+  ttl             = 300
+  records         = [aws_instance.rabbitmq_server.public_ip]
+}
