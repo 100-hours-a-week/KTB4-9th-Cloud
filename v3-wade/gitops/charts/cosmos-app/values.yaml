@@ -7,11 +7,13 @@ serviceAccount: ""
 createServiceAccount: true
 command: []
 env: {}
+envValueFrom: {}
 secrets: []
 secretMountPath: /mnt/secrets
 port: 8080
 service: { enabled: true, name: "", port: 80 }
 extraPorts: []
+metrics: { enabled: false, portName: http, path: /metrics, interval: 30s, scrapeTimeout: 10s }
 probes: {}
 resources: {}
 priorityClass: cosmos-api

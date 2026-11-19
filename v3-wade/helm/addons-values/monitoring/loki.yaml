@@ -29,3 +29,7 @@ chunksCache: { enabled: false }
 resultsCache: { enabled: false }
 lokiCanary: { enabled: false }
 test: { enabled: false }
+monitoring:
+  serviceMonitor:
+    enabled: true
+    interval: 30s

@@ -1,0 +1,20 @@
+{{- if and .Values.metrics.enabled .Values.service.enabled .Values.service.name }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Values.name }}
+  labels: {{- include "cosmos.labels" . | nindent 4 }}
+spec:
+  namespaceSelector:
+    matchNames: [{{ .Release.Namespace }}]
+  selector:
+    matchLabels: {{- include "cosmos.selector" . | nindent 6 }}
+  endpoints:
+    - port: {{ .Values.metrics.portName }}
+      path: {{ .Values.metrics.path }}
+      interval: {{ .Values.metrics.interval }}
+      scrapeTimeout: {{ .Values.metrics.scrapeTimeout }}
+  targetLabels:
+    - app.kubernetes.io/name
+    - app.kubernetes.io/component
+{{- end }}

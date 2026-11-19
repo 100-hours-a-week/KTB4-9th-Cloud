@@ -13,6 +13,7 @@ helm repo add kedacore https://kedacore.github.io/charts --force-update >/dev/nu
 helm repo add argo https://argoproj.github.io/argo-helm --force-update >/dev/null
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts --force-update >/dev/null
 helm repo add grafana https://grafana.github.io/helm-charts --force-update >/dev/null
+helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts --force-update >/dev/null
 helm repo add secrets-store-csi-driver https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts --force-update >/dev/null
 helm repo add aws-secrets-manager https://aws.github.io/secrets-store-csi-driver-provider-aws --force-update >/dev/null
 
@@ -29,9 +30,13 @@ inst argocd argo/argo-cd 10.12.1 argocd "$V/argocd/values.yaml"
 kubectl create secret generic discord-webhook -n monitoring --from-literal="url=$(secret_json cosmos/monitoring/discord-webhook)" --dry-run=client -o yaml | kubectl apply -f -
 kubectl create secret generic grafana-admin -n monitoring --from-literal=admin-user=admin --from-literal="admin-password=$(secret_json /cosmos-v2/monitoring/grafana-admin)" --dry-run=client -o yaml | kubectl apply -f -
 kubectl create secret generic judge-redis-keda -n prod --from-literal="password=$(secret_key /cosmos-v2/stage/judge-redis password)" --dry-run=client -o yaml | kubectl apply -f -
+TEMPO_BUCKET="$(tf output -raw tempo_bucket_name)"
+inst tempo grafana/tempo 1.24.4 monitoring "$V/monitoring/tempo.yaml" --set-string "tempo.storage.trace.s3.bucket=$TEMPO_BUCKET" --set-string "tempo.storage.trace.s3.region=$REGION" --set-string "tempo.storage.trace.s3.endpoint=s3.dualstack.$REGION.amazonaws.com"
+inst otel-collector open-telemetry/opentelemetry-collector 0.178.3 monitoring "$V/monitoring/otel-collector.yaml"
 inst kube-prometheus-stack prometheus-community/kube-prometheus-stack 92.18.0 monitoring "$V/monitoring/kube-prometheus-stack.yaml"
 inst loki grafana/loki 7.5.0 monitoring "$V/monitoring/loki.yaml"
 inst alloy grafana/alloy 1.15.0 monitoring "$V/monitoring/alloy.yaml"
+kubectl apply -f "$V/monitoring/network-policies.yaml"
 
 if ! kubectl get secret argocd-image-updater-git -n argocd >/dev/null 2>&1; then
   : "${GITHUB_APP_ID:?GITHUB_APP_ID is required for Argo CD Image Updater}"
@@ -55,6 +60,7 @@ for f in "$V"/monitoring/dashboards/*.json; do
   kubectl create configmap "$n" -n monitoring --from-file="$f" --dry-run=client -o yaml | kubectl apply --server-side -f -
   kubectl label configmap "$n" -n monitoring grafana_dashboard=1 --overwrite
 done
+kubectl apply -f "$V/monitoring/rules"
 
 G="$BASE/gitops"
 kubectl apply -f "$G/argocd/projects/prod.yaml" -f "$G/argocd/image-updater.yaml"

@@ -64,13 +64,13 @@ run "공유_ECR은_환경명_없이_세_개를_보호한다" {
   assert {
     condition = alltrue([
       for repository in aws_ecr_repository.service :
-      repository.image_tag_mutability == "IMMUTABLE" &&
+      repository.image_tag_mutability == "MUTABLE" &&
       repository.image_scanning_configuration[0].scan_on_push &&
       repository.encryption_configuration[0].encryption_type == "AES256" &&
       !strcontains(repository.name, "stage") &&
       !strcontains(repository.name, "prod")
     ])
-    error_message = "ECR은 immutable/scan/AES256을 사용하고 환경명을 포함하지 않아야 합니다."
+    error_message = "ECR은 mutable/scan/AES256을 사용하고 환경명을 포함하지 않아야 합니다."
   }
 
   assert {

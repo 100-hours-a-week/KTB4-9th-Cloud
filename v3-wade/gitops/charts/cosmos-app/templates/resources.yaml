@@ -43,6 +43,11 @@ spec:
     - name: http
       port: {{ .Values.service.port }}
       targetPort: {{ .Values.port }}
+    {{- range .Values.extraPorts }}
+    - name: {{ .name }}
+      port: {{ .port }}
+      targetPort: {{ .name }}
+    {{- end }}
 {{- end }}
 ---
 {{- if .Values.cronJob.enabled }}

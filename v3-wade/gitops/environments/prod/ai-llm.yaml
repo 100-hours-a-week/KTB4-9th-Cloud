@@ -4,6 +4,7 @@ image: 352635536602.dkr.ecr.ap-northeast-2.amazonaws.com/cosmos-v2/fastapi:appro
 serviceAccount: ai-llm-sa
 port: 8000
 service: { name: ai-llm-service }
+metrics: { enabled: true, portName: http, path: /metrics, interval: 30s, scrapeTimeout: 10s }
 command: ["sh", "-c", 'for f in /mnt/secrets/[A-Z]*; do export "$(basename "$f")=$(cat "$f")"; done; exec uvicorn src.main:app --host 0.0.0.0 --port 8000']
 env:
   DB_ECHO: "false"
@@ -22,6 +23,16 @@ env:
   BATCH_TIMEZONE: Asia/Seoul
   BATCH_CONCURRENCY: "5"
   LOG_LEVEL: INFO
+  OTEL_SERVICE_NAME: cosmos-ai-llm
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector.monitoring.svc.cluster.local:4317
+  OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+  OTEL_TRACES_EXPORTER: otlp
+  OTEL_METRICS_EXPORTER: prometheus
+  OTEL_LOGS_EXPORTER: none
+  OTEL_PROPAGATORS: tracecontext,baggage
+  OTEL_RESOURCE_ATTRIBUTES: deployment.environment.name=wade,service.namespace=cosmos,k8s.cluster.name=cosmos-v3-wade
+  LLM_PRICING_USD_PER_MILLION: "{}"
+  LLM_PRICING_VERSION: unconfigured-2026-11-13
 secrets:
   - secret: /cosmos-v2/stage/ai-postgres
     keys: { username: DB_USER, password: DB_PASSWORD }

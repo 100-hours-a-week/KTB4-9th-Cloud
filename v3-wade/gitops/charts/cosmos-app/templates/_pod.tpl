@@ -36,7 +36,16 @@ containers:
     env:
       {{- range $k, $v := .Values.env }}
       - name: {{ $k }}
+        {{- if eq $k "OTEL_RESOURCE_ATTRIBUTES" }}
+        value: {{ printf "%s,service.version=%s" $v (default "unknown" (regexFind "[0-9a-f]{40}" $.Values.image)) | quote }}
+        {{- else }}
         value: {{ $v | quote }}
+        {{- end }}
+      {{- end }}
+      {{- range $k, $v := .Values.envValueFrom }}
+      - name: {{ $k }}
+        valueFrom:
+          {{- toYaml $v | nindent 10 }}
       {{- end }}
     {{- with .Values.probes }}
     {{- toYaml . | nindent 4 }}

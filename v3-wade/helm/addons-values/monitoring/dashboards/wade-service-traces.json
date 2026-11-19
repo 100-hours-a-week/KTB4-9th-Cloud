@@ -1,0 +1,76 @@
+{
+  "annotations": { "list": [] },
+  "editable": false,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "datasource": { "type": "tempo", "uid": "tempo-wade" },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "gridPos": { "h": 10, "w": 14, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "showHeader": true },
+      "targets": [{ "datasource": { "type": "tempo", "uid": "tempo-wade" }, "limit": 50, "query": "{ resource.deployment.environment.name = \"wade\" && resource.service.name =~ \"cosmos-.*\" }", "queryType": "traceql", "refId": "A", "tableType": "traces" }],
+      "title": "Recent Wade Traces",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "tempo", "uid": "tempo-wade" },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "gridPos": { "h": 10, "w": 10, "x": 14, "y": 0 },
+      "id": 2,
+      "options": {},
+      "targets": [{ "datasource": { "type": "tempo", "uid": "tempo-wade" }, "queryType": "serviceMap", "refId": "A" }],
+      "title": "Service Graph",
+      "type": "nodeGraph"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-v2" },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },
+      "id": 3,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [{ "expr": "sum by (service, span_name) (rate(traces_spanmetrics_calls_total{service=~\"cosmos-.*\"}[5m]))", "legendFormat": "{{service}} {{span_name}}", "refId": "A" }],
+      "title": "Span Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-v2" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 10 },
+      "id": 4,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [{ "expr": "histogram_quantile(0.95, sum by (le, service) (rate(traces_spanmetrics_latency_bucket{service=~\"cosmos-.*\"}[5m])))", "legendFormat": "{{service}}", "refId": "A" }],
+      "title": "Span p95 Latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-v2" },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
+      "id": 5,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [{ "expr": "sum by (service) (rate(traces_spanmetrics_calls_total{service=~\"cosmos-.*\",status_code=\"STATUS_CODE_ERROR\"}[5m]))", "legendFormat": "{{service}}", "refId": "A" }],
+      "title": "Failed Span Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-v2" },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
+      "id": 6,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [{ "expr": "sum by (client, server) (rate(traces_service_graph_request_total[5m]))", "legendFormat": "{{client}} → {{server}}", "refId": "A" }],
+      "title": "Service Edge Rate",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 41,
+  "tags": ["cosmos", "wade", "tempo", "traces"],
+  "templating": { "list": [] },
+  "time": { "from": "now-3h", "to": "now" },
+  "timezone": "browser",
+  "title": "COSMOS Wade / Service Traces",
+  "uid": "wade-service-traces",
+  "version": 1
+}

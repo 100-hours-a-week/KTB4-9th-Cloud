@@ -23,6 +23,23 @@ env:
   BATCH_TIMEZONE: Asia/Seoul
   BATCH_CONCURRENCY: "5"
   LOG_LEVEL: INFO
+  OTEL_SERVICE_NAME: cosmos-ai-make-problem
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector.monitoring.svc.cluster.local:4317
+  OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+  OTEL_TRACES_EXPORTER: otlp
+  OTEL_METRICS_EXPORTER: otlp
+  OTEL_METRIC_EXPORT_INTERVAL: "10000"
+  OTEL_LOGS_EXPORTER: none
+  OTEL_PROPAGATORS: tracecontext,baggage
+  OTEL_RESOURCE_ATTRIBUTES: deployment.environment.name=wade,service.namespace=cosmos,k8s.cluster.name=cosmos-v3-wade
+  LLM_PRICING_USD_PER_MILLION: "{}"
+  LLM_PRICING_VERSION: unconfigured-2026-11-13
+  OTEL_BSP_SCHEDULE_DELAY: "1000"
+  OTEL_BSP_EXPORT_TIMEOUT: "5000"
+envValueFrom:
+  K8S_POD_NAME: { fieldRef: { fieldPath: metadata.name } }
+  K8S_POD_UID: { fieldRef: { fieldPath: metadata.uid } }
+  K8S_JOB_NAME: { fieldRef: { fieldPath: "metadata.labels['batch.kubernetes.io/job-name']" } }
 secrets:
   - secret: /cosmos-v2/stage/ai-postgres
     keys: { username: DB_USER, password: DB_PASSWORD }
