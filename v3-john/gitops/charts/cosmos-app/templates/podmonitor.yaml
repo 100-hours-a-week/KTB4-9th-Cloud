@@ -1,0 +1,20 @@
+{{- if .Values.metrics.enabled }}
+# Prometheus가 파드의 관리 포트에서 앱 메트릭을 직접 수집한다. Service에는 관리 포트를 열지 않는다.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: {{ .Values.name }}
+  labels: {{- include "cosmos.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels: {{- include "cosmos.selector" . | nindent 6 }}
+  podMetricsEndpoints:
+    - port: {{ .Values.metrics.port }}
+      path: {{ .Values.metrics.path }}
+      interval: {{ .Values.metrics.interval }}
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+          targetLabel: app
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+{{- end }}

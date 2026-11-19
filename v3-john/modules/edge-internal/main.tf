@@ -12,7 +12,12 @@ variable "domain" { type = string }
 variable "zone_id" { type = string }
 variable "nlb_dns_name" { type = string }
 variable "vpc_origin_id" { type = string }
-variable "web_acl_arn" { type = string }
+variable "web_acl_arn" {
+  description = "null이면 WAF를 붙이지 않는다. 외부 서비스가 호출하는 웹훅 도메인에서 쓴다."
+  type        = string
+  default     = null
+  nullable    = true
+}
 
 resource "aws_acm_certificate" "main" {
   provider          = aws.us_east_1

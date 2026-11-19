@@ -11,8 +11,74 @@ configs:
     server.insecure: true
 dex:
   enabled: false
+# 동기화 성공, 실패, Degraded를 Discord에 남긴다. 장애 대응 때 배포 시점을 맞춰 보는 기록이다.
+# Secret argocd-notifications-secret의 discord-url은 up.sh가 Secrets Manager cosmos/monitoring/discord-webhook에서 만든다.
 notifications:
-  enabled: false
+  enabled: true
+  argocdUrl: https://argocd-john.cosmoscode.site
+  secret:
+    create: false
+  metrics:
+    enabled: true
+    serviceMonitor: { enabled: true }
+  notifiers:
+    service.webhook.discord: |
+      url: $discord-url
+      headers:
+        - name: Content-Type
+          value: application/json
+  subscriptions:
+    - recipients: [discord]
+      triggers: [on-deployed, on-sync-failed, on-health-degraded]
+  triggers:
+    trigger.on-deployed: |
+      - description: 새 리비전 동기화가 끝나고 Healthy가 됐다
+        oncePer: app.status.operationState?.syncResult?.revision
+        send: [app-deployed]
+        when: app.status.operationState != nil and app.status.operationState.phase in ['Succeeded'] and app.status.health.status == 'Healthy'
+    trigger.on-sync-failed: |
+      - description: 동기화가 실패했다
+        oncePer: app.status.operationState?.syncResult?.revision
+        send: [app-sync-failed]
+        when: app.status.operationState != nil and app.status.operationState.phase in ['Error', 'Failed']
+    trigger.on-health-degraded: |
+      - description: 앱 상태가 Degraded가 됐다
+        send: [app-health-degraded]
+        when: app.status.health.status == 'Degraded'
+  templates:
+    template.app-deployed: |
+      webhook:
+        discord:
+          method: POST
+          body: |
+            {"content": ":rocket: **배포 완료** `{{.app.metadata.name}}` 리비전 `{{.app.status.sync.revision | trunc 7}}`\n이미지: {{range $i, $img := .app.status.summary.images}}{{if $i}}, {{end}}`{{$img}}`{{end}}\n{{.context.argocdUrl}}/applications/{{.app.metadata.name}}"}
+    template.app-sync-failed: |
+      webhook:
+        discord:
+          method: POST
+          body: |
+            {"content": ":x: **동기화 실패** `{{.app.metadata.name}}` 리비전 `{{.app.status.sync.revision | trunc 7}}`\n{{.context.argocdUrl}}/applications/{{.app.metadata.name}}"}
+    template.app-health-degraded: |
+      webhook:
+        discord:
+          method: POST
+          body: |
+            {"content": ":warning: **상태 Degraded** `{{.app.metadata.name}}`\n{{.context.argocdUrl}}/applications/{{.app.metadata.name}}"}
+controller:
+  metrics:
+    enabled: true
+    serviceMonitor: { enabled: true }
+repoServer:
+  metrics:
+    enabled: true
+    serviceMonitor: { enabled: true }
+applicationSet:
+  metrics:
+    enabled: true
+    serviceMonitor: { enabled: true }
 server:
+  metrics:
+    enabled: true
+    serviceMonitor: { enabled: true }
   service:
     type: ClusterIP
