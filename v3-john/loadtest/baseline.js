@@ -2,7 +2,8 @@
 // 로컬:    k6 run -e TOKENS=$OUT/tokens.json -e PROBLEMS=$OUT/problems.json [-e VUS=10 -e DURATION=10m] baseline.js
 // 클러스터: loadtest/k8s/run-k6.sh <testid> <duration> [vus] (BASE는 Envoy 내부 주소로 넘어온다)
 // 핵심: 내 정보, 데일리 문제, 문제 상세, 코드 제출(SUBMIT_RATIO, 기본 10%). 주요: 랭킹, 배틀 현황, 알림.
-// AI(힌트, 풀이 평가)는 가짜 Gemini 서버가 있을 때만 AI=1로 켠다.
+// AI는 가짜 Gemini 서버가 있을 때만 AI=1로 켠다. 요청 시점에 LLM을 부르는 경로는 자연어 풀이 평가뿐이다
+// (풀이 제출 202 → 평가 작업 조회로 SUCCEEDED/FAILED 확인). 힌트는 저장된 값이라 LLM을 부르지 않는다.
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Trend, Counter } from 'k6/metrics';
@@ -14,6 +15,9 @@ const VUS = parseInt(__ENV.VUS || '10');
 const DURATION = __ENV.DURATION || '10m';
 const SUBMIT_RATIO = parseFloat(__ENV.SUBMIT_RATIO || '0.1');
 const THINK = parseFloat(__ENV.THINK || '1');
+const AI = __ENV.AI === '1';
+const AI_RATIO = parseFloat(__ENV.AI_RATIO || '0.05');
+const AI_POLL_TIMEOUT = parseFloat(__ENV.AI_POLL_TIMEOUT || '60'); // 초
 
 const readLatency = new Trend('read_latency', true);     // 로그인 확인, 데일리, 문제 상세
 const submitLatency = new Trend('submit_latency', true); // 제출부터 채점 결과까지(동기 응답)
@@ -21,6 +25,10 @@ const submitLatency = new Trend('submit_latency', true); // 제출부터 채점 
 const judgeCompleted = new Counter('judge_completed');   // 200이고 COMPLETED
 const judgeLost = new Counter('judge_lost');             // 5xx, 시간 초과, 2xx인데 COMPLETED가 아님
 const submitRejected = new Counter('submit_rejected');   // 4xx, status 태그로 코드 구분
+const aiEvalLatency = new Trend('ai_eval_latency', true); // 풀이 제출부터 평가 완료(SUCCEEDED/FAILED)까지
+const aiEvalSucceeded = new Counter('ai_eval_succeeded');
+const aiEvalFailed = new Counter('ai_eval_failed');       // FAILED, 조회 시간 초과, 제출 5xx
+const aiRejected = new Counter('ai_rejected');            // 제출 4xx(제출 횟수 제한 등)
 
 export const options = {
   scenarios: {
@@ -63,6 +71,28 @@ function submit(pid) {
   check(res, { 'core submit judged': () => status === 'completed' });
 }
 
+function evaluateSolution(pid) {
+  const start = Date.now();
+  const res = http.post(`${BASE}/problems/${pid}/solution-submissions`,
+    JSON.stringify({ selectedCategory: 'ARRAY', natural_solution: '배열을 한 번 순회하며 누적 합을 구하고 조건을 만족하는 구간을 센다.' }),
+    { headers: hdr(), tags: { journey: 'ai', name: '/problems/{id}/solution-submissions' } });
+  if (res.status >= 400 && res.status < 500) { aiRejected.add(1, { status: String(res.status) }); return; }
+  if (res.status !== 202) { aiEvalFailed.add(1, { reason: `submit_${res.status}` }); return; }
+  const taskId = res.json('data.evaluationTaskId');
+  while ((Date.now() - start) / 1000 < AI_POLL_TIMEOUT) {
+    sleep(Math.min(2, AI_POLL_TIMEOUT / 4));
+    const r = http.get(`${BASE}/solution-evaluations/${taskId}`,
+      { headers: hdr(), tags: { journey: 'ai', name: '/solution-evaluations/{id}' } });
+    const st = r.status === 200 ? r.json('data.status') : null;
+    if (st === 'SUCCEEDED' || st === 'FAILED') {
+      aiEvalLatency.add(Date.now() - start);
+      if (st === 'SUCCEEDED') aiEvalSucceeded.add(1); else aiEvalFailed.add(1, { reason: 'failed' });
+      return;
+    }
+  }
+  aiEvalFailed.add(1, { reason: 'timeout' });
+}
+
 export default function () {
   token = tokens[(__VU - 1) % tokens.length];
   const pid = SAVED[Math.floor(Math.random() * SAVED.length)];
@@ -75,6 +105,10 @@ export default function () {
   if (Math.random() < SUBMIT_RATIO) {
     submit(pid);
     sleep(THINK);
+  }
+
+  if (AI && Math.random() < AI_RATIO) {
+    evaluateSolution(pid);
   }
 
   get('/rankings', 'major');

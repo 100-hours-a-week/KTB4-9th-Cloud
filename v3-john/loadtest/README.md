@@ -13,7 +13,7 @@ SLO 기준선과 장애 주입 실험에 쓰는 k6 시나리오와 준비 스크
 | `k8s/job.yaml`, `k8s/run-k6.sh` | k6를 클러스터 안 Job으로 돌린다. 지표는 Prometheus 원격 쓰기(`testid` 라벨), 요약은 `$OUT/<testid>.json` |
 | `tests/test-baseline.sh` | 가짜 API로 제출 결과 분류와 요약 형식을 검사한다(클러스터 불필요) |
 
-AI 기능(힌트, 풀이 평가)은 실제 Gemini API 비용이 나가므로 제외한다. 가짜 Gemini 서버를 둔 뒤 추가한다.
+AI 경로는 가짜 Gemini 서버(`platform/fake-gemini.yaml`)를 거칠 때만 `AI=1`로 켠다. 요청 시점에 LLM을 부르는 것은 자연어 풀이 평가뿐이라(힌트는 저장된 값) k6는 풀이를 제출하고 평가 작업을 조회해 `ai_eval_latency`, `ai_eval_succeeded`, `ai_eval_failed`를 잰다. AI 기준선 5xx가 0이 아니면 `AI=1`을 쓰지 않는다. 가짜 서버 응답 형식은 `tests/test-fake-gemini.sh`로 검사한다.
 
 ## 실행
 

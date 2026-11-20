@@ -1,0 +1,99 @@
+# 가짜 Gemini 서버(WireMock). v3-john은 실제 Gemini API를 부르지 않는다(비용 차단).
+# ai-llm은 GOOGLE_GEMINI_BASE_URL로 이 서버를 부른다. google-genai 2.23.0은 HttpOptions.base_url이 비어 있으면
+# 이 환경 변수를 쓴다(google/genai/_base_url.py). ai-llm의 실제 Gemini 송신(443)은 NetworkPolicy로 막는다.
+#
+# 요청 시점에 Gemini를 부르는 경로는 자연어 풀이 평가 하나다(BE 풀이 제출 → 평가 워커 → ai-llm /api/llm/evaluation).
+# 힌트는 문제 생성 때 만들어 저장한 값을 돌려주므로 LLM을 부르지 않는다.
+# 응답은 KTB4-9th-AI src/problem/evaluation.py의 Evaluation 형식이다:
+#   approach_score(0~40), category_score(0~20), order_score(0~10), feedback, keywords[{keyword, is_included}]
+# langchain-google-genai with_structured_output 기본값(json_schema)은 candidates[0].content.parts[0].text의 JSON을 읽는다.
+# 지연은 실제 응답과 비슷하게 800~1500ms 균등 분포다. 검증: v3-john/loadtest/tests/test-fake-gemini.sh
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fake-gemini-mappings
+  namespace: prod
+data:
+  generate-content.json: |
+    {
+      "request": {
+        "method": "POST",
+        "urlPathPattern": "/v1beta/models/[^/:]+:generateContent"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "jsonBody": {
+          "candidates": [
+            {
+              "content": {
+                "role": "model",
+                "parts": [
+                  {
+                    "text": "{\"approach_score\": 28, \"category_score\": 20, \"order_score\": 7, \"feedback\": \"가짜 Gemini 응답이다. 접근 방식은 맞고 순서 설명이 조금 부족하다.\", \"keywords\": []}"
+                  }
+                ]
+              },
+              "finishReason": "STOP",
+              "index": 0
+            }
+          ],
+          "usageMetadata": {
+            "promptTokenCount": 0,
+            "candidatesTokenCount": 0,
+            "totalTokenCount": 0
+          },
+          "modelVersion": "fake-gemini"
+        },
+        "delayDistribution": {
+          "type": "uniform",
+          "lower": 800,
+          "upper": 1500
+        }
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fake-gemini
+  namespace: prod
+  labels: { app.kubernetes.io/name: fake-gemini }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app.kubernetes.io/name: fake-gemini }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: fake-gemini }
+    spec:
+      nodeSelector: { workload-class: application }
+      securityContext: { runAsNonRoot: true, runAsUser: 1000, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: wiremock
+          image: wiremock/wiremock:3.13.1@sha256:d61e7720f89483fdef5366843b58d1dfd06bcce5828179c9f2f54de5c28354b0
+          args: ["--port", "8080", "--max-request-journal-entries", "1000", "--async-response-enabled", "true"]
+          ports:
+            - { name: http, containerPort: 8080 }
+          readinessProbe: { httpGet: { path: /__admin/health, port: 8080 }, periodSeconds: 5 }
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
+          volumeMounts:
+            - { name: mappings, mountPath: /home/wiremock/mappings, readOnly: true }
+      volumes:
+        - name: mappings
+          configMap: { name: fake-gemini-mappings }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fake-gemini
+  namespace: prod
+spec:
+  selector: { app.kubernetes.io/name: fake-gemini }
+  ports:
+    - { name: http, port: 8080, targetPort: http }

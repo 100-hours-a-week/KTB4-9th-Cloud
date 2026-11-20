@@ -28,3 +28,16 @@ warns = open(f"{w}/stderr.txt").read().count("submit 4xx")
 assert 1 <= warns <= 5, f"4xx 본문 경고는 1~5건이어야 함: {warns}"
 print(f"PASS completed={ok} rejected={rej} lost={lost} warn4xx={warns}")
 PY
+# AI=1: 풀이 평가 흐름. 평가 성공, 실패(FAILED), 시간 초과(계속 PENDING)를 나눠 센다.
+k6 run -q -e BASE=http://127.0.0.1:$PORT/api -e TOKENS="$W/tokens.json" -e PROBLEMS="$W/problems.json" \
+  -e VUS=2 -e DURATION=8s -e SUBMIT_RATIO=0 -e AI=1 -e AI_RATIO=1 -e AI_POLL_TIMEOUT=2 -e THINK=0.1 -e SUMMARY_OUT="$W/ai.json" \
+  "$DIR/../baseline.js" > /dev/null 2> "$W/ai-stderr.txt" || { tail -20 "$W/ai-stderr.txt"; exit 1; }
+python3 - "$W" <<'PY'
+import json, sys
+m = json.load(open(f"{sys.argv[1]}/ai.json"))["metrics"]
+ok, failed = m.get("ai_eval_succeeded", {}).get("count", 0), m.get("ai_eval_failed", {}).get("count", 0)
+assert ok > 0, f"평가 성공이 집계되지 않음: {ok}"
+assert failed > 0, f"FAILED·시간 초과가 실패로 집계되지 않음: {failed}"
+assert "p(95)" in m["ai_eval_latency"], "ai_eval_latency 없음"
+print(f"PASS ai succeeded={ok} failed={failed}")
+PY
