@@ -2,8 +2,7 @@
 # 빈 데이터로 테스트 클러스터 전체를 띄운다.
 source "$(dirname "$0")/common.sh"
 
-tf init -input=false
-tf apply -input=false -auto-approve -var enable_edge=false
+provision_infrastructure
 aws eks update-kubeconfig --region "$REGION" --name "$CLUSTER" >/dev/null
 VPC_ID=$(tf output -raw vpc_id)
 
@@ -31,9 +30,9 @@ kubectl create secret generic discord-webhook -n monitoring --from-literal="url=
 kubectl create secret generic grafana-admin -n monitoring --from-literal=admin-user=admin --from-literal="admin-password=$(secret_json /cosmos-v2/monitoring/grafana-admin)" --dry-run=client -o yaml | kubectl apply -f -
 kubectl create secret generic judge-redis-keda -n prod --from-literal="password=$(secret_key /cosmos-v2/stage/judge-redis password)" --dry-run=client -o yaml | kubectl apply -f -
 TEMPO_BUCKET="$(tf output -raw tempo_bucket_name)"
+inst kube-prometheus-stack prometheus-community/kube-prometheus-stack 92.18.0 monitoring "$V/monitoring/kube-prometheus-stack.yaml"
 inst tempo grafana/tempo 1.24.4 monitoring "$V/monitoring/tempo.yaml" --set-string "tempo.storage.trace.s3.bucket=$TEMPO_BUCKET" --set-string "tempo.storage.trace.s3.region=$REGION" --set-string "tempo.storage.trace.s3.endpoint=s3.dualstack.$REGION.amazonaws.com"
 inst otel-collector open-telemetry/opentelemetry-collector 0.178.3 monitoring "$V/monitoring/otel-collector.yaml"
-inst kube-prometheus-stack prometheus-community/kube-prometheus-stack 92.18.0 monitoring "$V/monitoring/kube-prometheus-stack.yaml"
 inst loki grafana/loki 7.5.0 monitoring "$V/monitoring/loki.yaml"
 inst alloy grafana/alloy 1.15.0 monitoring "$V/monitoring/alloy.yaml"
 kubectl apply -f "$V/monitoring/network-policies.yaml"

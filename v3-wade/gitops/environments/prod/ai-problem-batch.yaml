@@ -46,7 +46,7 @@ secrets:
   - secret: /cosmos-v2/stage/fastapi
     keys: { gemini_api_key: GEMINI_API_KEY, langsmith_api_key: LANGSMITH_API_KEY, admin_token: ADMIN_TOKEN }
 resources:
-  requests: { cpu: 250m, memory: 512Mi }
+  requests: { cpu: 125m, memory: 384Mi }
   limits: { cpu: "1", memory: 1Gi }
 cronJob: { enabled: true, schedule: "0 15 * * *", suspend: true, activeDeadlineSeconds: 1800 }
 createServiceAccount: false

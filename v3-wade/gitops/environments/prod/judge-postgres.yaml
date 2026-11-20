@@ -17,7 +17,7 @@ secrets:
   - secret: /cosmos-v2/stage/judge-postgres
     keys: { username: POSTGRES_USER, password: POSTGRES_PASSWORD, database: POSTGRES_DB }
 resources:
-  requests: { cpu: 500m, memory: 1Gi }
+  requests: { cpu: 250m, memory: 512Mi }
   limits: { cpu: "1", memory: 2Gi }
 probes:
   startupProbe: { exec: { command: ["sh", "-c", 'pg_isready -U "$(cat /mnt/secrets/POSTGRES_USER)"'] }, periodSeconds: 10, timeoutSeconds: 3, failureThreshold: 10 }

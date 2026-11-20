@@ -103,6 +103,11 @@ spec:
             matchLabels: { app.kubernetes.io/name: prometheus }
       ports:
         - { protocol: TCP, port: 9090 }
-    # S3 및 EKS Pod Identity/STS endpoint는 IP가 동적이므로 HTTPS만 제한한다.
+    # Pod Identity Agent의 link-local credential endpoint는 HTTP 80을 사용한다.
+    - to:
+        - ipBlock: { cidr: 169.254.170.23/32 }
+      ports:
+        - { protocol: TCP, port: 80 }
+    # S3 및 STS endpoint는 IP가 동적이므로 HTTPS만 제한한다.
     - ports:
         - { protocol: TCP, port: 443 }

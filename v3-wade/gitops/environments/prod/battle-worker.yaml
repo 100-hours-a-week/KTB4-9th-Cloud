@@ -46,7 +46,7 @@ secrets:
   - secret: /cosmos-v2/stage/spring
     keys: { kakao_client_id: KAKAO_CLIENT_ID, kakao_client_secret: KAKAO_CLIENT_SECRET, kakao_redirect_uri: KAKAO_REDIRECT_URI, jwt_secret: JWT_SECRET }
 resources:
-  requests: { cpu: 250m, memory: 512Mi }
+  requests: { cpu: 125m, memory: 384Mi }
   limits: { cpu: "1", memory: 1Gi }
 terminationGracePeriodSeconds: 120
 rollingUpdate: { maxUnavailable: 1, maxSurge: 0 }

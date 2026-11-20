@@ -13,7 +13,7 @@ secrets:
   - secret: /cosmos-v2/stage/judge-redis
     keys: { password: REDIS_PASSWORD }
 resources:
-  requests: { cpu: 250m, memory: 512Mi }
+  requests: { cpu: 50m, memory: 128Mi }
   limits: { cpu: "1", memory: 1Gi }
 probes:
   readinessProbe: { exec: { command: ["sh", "-c", 'redis-cli -a "$(cat /mnt/secrets/REDIS_PASSWORD)" --no-auth-warning ping | grep PONG'] }, periodSeconds: 10, timeoutSeconds: 3, failureThreshold: 3 }

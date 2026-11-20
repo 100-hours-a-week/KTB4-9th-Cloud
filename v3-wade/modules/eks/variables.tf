@@ -61,7 +61,7 @@ variable "node_groups" {
       instance_types = ["t3.large", "t3a.large"]
       min_size       = 1
       desired_size   = 1
-      max_size       = 3
+      max_size       = 2
       labels         = { "workload-class" = "system" }
       taints         = [{ key = "CriticalAddonsOnly", value = "true", effect = "NO_SCHEDULE" }]
     }
@@ -69,7 +69,7 @@ variable "node_groups" {
       instance_types = ["m7i.large", "m6i.large", "m5.large"]
       min_size       = 1
       desired_size   = 1
-      max_size       = 3
+      max_size       = 1
       labels         = { "workload-class" = "stateful" }
       taints         = [{ key = "workload", value = "stateful", effect = "NO_SCHEDULE" }]
     }
@@ -77,15 +77,15 @@ variable "node_groups" {
       instance_types = ["c7i.xlarge", "c6i.xlarge", "c5.xlarge"]
       min_size       = 1
       desired_size   = 1
-      max_size       = 3
+      max_size       = 1
       labels         = { "workload-class" = "judge" }
       taints         = [{ key = "workload", value = "judge", effect = "NO_SCHEDULE" }]
     }
     application-ng = {
       instance_types = ["t3.xlarge", "t3a.xlarge", "m5.xlarge"]
-      min_size       = 2
-      desired_size   = 2
-      max_size       = 6
+      min_size       = 1
+      desired_size   = 1
+      max_size       = 2
       labels         = { "workload-class" = "application" }
       taints         = []
     }

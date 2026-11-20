@@ -8,7 +8,7 @@ serviceMonitor:
   interval: 30s
 alloy:
   resources:
-    requests: { cpu: 50m, memory: 128Mi }
+    requests: { cpu: 25m, memory: 96Mi }
     limits: { cpu: 300m, memory: 256Mi }
   configMap:
     content: |

@@ -27,7 +27,7 @@ resource "aws_db_instance" "main" {
   engine                      = "mysql"
   engine_version              = "8.4.11"
   allow_major_version_upgrade = true
-  instance_class              = "db.t4g.medium"
+  instance_class              = "db.t4g.micro"
   db_name                     = "cosmos"
   username                    = "cosmos_admin"
   password                    = var.master_password
@@ -51,6 +51,19 @@ resource "aws_elasticache_serverless_cache" "main" {
   major_engine_version = "9"
   subnet_ids           = var.subnet_ids
   security_group_ids   = [aws_security_group.valkey.id]
+
+  cache_usage_limits {
+    data_storage {
+      maximum = 1
+      minimum = 1
+      unit    = "GB"
+    }
+
+    ecpu_per_second {
+      maximum = 1000
+      minimum = 1000
+    }
+  }
 }
 
 output "mysql_address" { value = aws_db_instance.main.address }
