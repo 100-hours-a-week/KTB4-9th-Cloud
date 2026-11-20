@@ -19,6 +19,8 @@ prometheus:
           path: /stats/prometheus
           interval: 15s
   prometheusSpec:
+    # k6(클러스터 안 Job)가 실험 중 지표를 원격 쓰기로 보낸다(/api/v1/write).
+    enableRemoteWriteReceiver: true
     retention: 15d
     retentionSize: 25GB
     serviceMonitorSelectorNilUsesHelmValues: false
@@ -44,9 +46,15 @@ alertmanager:
       group_interval: 5m
       repeat_interval: 4h
       routes:
+        # Watchdog은 항상 firing인 알림이다. 1시간마다 Discord에 오지 않으면 Prometheus나 Alertmanager 경로가 끊긴 것이다.
+        - receiver: discord
+          matchers:
+            - alertname="Watchdog"
+          group_wait: 10s
+          repeat_interval: 1h
         - receiver: "null"
           matchers:
-            - alertname=~"Watchdog|InfoInhibitor"
+            - alertname="InfoInhibitor"
         - receiver: discord
           matchers:
             - severity="critical"
@@ -202,9 +210,9 @@ additionalPrometheusRulesMap:
             labels: { severity: critical, sev: SEV2, namespace: prod }
             annotations:
               summary: "주요 기능 성공률 {{ $value | humanizePercentage }} (배틀, 랭킹, 알림, 활동 기록)"
-          # 기준선을 재기 전 임시값 1초. 기준선 3회를 잰 뒤 기준선 p95의 2배로 바꾼다.
+          # 2026-11-19 기준선(10 VU) Envoy p95 24~25ms의 2배. 기준선 3회를 다시 재면 그 p95의 2배로 맞춘다.
           - alert: ReadLatencyHigh
-            expr: cosmos:read_latency_p95_ms:rate5m > 1000
+            expr: cosmos:read_latency_p95_ms:rate5m > 50
             for: 5m
             labels: { severity: critical, sev: SEV2, namespace: prod }
             annotations:
@@ -215,6 +223,22 @@ additionalPrometheusRulesMap:
             labels: { severity: warning, sev: SEV3, namespace: prod }
             annotations:
               summary: "AI 기능 오류율 {{ $value | humanizePercentage }} (힌트, 풀이 평가)"
+      # 채점 SLO는 k6가 원격 쓰기로 보낸 지표로 본다(제출부터 채점 결과까지 동기 응답). k6 시간 지표는 초 단위다.
+      - name: cosmos-judge
+        rules:
+          - alert: JudgeTurnaroundHigh
+            expr: max(k6_submit_latency_p95) > 30
+            for: 5m
+            labels: { severity: critical, sev: SEV2, namespace: prod }
+            annotations:
+              summary: "채점 처리 p95 {{ $value | humanize }}초, 목표 30초 초과 (k6 측정)"
+          # 4xx 업무 거절(k6_submit_rejected_total)은 유실이 아니라 세지 않는다.
+          - alert: JudgeJobLost
+            expr: sum by (testid) (increase(k6_judge_lost_total[5m])) > 0
+            labels: { severity: critical, sev: SEV1, namespace: prod }
+            annotations:
+              summary: "k6 제출 중 채점 결과를 받지 못한 건 {{ $value | humanize }}건 (5분, testid {{ $labels.testid }})"
+              description: "5xx, 시간 초과, 결과 미완료가 포함된다. judge-api·judge-worker 로그와 core의 Judge 호출 구간을 본다."
       - name: cosmos-causes
         rules:
           - alert: PodCrashLooping

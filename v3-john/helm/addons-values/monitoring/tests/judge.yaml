@@ -1,0 +1,50 @@
+# 채점 알림 단위 테스트. 입력은 k6가 Prometheus 원격 쓰기로 보낸 지표다.
+# k6는 시간 지표를 초 단위로 보낸다(k6_submit_latency_p95 = 초).
+rule_files: [cosmos-rules.yaml]
+evaluation_interval: 30s
+tests:
+  - name: JudgeTurnaroundHigh 31초가 6분 지속
+    interval: 1m
+    input_series:
+      - series: 'k6_submit_latency_p95{testid="t1"}'
+        values: '31x10'
+    alert_rule_test:
+      - eval_time: 7m
+        alertname: JudgeTurnaroundHigh
+        exp_alerts:
+          - exp_labels: { severity: critical, sev: SEV2, namespace: prod }
+            exp_annotations:
+              summary: "채점 처리 p95 31초, 목표 30초 초과 (k6 측정)"
+  - name: JudgeTurnaroundHigh 20초는 울리지 않음
+    interval: 1m
+    input_series:
+      - series: 'k6_submit_latency_p95{testid="t1"}'
+        values: '20x10'
+    alert_rule_test:
+      - eval_time: 7m
+        alertname: JudgeTurnaroundHigh
+        exp_alerts: []
+  - name: JudgeJobLost 유실 1건
+    interval: 1m
+    input_series:
+      - series: 'k6_judge_lost_total{testid="t1"}'
+        values: '0 0 1 1 1'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: JudgeJobLost
+        exp_alerts:
+          - exp_labels: { testid: t1, severity: critical, sev: SEV1, namespace: prod }
+            exp_annotations:
+              summary: "k6 제출 중 채점 결과를 받지 못한 건 1건 (5분, testid t1)"
+              description: "5xx, 시간 초과, 결과 미완료가 포함된다. judge-api·judge-worker 로그와 core의 Judge 호출 구간을 본다."
+  - name: 업무 거절(4xx)만 늘면 JudgeJobLost는 울리지 않음
+    interval: 1m
+    input_series:
+      - series: 'k6_judge_lost_total{testid="t1"}'
+        values: '0 0 0 0 0'
+      - series: 'k6_submit_rejected_total{testid="t1", status="400"}'
+        values: '0 3 6 9 12'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: JudgeJobLost
+        exp_alerts: []

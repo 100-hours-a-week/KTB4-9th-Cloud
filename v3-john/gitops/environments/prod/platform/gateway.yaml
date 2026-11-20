@@ -15,13 +15,22 @@ spec:
     type: Kubernetes
     kubernetes:
       envoyDeployment:
-        replicas: 1
+        # 장애 주입 중 Envoy 파드 하나가 노드와 함께 사라져도 진입점이 남도록 2개를 둔다.
+        replicas: 2
         container:
           resources:
             requests: { cpu: 250m, memory: 256Mi }
             limits: { cpu: "1", memory: 512Mi }
         pod:
           nodeSelector: { workload-class: application }
+          topologySpreadConstraints:
+            - maxSkew: 1
+              topologyKey: kubernetes.io/hostname
+              whenUnsatisfiable: ScheduleAnyway
+              labelSelector:
+                matchLabels:
+                  gateway.envoyproxy.io/owning-gateway-name: prod
+                  gateway.envoyproxy.io/owning-gateway-namespace: prod
       envoyService:
         type: LoadBalancer
         loadBalancerClass: service.k8s.aws/nlb
