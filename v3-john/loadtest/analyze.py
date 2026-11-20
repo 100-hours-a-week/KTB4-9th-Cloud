@@ -34,7 +34,9 @@ for name in sorted(runs):
         "read_p95_envoy_ms": rp95, "submit_p95_envoy_ms": sp95,
         "read_p95_k6_ms": k6["read_latency"]["p(95)"], "read_p99_k6_ms": k6["read_latency"]["p(99)"],
         "submit_p95_k6_ms": k6["submit_latency"]["p(95)"], "submit_max_k6_ms": k6["submit_latency"]["max"],
-        "judge_incomplete": k6.get("judge_incomplete", {}).get("count", 0),
+        # 2026-11-20부터 judge_lost(유실)와 submit_rejected(4xx 업무 거절)로 나눠 센다. 이전 결과는 judge_incomplete.
+        "judge_lost": k6.get("judge_lost", k6.get("judge_incomplete", {})).get("count", 0),
+        "submit_rejected": k6.get("submit_rejected", {}).get("count", 0),
         "http_failed": k6["http_req_failed"]["value"], "iterations": k6["iterations"]["count"],
     })
 print(json.dumps(rows, indent=1, ensure_ascii=False))

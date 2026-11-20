@@ -1,7 +1,8 @@
-// v3-john SLO 기준선 측정. 정상 상태 사용자 흐름을 일정 부하로 보낸다.
-// 실행: k6 run -e TOKENS=$OUT/tokens.json -e PROBLEMS=$OUT/problems.json [-e VUS=10 -e DURATION=10m] baseline.js
-// 핵심: 내 정보, 데일리 문제, 문제 상세, 코드 제출(10%). 주요: 랭킹, 배틀 현황, 알림.
-// AI(힌트, 풀이 평가)는 가짜 Gemini 서버가 없어 실제 비용이 나가므로 제외한다.
+// v3-john SLO 기준선과 장애 주입 실험의 사용자 흐름. 정상 상태 사용자 흐름을 일정 부하로 보낸다.
+// 로컬:    k6 run -e TOKENS=$OUT/tokens.json -e PROBLEMS=$OUT/problems.json [-e VUS=10 -e DURATION=10m] baseline.js
+// 클러스터: loadtest/k8s/run-k6.sh <testid> <duration> [vus] (BASE는 Envoy 내부 주소로 넘어온다)
+// 핵심: 내 정보, 데일리 문제, 문제 상세, 코드 제출(SUBMIT_RATIO, 기본 10%). 주요: 랭킹, 배틀 현황, 알림.
+// AI(힌트, 풀이 평가)는 가짜 Gemini 서버가 있을 때만 AI=1로 켠다.
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Trend, Counter } from 'k6/metrics';
@@ -11,10 +12,15 @@ const BASE = __ENV.BASE || 'https://john.cosmoscode.site/api';
 const SAVED = JSON.parse(open(__ENV.PROBLEMS)); // prepare.sh가 만든 저장 문제 ID
 const VUS = parseInt(__ENV.VUS || '10');
 const DURATION = __ENV.DURATION || '10m';
+const SUBMIT_RATIO = parseFloat(__ENV.SUBMIT_RATIO || '0.1');
+const THINK = parseFloat(__ENV.THINK || '1');
 
-const readLatency = new Trend('read_latency', true);   // 로그인 확인, 데일리, 문제 상세
-const submitLatency = new Trend('submit_latency', true); // 제출부터 채점 결과까지
-const judgeIncomplete = new Counter('judge_incomplete'); // 채점 결과를 받지 못한 제출
+const readLatency = new Trend('read_latency', true);     // 로그인 확인, 데일리, 문제 상세
+const submitLatency = new Trend('submit_latency', true); // 제출부터 채점 결과까지(동기 응답)
+// 제출 결과는 셋 중 하나로 센다. 업무 거절(4xx)은 유실이 아니다.
+const judgeCompleted = new Counter('judge_completed');   // 200이고 COMPLETED
+const judgeLost = new Counter('judge_lost');             // 5xx, 시간 초과, 2xx인데 COMPLETED가 아님
+const submitRejected = new Counter('submit_rejected');   // 4xx, status 태그로 코드 구분
 
 export const options = {
   scenarios: {
@@ -23,15 +29,39 @@ export const options = {
   summaryTrendStats: ['avg', 'med', 'p(90)', 'p(95)', 'p(99)', 'max'],
 };
 
+let token;
+function hdr() { return { Cookie: `accessToken=${token}`, 'Content-Type': 'application/json' }; }
+
 function get(path, journey, trend) {
   const res = http.get(`${BASE}${path}`, { headers: hdr(), tags: { journey, name: path.replace(/\/\d+/g, '/{id}') } });
-  check(res, { [`${journey} ${res.request.method} 2xx`]: (r) => r.status >= 200 && r.status < 300 });
+  check(res, { [`${journey} GET 2xx`]: (r) => r.status >= 200 && r.status < 300 });
   if (trend) trend.add(res.timings.duration);
   return res;
 }
 
-let token;
-function hdr() { return { Cookie: `accessToken=${token}`, 'Content-Type': 'application/json' }; }
+// 4xx 본문은 VU 1~5에서 한 건씩만 남긴다(전체 최대 5건). 2026-11-19 2회차 제출 4xx 18건의 원인 확인용.
+let warned4xx = false;
+function submit(pid) {
+  const res = http.post(`${BASE}/problems/${pid}/code-submissions`,
+    JSON.stringify({ language: 'PYTHON', source_code: 'import sys\nprint(sys.stdin.read())' }),
+    { headers: hdr(), timeout: '60s', tags: { journey: 'core', name: '/problems/{id}/code-submissions' } });
+  submitLatency.add(res.timings.duration);
+  let status = 'lost';
+  if (res.status >= 400 && res.status < 500) {
+    status = 'rejected';
+    submitRejected.add(1, { status: String(res.status) });
+    if (!warned4xx && __VU <= 5) {
+      warned4xx = true;
+      console.warn(`submit 4xx status=${res.status} problem=${pid} body=${String(res.body).slice(0, 300)}`);
+    }
+  } else if (res.status === 200 && res.json('data.judging_status') === 'COMPLETED') {
+    status = 'completed';
+    judgeCompleted.add(1);
+  } else {
+    judgeLost.add(1, { status: String(res.status) });
+  }
+  check(res, { 'core submit judged': () => status === 'completed' });
+}
 
 export default function () {
   token = tokens[(__VU - 1) % tokens.length];
@@ -40,21 +70,30 @@ export default function () {
   get('/auth/me', 'core', readLatency);
   get('/daily-problems', 'core', readLatency);
   get(`/problems/${pid}`, 'core', readLatency);
-  sleep(1);
+  sleep(THINK);
 
-  if (Math.random() < 0.1) {
-    const res = http.post(`${BASE}/problems/${pid}/code-submissions`,
-      JSON.stringify({ language: 'PYTHON', source_code: 'import sys\nprint(sys.stdin.read())' }),
-      { headers: hdr(), timeout: '60s', tags: { journey: 'core', name: '/problems/{id}/code-submissions' } });
-    submitLatency.add(res.timings.duration);
-    const done = res.status === 200 && res.json('data.judging_status') === 'COMPLETED';
-    if (!done) judgeIncomplete.add(1);
-    check(res, { 'core submit judged': () => done });
-    sleep(1);
+  if (Math.random() < SUBMIT_RATIO) {
+    submit(pid);
+    sleep(THINK);
   }
 
   get('/rankings', 'major');
   get('/daily-battles/current', 'major');
   get('/notifications', 'major');
-  sleep(1);
+  sleep(THINK);
+}
+
+// 클러스터 실행에서는 파드가 끝나면 파일을 꺼낼 수 없으므로 요약을 표준 출력에 표식과 함께 남긴다.
+// 형식은 --summary-export와 같게 맞춘다(지표 이름 → 값 객체, rate 지표는 value 키). analyze.py가 그대로 읽는다.
+export function handleSummary(data) {
+  const metrics = {};
+  for (const [name, m] of Object.entries(data.metrics)) {
+    const v = Object.assign({}, m.values);
+    if (m.type === 'rate') v.value = m.values.rate;
+    metrics[name] = v;
+  }
+  const json = JSON.stringify({ metrics, root_group: data.root_group, state: data.state });
+  const out = { stdout: `\n@@K6_SUMMARY@@${json}\n` };
+  if (__ENV.SUMMARY_OUT) out[__ENV.SUMMARY_OUT] = json;
+  return out;
 }
