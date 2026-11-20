@@ -122,8 +122,12 @@ INJECTED=1
 log "주입 완료. ${INJECT_DURATION}s 유지"
 
 # 6. 주입 유지와 중단 조건 감시(15초마다)
-while (( $(date +%s) < INJECT_START + INJECT_DURATION )); do
-  sleep 15
+# 남은 시간만큼만 잔다. 마지막 15초 대기가 10분 한도를 넘겨 duration 위반으로 끝나지 않게 한다(2026-11-20 s1 search에서 발생).
+while :; do
+  remaining=$(( INJECT_START + INJECT_DURATION - $(date +%s) ))
+  (( remaining > 0 )) || break
+  sleep $(( remaining < 15 ? remaining : 15 ))
+  (( $(date +%s) < INJECT_START + INJECT_DURATION )) || break
   reason=$(guard_check) || { ABORTED=$reason; log "중단 조건 위반: $reason"; break; }
 done
 
