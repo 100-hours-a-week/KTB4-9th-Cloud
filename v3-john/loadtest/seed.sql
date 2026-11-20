@@ -26,6 +26,11 @@ SELECT 900000 + p.id, ROW_NUMBER() OVER (ORDER BY p.id), @today, p.id
 FROM (SELECT id FROM problems WHERE id NOT IN (SELECT problem_id FROM daily_problems) ORDER BY id DESC LIMIT 3) p
 WHERE NOT EXISTS (SELECT 1 FROM daily_problems WHERE recommend_date = @today);
 
+-- 코드 제출은 사용자·문제마다 평생 5회로 제한된다(BE CodeSubmission.MAX_SUBMISSION_COUNT, 초과 시 429).
+-- 실험을 거듭하면 테스트 사용자 제출이 쌓여 채점 부하가 줄고 429가 늘어나므로 매번 테스트 사용자 제출만 지운다.
+-- code_submissions를 참조하는 테이블은 없다(BE 6bb76d7 기준).
+DELETE cs FROM code_submissions cs JOIN users u ON u.id = cs.user_id WHERE u.username LIKE 'loadtest-%';
+
 -- prepare.sh가 읽는 결과: 사용자 ID 범위와 저장 문제 ID
 SELECT CONCAT('USERS ', MIN(id), ' ', MAX(id)) FROM users WHERE username LIKE 'loadtest-%';
 SELECT CONCAT('PROBLEMS ', GROUP_CONCAT(id ORDER BY id)) FROM (SELECT id FROM problems ORDER BY id DESC LIMIT 20) x;
