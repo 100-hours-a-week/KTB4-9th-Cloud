@@ -1,0 +1,30 @@
+# 원인 알림 단위 테스트.
+rule_files: [cosmos-rules.yaml]
+evaluation_interval: 30s
+tests:
+  - name: PodCrashLooping OOMKilled 재시작 1회
+    interval: 1m
+    input_series:
+      - series: 'kube_pod_container_status_restarts_total{namespace="prod", pod="cosmos-core-abc", container="core"}'
+        values: '0 0 1 1 1 1'
+      - series: 'kube_pod_container_status_last_terminated_reason{namespace="prod", pod="cosmos-core-abc", container="core", reason="OOMKilled"}'
+        values: '0 0 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: PodCrashLooping
+        exp_alerts:
+          - exp_labels: { namespace: prod, pod: cosmos-core-abc, container: core, severity: warning }
+            exp_annotations:
+              summary: "cosmos-core-abc 컨테이너가 10분 동안 반복 재시작하거나 OOMKilled로 재시작"
+              description: "kubectl -n prod describe pod cosmos-core-abc로 종료 사유를 보고, 최근 배포에서 메모리 limit이나 JVM 옵션이 바뀌었는지 확인한다."
+  - name: PodCrashLooping 일반 재시작 2회는 울리지 않음
+    interval: 1m
+    input_series:
+      - series: 'kube_pod_container_status_restarts_total{namespace="prod", pod="cosmos-core-abc", container="core"}'
+        values: '0 1 2 2 2 2'
+      - series: 'kube_pod_container_status_last_terminated_reason{namespace="prod", pod="cosmos-core-abc", container="core", reason="Error"}'
+        values: '1 1 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: PodCrashLooping
+        exp_alerts: []

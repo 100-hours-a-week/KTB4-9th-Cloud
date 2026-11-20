@@ -1,0 +1,62 @@
+# k6 부하를 클러스터 안에서 돌린다. run-k6.sh가 __이름__ 자리를 채워 적용한다.
+# 노트북을 닫아도 부하가 이어지고, 지표는 Prometheus 원격 쓰기로 바로 들어간다(testid 라벨).
+# 스크립트는 ConfigMap k6-script, 토큰과 문제 ID는 Secret k6-inputs(prepare.sh가 만든다).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: k6-__TESTID__
+  namespace: loadtest
+  labels: { app.kubernetes.io/name: k6, testid: "__TESTID__" }
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: __DEADLINE__
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: k6, testid: "__TESTID__" }
+    spec:
+      restartPolicy: Never
+      nodeSelector: { workload-class: application }
+      securityContext: { runAsNonRoot: true, runAsUser: 12345, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: k6
+          image: grafana/k6:1.3.0@sha256:3ddc8b1a33a2c3d8edc6e99b6a762ae36cba08788463458f5e6a7703e14eb77d
+          args:
+            - run
+            - --quiet
+            - -o
+            - experimental-prometheus-rw
+            - --tag
+            - testid=__TESTID__
+            # url 태그(문제 ID 포함)를 빼서 Prometheus 시계열 수를 묶어 둔다.
+            - --system-tags=status,method,name,scenario,expected_response,check
+            - -e
+            - BASE=__BASE__
+            - -e
+            - VUS=__VUS__
+            - -e
+            - DURATION=__DURATION__
+            - -e
+            - AI=__AI__
+            - -e
+            - TOKENS=/inputs/tokens.json
+            - -e
+            - PROBLEMS=/inputs/problems.json
+            - /scripts/baseline.js
+          env:
+            - name: K6_PROMETHEUS_RW_SERVER_URL
+              value: http://kube-prometheus-stack-prometheus.monitoring.svc:9090/api/v1/write
+            - name: K6_PROMETHEUS_RW_TREND_STATS
+              value: "p(95),p(99),max"
+          resources:
+            requests: { cpu: 250m, memory: 256Mi }
+            limits: { cpu: "1", memory: 512Mi }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: false, capabilities: { drop: [ALL] } }
+          volumeMounts:
+            - { name: scripts, mountPath: /scripts, readOnly: true }
+            - { name: inputs, mountPath: /inputs, readOnly: true }
+      volumes:
+        - name: scripts
+          configMap: { name: k6-script }
+        - name: inputs
+          secret: { secretName: k6-inputs, items: [ { key: tokens.json, path: tokens.json }, { key: problems.json, path: problems.json } ] }

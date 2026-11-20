@@ -16,18 +16,23 @@ env:
   JUDGE0_URL: http://judge-api-service
   BACKEND_URL: http://core-service/api
   LANGSMITH_ENDPOINT: https://api.smith.langchain.com
-  LANGSMITH_TRACING: "true"
+  # 외부 443 송신을 막았으므로 LangSmith 추적도 끈다(보내지 못한 추적이 로그만 남긴다).
+  LANGSMITH_TRACING: "false"
   LANGSMITH_PROJECT: cosmos-v3-john
   MOCK_LLM: "false"
   BATCH_ENABLED: "false"
   BATCH_TIMEZONE: Asia/Seoul
   BATCH_CONCURRENCY: "5"
   LOG_LEVEL: INFO
+  # v3-john은 실제 Gemini를 부르지 않는다. SDK가 이 주소를 기본 주소로 쓴다(platform/fake-gemini.yaml).
+  GOOGLE_GEMINI_BASE_URL: http://fake-gemini.prod.svc.cluster.local:8080
+  # 실제 키를 가짜 서버에 보내지 않도록 시크릿 매핑에서 빼고 의미 없는 값을 둔다(SDK는 키가 있어야 클라이언트를 만든다).
+  GEMINI_API_KEY: fake-gemini-key
 secrets:
   - secret: /cosmos-v2/stage/ai-postgres
     keys: { username: DB_USER, password: DB_PASSWORD }
   - secret: /cosmos-v2/stage/fastapi
-    keys: { gemini_api_key: GEMINI_API_KEY, langsmith_api_key: LANGSMITH_API_KEY, admin_token: ADMIN_TOKEN }
+    keys: { langsmith_api_key: LANGSMITH_API_KEY, admin_token: ADMIN_TOKEN }
 resources:
   requests: { cpu: 500m, memory: 512Mi }
   limits: { cpu: "1", memory: 1Gi }

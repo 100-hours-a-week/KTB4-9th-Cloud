@@ -172,12 +172,12 @@ spec:
             matchLabels: { app.kubernetes.io/name: cosmos-judge-api }
       ports:
         - { protocol: TCP, port: 2358 }
+    # 실제 Gemini(443) 대신 클러스터 안 가짜 Gemini만 연다. 실제 API 호출을 네트워크에서 막는다.
     - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-            except: [10.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12]
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: fake-gemini }
       ports:
-        - { protocol: TCP, port: 443 }
+        - { protocol: TCP, port: 8080 }
     - to:
         - ipBlock: { cidr: 169.254.170.23/32 }
       ports:
@@ -442,3 +442,20 @@ spec:
             matchLabels: { app.kubernetes.io/name: rabbitmq }
       ports:
         - { protocol: TCP, port: 5672 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: fake-gemini
+  namespace: prod
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: fake-gemini }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: cosmos-ai-llm }
+      ports:
+        - { protocol: TCP, port: 8080 }
+  egress: []
