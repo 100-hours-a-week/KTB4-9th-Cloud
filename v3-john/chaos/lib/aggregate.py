@@ -64,6 +64,21 @@ def verdict(core_requests, rev_before, rev_after, aborted):
         reasons.append("실험 중 배포 변경: " + ", ".join(changed))
     return reasons
 
+COUNT_KEYS = {"judge_lost", "judge_completed", "submit_rejected", "requests", "errors_5xx"}
+
+def clean(obj, key=None):
+    """JSON에 NaN을 넣지 않고(None), 건수는 increase() 외삽 소수점을 반올림한다."""
+    if isinstance(obj, dict):
+        return {k: clean(v, k) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [clean(v) for v in obj]
+    if isinstance(obj, float):
+        if math.isnan(obj):
+            return None
+        if key in COUNT_KEYS:
+            return round(obj)
+    return obj
+
 # ---- Prometheus 질의 ----
 def _get(prom, path, params):
     url = f"{prom}{path}?{urllib.parse.urlencode(params)}"
@@ -157,7 +172,7 @@ def main():
         "verdict_blockers": verdict(core.get("requests", 0), rb, ra, a.aborted),
         "manual": {"declared_at": None, "severity": None, "mitigated_at": None, "cause_identified_at": None, "cause_evidence": None},
     }
-    json.dump(rec, sys.stdout, ensure_ascii=False, indent=1)
+    json.dump(clean(rec), sys.stdout, ensure_ascii=False, indent=1, allow_nan=False)
 
 if __name__ == "__main__":
     main()

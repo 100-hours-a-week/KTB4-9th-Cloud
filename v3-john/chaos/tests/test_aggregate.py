@@ -63,5 +63,13 @@ class Verdict(unittest.TestCase):
     def test_aborted(self):
         self.assertEqual(ag.verdict(2000, {}, {}, aborted="vcpu"), ["중단: vcpu"])
 
+class Clean(unittest.TestCase):
+    def test_nan_becomes_null_and_counts_are_rounded(self):
+        # 2026-11-20 noop: AI 요청이 없어 p95가 NaN으로 JSON에 들어가고, increase() 외삽으로 건수가 82.72였다
+        out = ag.clean({"ai": {"p95_ms": float("nan")}, "judge": {"judge_completed": 82.72, "submit_p95_s": 1.17}})
+        self.assertIsNone(out["ai"]["p95_ms"])
+        self.assertEqual(out["judge"]["judge_completed"], 83)
+        self.assertEqual(out["judge"]["submit_p95_s"], 1.17)
+
 if __name__ == "__main__":
     unittest.main()
