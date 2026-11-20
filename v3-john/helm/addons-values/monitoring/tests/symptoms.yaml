@@ -1,0 +1,109 @@
+# 증상 알림 단위 테스트. 입력은 Envoy 클러스터 지표이고, 기록 규칙을 거쳐 알림까지 평가한다.
+rule_files: [cosmos-rules.yaml]
+evaluation_interval: 30s
+tests:
+  # 핵심 문제 조회 요청의 60%가 5xx → 성공률 40% < 50%.
+  # 1분 시점에 5분 비율이 처음 계산되고(기록 규칙 → 알림 순서로 한 주기 늦음), for 1m을 지나 3분에 firing이다.
+  - name: CoreUnavailable 60% 5xx
+    interval: 1m
+    input_series:
+      - series: 'envoy_cluster_upstream_rq_total{envoy_cluster_name="httproute/prod/journey-core-problem/rule/0"}'
+        values: '0+600x20'
+      - series: 'envoy_cluster_upstream_rq_xx{envoy_cluster_name="httproute/prod/journey-core-problem/rule/0", envoy_response_code_class="5"}'
+        values: '0+360x20'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: CoreUnavailable
+        exp_alerts:
+          - exp_labels: { journey: core, severity: critical, sev: SEV1, namespace: prod }
+            exp_annotations:
+              summary: "핵심 기능 성공률 40% (로그인, 문제 조회, 제출)"
+              description: "핵심 기능 요청의 절반 넘게 실패한다. 최근 배포, core·auth 파드, RDS 순서로 본다."
+  - name: CoreUnavailable 40% 5xx는 울리지 않음
+    interval: 1m
+    input_series:
+      - series: 'envoy_cluster_upstream_rq_total{envoy_cluster_name="httproute/prod/journey-core-problem/rule/0"}'
+        values: '0+600x20'
+      - series: 'envoy_cluster_upstream_rq_xx{envoy_cluster_name="httproute/prod/journey-core-problem/rule/0", envoy_response_code_class="5"}'
+        values: '0+240x20'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: CoreUnavailable
+        exp_alerts: []
+  # 파드가 모두 빠져 Envoy가 직접 503을 돌려주는 경우. 업스트림 요청 수는 늘지 않는다.
+  - name: 정상 엔드포인트 없음만으로 CoreUnavailable
+    interval: 1m
+    input_series:
+      - series: 'envoy_cluster_upstream_rq_total{envoy_cluster_name="httproute/prod/journey-core-problem/rule/0"}'
+        values: '1000x20'
+      - series: 'envoy_cluster_upstream_cx_none_healthy{envoy_cluster_name="httproute/prod/journey-core-problem/rule/0"}'
+        values: '0+600x20'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: CoreUnavailable
+        exp_alerts:
+          - exp_labels: { journey: core, severity: critical, sev: SEV1, namespace: prod }
+            exp_annotations:
+              summary: "핵심 기능 성공률 0% (로그인, 문제 조회, 제출)"
+              description: "핵심 기능 요청의 절반 넘게 실패한다. 최근 배포, core·auth 파드, RDS 순서로 본다."
+  # 1시간 내내 10% 5xx → 1시간·5분 창 모두 7.2% 초과
+  - name: CoreErrorBudgetBurnFast 10%
+    interval: 1m
+    input_series:
+      - series: 'envoy_cluster_upstream_rq_total{envoy_cluster_name="httproute/prod/journey-core-auth/rule/0"}'
+        values: '0+600x80'
+      - series: 'envoy_cluster_upstream_rq_xx{envoy_cluster_name="httproute/prod/journey-core-auth/rule/0", envoy_response_code_class="5"}'
+        values: '0+60x80'
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: CoreErrorBudgetBurnFast
+        exp_alerts:
+          - exp_labels: { journey: core, severity: critical, sev: SEV2, namespace: prod }
+            exp_annotations:
+              summary: "핵심 기능이 에러 예산을 14.4배 넘는 속도로 소진 중 (1시간 오류율 10%)"
+  - name: CoreErrorBudgetBurnFast 5%는 울리지 않음
+    interval: 1m
+    input_series:
+      - series: 'envoy_cluster_upstream_rq_total{envoy_cluster_name="httproute/prod/journey-core-auth/rule/0"}'
+        values: '0+600x80'
+      - series: 'envoy_cluster_upstream_rq_xx{envoy_cluster_name="httproute/prod/journey-core-auth/rule/0", envoy_response_code_class="5"}'
+        values: '0+30x80'
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: CoreErrorBudgetBurnFast
+        exp_alerts: []
+  # 모든 응답이 50~100ms 구간 → p95 97.5ms(선형 보간). 기준 50ms를 5분 넘게 넘는다.
+  - name: ReadLatencyHigh 기준 초과
+    interval: 1m
+    input_series:
+      - series: 'envoy_cluster_upstream_rq_time_bucket{envoy_cluster_name="httproute/prod/journey-core-problem/rule/0", le="25"}'
+        values: '0x15'
+      - series: 'envoy_cluster_upstream_rq_time_bucket{envoy_cluster_name="httproute/prod/journey-core-problem/rule/0", le="50"}'
+        values: '0x15'
+      - series: 'envoy_cluster_upstream_rq_time_bucket{envoy_cluster_name="httproute/prod/journey-core-problem/rule/0", le="100"}'
+        values: '0+600x15'
+      - series: 'envoy_cluster_upstream_rq_time_bucket{envoy_cluster_name="httproute/prod/journey-core-problem/rule/0", le="+Inf"}'
+        values: '0+600x15'
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: ReadLatencyHigh
+        exp_alerts:
+          - exp_labels: { severity: critical, sev: SEV2, namespace: prod }
+            exp_annotations:
+              summary: "로그인·문제 조회 p95 97.5ms"
+  # 모든 응답이 25~50ms 구간 → p95 48.75ms. 기준선(24~25ms)의 2배 안이라 울리지 않는다.
+  - name: ReadLatencyHigh 기준 이하
+    interval: 1m
+    input_series:
+      - series: 'envoy_cluster_upstream_rq_time_bucket{envoy_cluster_name="httproute/prod/journey-core-problem/rule/0", le="25"}'
+        values: '0x15'
+      - series: 'envoy_cluster_upstream_rq_time_bucket{envoy_cluster_name="httproute/prod/journey-core-problem/rule/0", le="50"}'
+        values: '0+600x15'
+      - series: 'envoy_cluster_upstream_rq_time_bucket{envoy_cluster_name="httproute/prod/journey-core-problem/rule/0", le="100"}'
+        values: '0+600x15'
+      - series: 'envoy_cluster_upstream_rq_time_bucket{envoy_cluster_name="httproute/prod/journey-core-problem/rule/0", le="+Inf"}'
+        values: '0+600x15'
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: ReadLatencyHigh
+        exp_alerts: []

@@ -37,4 +37,10 @@ read -r _ first last <<<"$(grep '^USERS' <<<"$result")"
 grep '^PROBLEMS' <<<"$result" | cut -d' ' -f2 | python3 -c 'import sys,json;print(json.dumps([int(x) for x in sys.stdin.read().strip().split(",")]))' > "$OUT/problems.json"
 python3 "$(dirname "$0")/mint_tokens.py" "$OUT/tokens.json" "$first" "$last" 10800
 chmod 600 "$OUT/tokens.json"
+# 클러스터 안 k6(loadtest/k8s/run-k6.sh)가 쓰는 입력. 만료 시각으로 실행 전에 토큰 수명을 확인한다.
+kubectl create namespace loadtest --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+kubectl create secret generic k6-inputs -n loadtest \
+  --from-file=tokens.json="$OUT/tokens.json" --from-file=problems.json="$OUT/problems.json" \
+  --from-literal=expires_at=$(( $(date +%s) + 10800 )) \
+  --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 echo "준비 완료: $OUT (사용자 ID $first~$last)"
