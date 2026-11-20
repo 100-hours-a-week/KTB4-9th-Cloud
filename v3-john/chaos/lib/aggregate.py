@@ -34,17 +34,21 @@ def recovery_seconds(samples, inject_t, target, hold=HOLD):
                 return int(cand - inject_t)
     return 0 if not breached else None
 
-def first_alert(alerts, inject_t, names):
-    """주입 뒤 처음 firing이 된 증상 알림 (이름, 초). 주입 전부터 firing이던 알림은 이 실험의 탐지로 보지 않는다."""
+def first_alert(alerts, inject_t, names, step=STEP):
+    """주입 뒤 처음 firing으로 바뀐 증상 알림 (이름, 초).
+    alerts: 이름 → 시계열(라벨 조합)별 firing 시각 목록. 시계열마다 '직전 간격에는 firing이 아니었던' 시각을 찾는다.
+    주입 전부터 이어지던 firing은 이 실험의 탐지로 보지 않고, 다른 시계열(앞 회차 testid 등)이 firing이어도 가리지 않는다."""
     best = None
-    for name, ts in alerts.items():
-        if name not in names or not ts:
+    for name, series_list in alerts.items():
+        if name not in names:
             continue
-        ts = sorted(ts)
-        if ts[0] <= inject_t:
-            continue
-        if best is None or ts[0] < best[1]:
-            best = (name, ts[0])
+        for ts in series_list:
+            on = set(int(t) for t in ts)
+            for t in sorted(on):
+                if t > inject_t and (t - step) not in on:
+                    if best is None or t < best[1]:
+                        best = (name, t)
+                    break
     return None if best is None else (best[0], int(best[1] - inject_t))
 
 def budget_percent(fail_ratio, minutes, slo, period_min=PERIOD_MIN):
@@ -52,17 +56,35 @@ def budget_percent(fail_ratio, minutes, slo, period_min=PERIOD_MIN):
     allowed = period_min * (1 - slo)
     return round(fail_ratio * minutes / allowed * 100, 2)
 
-def verdict(core_requests, rev_before, rev_after, aborted):
-    """판정 불가 사유 목록. 비어 있으면 판정 가능."""
+def verdict(core_requests, rev_before, rev_after, aborted, own=()):
+    """판정 불가 사유 목록. 비어 있으면 판정 가능.
+    own: 시나리오가 스스로 병합한 리비전(S1 주입·원복). 이 리비전으로 바뀐 앱은 외부 배포로 보지 않는다."""
     reasons = []
     if aborted:
         reasons.append(f"중단: {aborted}")
     if core_requests < 1000:
         reasons.append(f"핵심 요청 {int(core_requests)}건(1,000건 미만)")
-    changed = sorted(k for k in set(rev_before) | set(rev_after) if rev_before.get(k) != rev_after.get(k))
+    own = set(own)
+    changed = sorted(k for k in set(rev_before) | set(rev_after)
+                     if rev_before.get(k) != rev_after.get(k) and rev_after.get(k) not in own)
     if changed:
         reasons.append("실험 중 배포 변경: " + ", ".join(changed))
     return reasons
+
+COUNT_KEYS = {"judge_lost", "judge_completed", "submit_rejected", "requests", "errors_5xx"}
+
+def clean(obj, key=None):
+    """JSON에 NaN을 넣지 않고(None), 건수는 increase() 외삽 소수점을 반올림한다."""
+    if isinstance(obj, dict):
+        return {k: clean(v, k) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [clean(v) for v in obj]
+    if isinstance(obj, float):
+        if math.isnan(obj):
+            return None
+        if key in COUNT_KEYS:
+            return round(obj)
+    return obj
 
 # ---- Prometheus 질의 ----
 def _get(prom, path, params):
@@ -109,10 +131,10 @@ def core_ratio_1m(prom, start, end):
 
 def alert_firing_times(prom, start, end):
     names = "|".join(SYMPTOM_ALERTS)
-    r = rng(prom, f'max by (alertname) (ALERTS{{alertstate="firing", alertname=~"{names}"}})', start - 300, end)
+    r = rng(prom, f'ALERTS{{alertstate="firing", alertname=~"{names}"}}', start - 300, end)
     out = {}
     for k, pts in r.items():
-        out[json.loads(k)["alertname"]] = [t for t, v in pts if v >= 1]
+        out.setdefault(json.loads(k)["alertname"], []).append([t for t, v in pts if v >= 1])
     return out
 
 def k6_window(prom, testid, end, window):
@@ -126,10 +148,11 @@ def k6_window(prom, testid, end, window):
 
 def main():
     ap = argparse.ArgumentParser()
-    for a in ("prom", "testid", "rev_before", "rev_after", "aborted", "scenario", "step"):
+    for a in ("prom", "testid", "rev_before", "rev_after", "aborted", "scenario", "step", "own_revisions"):
         ap.add_argument(f"--{a.replace('_', '-')}")
     for a in ("start", "inject", "stop", "end"):
         ap.add_argument(f"--{a}", type=int, required=True)
+    ap.add_argument("--mitigated", type=int)
     a = ap.parse_args()
     window = a.end - a.inject
     journeys, read_p95 = journey_window(a.prom, a.end, window)
@@ -142,6 +165,7 @@ def main():
     lost, done = k6.get("judge_lost", 0), k6.get("judge_completed", 0)
     rb = json.load(open(a.rev_before)) if a.rev_before else {}
     ra = json.load(open(a.rev_after)) if a.rev_after else {}
+    own = open(a.own_revisions).read().split() if a.own_revisions else []
     rec = {
         "scenario": a.scenario, "step": a.step, "testid": a.testid,
         "times": {"k6_start": a.start, "inject": a.inject, "stop": a.stop, "end": a.end},
@@ -151,13 +175,14 @@ def main():
         "read_p95_ms": read_p95,
         "budget_percent_core": budget_percent(fr, window / 60, CORE_SLO),
         "judge": {**k6, "completion_ratio": (done / (done + lost)) if (done + lost) else None},
-        "symptom_alerts_fired": sorted(k for k, v in alerts.items() if any(t > a.inject for t in v)),
-        "revisions": {"before": rb, "after": ra},
+        "symptom_alerts_fired": sorted(k for k, v in alerts.items() if any(t > a.inject for ts in v for t in ts)),
+        "revisions": {"before": rb, "after": ra, "scenario_own": own},
         "aborted": a.aborted or None,
-        "verdict_blockers": verdict(core.get("requests", 0), rb, ra, a.aborted),
-        "manual": {"declared_at": None, "severity": None, "mitigated_at": None, "cause_identified_at": None, "cause_evidence": None},
+        "verdict_blockers": verdict(core.get("requests", 0), rb, ra, a.aborted, own),
+        "mitigation_seconds": (a.mitigated - a.inject) if a.mitigated else None,
+        "manual": {"declared_at": None, "severity": None, "mitigated_at": a.mitigated, "cause_identified_at": None, "cause_evidence": None},
     }
-    json.dump(rec, sys.stdout, ensure_ascii=False, indent=1)
+    json.dump(clean(rec), sys.stdout, ensure_ascii=False, indent=1, allow_nan=False)
 
 if __name__ == "__main__":
     main()

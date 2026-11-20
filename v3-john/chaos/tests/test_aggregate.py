@@ -31,13 +31,23 @@ class Recovery(unittest.TestCase):
         self.assertIsNone(ag.recovery_seconds(s, T0, target=0.005))
 
 class Detection(unittest.TestCase):
+    # 알림 이름 → 시계열(라벨 조합)별 firing 시각 목록. Prometheus query_range 간격(STEP)에 맞춰 있다.
     def test_first_symptom_alert_after_injection(self):
-        alerts = {"CoreUnavailable": [T0 + 150, T0 + 165], "CoreErrorBudgetBurnFast": [T0 + 210], "PodCrashLooping": [T0 + 60]}
+        alerts = {"CoreUnavailable": [[T0 + 150, T0 + 165]], "CoreErrorBudgetBurnFast": [[T0 + 210]], "PodCrashLooping": [[T0 + 60]]}
         self.assertEqual(ag.first_alert(alerts, T0, ag.SYMPTOM_ALERTS), ("CoreUnavailable", 150))
 
     def test_alert_already_firing_before_injection_is_ignored(self):
-        alerts = {"CoreUnavailable": [T0 - 30, T0, T0 + 15]}
+        alerts = {"CoreUnavailable": [[T0 - 30, T0 - 15, T0, T0 + 15]]}
         self.assertIsNone(ag.first_alert(alerts, T0, ag.SYMPTOM_ALERTS))
+
+    def test_previous_run_series_still_firing_does_not_hide_new_one(self):
+        # 2026-11-20 s1 448Mi 3회차: 앞 회차 testid의 JudgeJobLost가 주입 시점에도 firing이라 이번 회차 탐지가 빠졌다
+        alerts = {"JudgeJobLost": [[T0 - 60, T0 - 45, T0 - 30, T0 - 15, T0, T0 + 15], [T0 + 270, T0 + 285]]}
+        self.assertEqual(ag.first_alert(alerts, T0, ag.SYMPTOM_ALERTS), ("JudgeJobLost", 270))
+
+    def test_same_series_resolving_then_firing_again_counts(self):
+        alerts = {"CoreUnavailable": [[T0 - 15, T0, T0 + 120, T0 + 135]]}
+        self.assertEqual(ag.first_alert(alerts, T0, ag.SYMPTOM_ALERTS), ("CoreUnavailable", 120))
 
     def test_no_alert(self):
         self.assertIsNone(ag.first_alert({}, T0, ag.SYMPTOM_ALERTS))
@@ -60,8 +70,26 @@ class Verdict(unittest.TestCase):
         r = ag.verdict(2000, {"prod-core": "r1", "prod-auth": "a"}, {"prod-core": "r2", "prod-auth": "a"}, aborted=None)
         self.assertEqual(r, ["실험 중 배포 변경: prod-core"])
 
+    def test_scenario_own_merge_is_not_a_foreign_deploy(self):
+        # S1은 주입 자체가 main 병합이라 모든 앱 리비전이 바뀐다. 시나리오가 남긴 병합 SHA는 제외한다.
+        r = ag.verdict(2000, {"prod-core": "r1", "prod-auth": "r1"}, {"prod-core": "s1rev", "prod-auth": "s1rev"},
+                       aborted=None, own=["s1rev"])
+        self.assertEqual(r, [])
+
+    def test_foreign_merge_after_scenario_is_flagged(self):
+        r = ag.verdict(2000, {"prod-core": "r1"}, {"prod-core": "teammate"}, aborted=None, own=["s1rev"])
+        self.assertEqual(r, ["실험 중 배포 변경: prod-core"])
+
     def test_aborted(self):
         self.assertEqual(ag.verdict(2000, {}, {}, aborted="vcpu"), ["중단: vcpu"])
+
+class Clean(unittest.TestCase):
+    def test_nan_becomes_null_and_counts_are_rounded(self):
+        # 2026-11-20 noop: AI 요청이 없어 p95가 NaN으로 JSON에 들어가고, increase() 외삽으로 건수가 82.72였다
+        out = ag.clean({"ai": {"p95_ms": float("nan")}, "judge": {"judge_completed": 82.72, "submit_p95_s": 1.17}})
+        self.assertIsNone(out["ai"]["p95_ms"])
+        self.assertEqual(out["judge"]["judge_completed"], 83)
+        self.assertEqual(out["judge"]["submit_p95_s"], 1.17)
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,9 +1,11 @@
 # 실험 중단 조건(설계서 8.2). guard_check는 위반이 있으면 이유를 출력하고 1을 돌려준다.
 #   prometheus | alertmanager : 응답 없음(측정할 수 없는 실험)
-#   vcpu                      : Spot vCPU 합계 24 초과(GUARD_FAKE_VCPU로 흉내 낼 수 있다. 주입 중에만 적용)
+#   vcpu                      : Spot vCPU 합계 28 초과(계정 한도 32에서 4 남김)(GUARD_FAKE_VCPU로 흉내 낼 수 있다. 주입 중에만 적용)
 #   duration                  : 주입 경과 10분 초과(INJECT_START 기준)
 source "$(dirname "${BASH_SOURCE[0]}")/prom.sh"
-GUARD_MAX_VCPU=${GUARD_MAX_VCPU:-24}
+# 2026-11-20 사용자 결정으로 24 → 28. 노드 최대 3대 적용 뒤 평상시 Spot 합계가 이미 24라(application 12, judge 8,
+# system 2, stateful 2) 제출 부하로 judge 노드가 한 대만 늘어도 걸렸다.
+GUARD_MAX_VCPU=${GUARD_MAX_VCPU:-28}
 GUARD_MAX_INJECT_S=${GUARD_MAX_INJECT_S:-600}
 
 _prom_ok() { [ "$(prom_query 'vector(1)')" = "1" ]; }

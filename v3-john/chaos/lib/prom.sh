@@ -8,7 +8,8 @@ prom_query() {
   local args=(--data-urlencode "query=$1"); [ -n "${2:-}" ] && args+=(--data-urlencode "time=$2")
   curl -sf -G --max-time 15 "$PROM_URL/api/v1/query" "${args[@]}" | python3 -c '
 import json,sys
-d=json.load(sys.stdin)
+try: d=json.load(sys.stdin)
+except ValueError: sys.exit(1)  # port-forward 전 빈 응답
 if d.get("status")!="success": sys.exit(1)
 r=d["data"]["result"]
 print(r[0]["value"][1] if r else "")'
