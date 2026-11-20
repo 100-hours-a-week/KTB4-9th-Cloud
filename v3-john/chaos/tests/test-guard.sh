@@ -10,7 +10,7 @@ expect() { # expect <설명> <기대 종료코드> <기대 출력 일부>
 _prom_ok() { return 0; }; _am_ok() { return 0; }
 INJECT_START=$(date +%s)
 GUARD_FAKE_VCPU=8  expect "정상" 0 ""
-GUARD_FAKE_VCPU=30 expect "vCPU 24 초과" 1 "vcpu"
+GUARD_FAKE_VCPU=30 expect "vCPU 28 초과" 1 "vcpu"
 _prom_ok() { return 1; }
 GUARD_FAKE_VCPU=8  expect "Prometheus 무응답" 1 "prometheus"
 _prom_ok() { return 0; }; _am_ok() { return 1; }
