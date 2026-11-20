@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# 클러스터와 테스트 데이터를 모두 지운다.
+# ECR 저장소와 이미지는 보존하고 클러스터와 테스트 데이터를 지운다.
 source "$(dirname "$0")/common.sh"
 [ "${1:-}" = "--yes" ] || { echo "사용: down.sh --yes"; exit 1; }
 
-tf init -input=false
+initialize_cluster_terraform
 if aws eks update-kubeconfig --region "$REGION" --name "$CLUSTER" >/dev/null 2>&1; then
   tf apply -input=false -auto-approve -var enable_edge=false
   # Kubernetes가 만든 NLB와 EBS를 먼저 지워야 VPC를 삭제할 수 있다.
@@ -17,5 +17,5 @@ if aws eks update-kubeconfig --region "$REGION" --name "$CLUSTER" >/dev/null 2>&
   until [ -z "$(kubectl get pv -o name)" ]; do sleep 10; done
   while aws elbv2 describe-load-balancers --region "$REGION" --names "$CLUSTER" >/dev/null 2>&1; do sleep 10; done
 fi
-tf destroy -input=false -auto-approve -var enable_edge=false
+destroy_cluster_infrastructure
 echo "삭제 완료: $CLUSTER"

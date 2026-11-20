@@ -54,7 +54,7 @@ data "aws_iam_policy_document" "ci_promote" {
       "ecr:PutImage",
       "ecr:UploadLayerPart",
     ]
-    resources = [for name in flatten(values(var.ci_promote_images)) : aws_ecr_repository.service[name].arn]
+    resources = [for name in flatten(values(var.ci_promote_images)) : data.aws_ecr_repository.service[name].arn]
   }
 }
 

@@ -10,8 +10,14 @@ tempo:
         grpc: { endpoint: "0.0.0.0:4317" }
         http: { endpoint: "0.0.0.0:4318" }
   resources:
-    requests: { cpu: 250m, memory: 512Mi }
+    requests: { cpu: 250m, memory: 768Mi }
     limits: { cpu: "1", memory: 2Gi }
+  livenessProbe:
+    httpGet: { path: /ready, port: 3200 }
+    initialDelaySeconds: 300
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
   metricsGenerator:
     enabled: true
     remoteWriteUrl: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/api/v1/write
@@ -23,7 +29,6 @@ tempo:
         enable_target_info: true
     registry:
       collection_interval: 15s
-      max_exemplars: 10000
       external_labels:
         cluster: cosmos-v3-wade
         environment: wade
@@ -104,7 +109,7 @@ persistence:
   accessModes: [ReadWriteOnce]
   size: 10Gi
 
-nodeSelector: { workload-class: system }
+nodeSelector: { workload-class: application }
 tolerations:
   - key: CriticalAddonsOnly
     operator: Equal

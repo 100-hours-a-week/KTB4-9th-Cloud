@@ -4,7 +4,7 @@ mode: deployment
 replicaCount: 1
 
 image:
-  repository: otel/opentelemetry-collector-k8s
+  repository: otel/opentelemetry-collector-contrib
 
 alternateConfig:
   receivers:
@@ -146,7 +146,7 @@ serviceMonitor:
       interval: 30s
 
 resources:
-  requests: { cpu: 100m, memory: 256Mi }
+  requests: { cpu: 50m, memory: 128Mi }
   limits: { cpu: 500m, memory: 512Mi }
 
 podSecurityContext:
@@ -157,7 +157,7 @@ securityContext:
   capabilities: { drop: [ALL] }
   readOnlyRootFilesystem: true
 
-nodeSelector: { workload-class: system }
+nodeSelector: { workload-class: application }
 tolerations:
   - key: CriticalAddonsOnly
     operator: Equal
