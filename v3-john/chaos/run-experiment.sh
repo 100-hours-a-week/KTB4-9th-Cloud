@@ -44,7 +44,7 @@ mkdir -p "$RECORD_DIR"
 LOG="$RECORD_DIR/run.log"
 log() { echo "[$(date +%H:%M:%S)] $*" | tee -a "$LOG"; }
 
-PF_PIDS=() K6_PID="" INJECTED=0 STOPPED=0 ABORTED=""
+PF_PIDS=() K6_PID="" INJECTED=0 STOPPED=0 ABORTED="" MITIGATED_AT=""
 cleanup() {
   local rc=$?
   if (( INJECTED && !STOPPED )); then
@@ -119,15 +119,17 @@ annotate "$SCENARIO $STEP 주입 시작" "chaos,$SCENARIO,$STEP" >/dev/null || l
 INJECT_START=$(date +%s); export INJECT_START; T_INJECT=$INJECT_START
 INJECTED=1
 "$SDIR/inject.sh" >>"$LOG" 2>&1 || { log "inject.sh 실패"; ABORTED="inject-failed"; exit 1; }
-log "주입 완료. ${INJECT_DURATION}s 유지"
+log "주입 완료. 최대 ${INJECT_DURATION}s 유지. 대응자 완화 신호: touch $RECORD_DIR/mitigate"
 
 # 6. 주입 유지와 중단 조건 감시(15초마다)
 # 남은 시간만큼만 잔다. 마지막 15초 대기가 10분 한도를 넘겨 duration 위반으로 끝나지 않게 한다(2026-11-20 s1 search에서 발생).
 while :; do
   remaining=$(( INJECT_START + INJECT_DURATION - $(date +%s) ))
   (( remaining > 0 )) || break
-  sleep $(( remaining < 15 ? remaining : 15 ))
+  sleep $(( remaining < 5 ? remaining : 5 ))
   (( $(date +%s) < INJECT_START + INJECT_DURATION )) || break
+  # 대응자가 완화를 결정하면 다른 터미널에서 `touch $RECORD_DIR/mitigate`. 바로 원복한다(완화 시각 측정).
+  if [ -f "$RECORD_DIR/mitigate" ]; then MITIGATED_AT=$(date +%s); log "대응자 완화 신호: 원복"; break; fi
   reason=$(guard_check) || { ABORTED=$reason; log "중단 조건 위반: $reason"; break; }
 done
 
@@ -154,7 +156,7 @@ python3 "$CHAOS/lib/aggregate.py" --prom "$PROM_URL" --scenario "$SCENARIO" --st
   --start "$T_START" --inject "$T_INJECT" \
   --stop "$T_STOP" --end "$T_END" \
   --rev-before "$RECORD_DIR/revisions-before.json" --rev-after "$RECORD_DIR/revisions-after.json" \
-  ${OWN_REV:+--own-revisions "$OWN_REV"} \
+  ${OWN_REV:+--own-revisions "$OWN_REV"} ${MITIGATED_AT:+--mitigated "$MITIGATED_AT"} \
   ${ABORTED:+--aborted "$ABORTED"} > "$RECORD_DIR/record.json"
 cp "$RECORD_DIR/record.json" "$CHAOS/records/$NAME.json"
 python3 "$CHAOS/lib/render_record.py" "$CHAOS/records/$NAME.json" > "$CHAOS/records/$NAME.md" || log "기록 md 생성 실패"

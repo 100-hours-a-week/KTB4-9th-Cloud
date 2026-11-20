@@ -30,6 +30,8 @@ def main():
         verdict="판정 가능" if not blockers else "판정 불가: " + "; ".join(blockers),
         detection=f"{dur(det['seconds'])} ({det['alert']})" if det else "탐지되지 않음",
         recovery="관찰 구간 안에 회복하지 못함" if rs is None else ("영향 없음" if rs == 0 else dur(rs)),
+        mitigation=(f"{dur(rec['mitigation_seconds'])} (대응자 완화 신호)" if rec.get("mitigation_seconds") is not None
+                    else "(사람이 적는다. 완화 신호 없이 정해진 시간에 원복)"),
         budget=f"{rec.get('budget_percent_core')}%",
         read_p95="-" if rec.get("read_p95_ms") is None else f"{rec['read_p95_ms']:.0f}ms",
         submit_p95="-" if j.get("submit_p95_s") is None else f"{j['submit_p95_s']:.2f}초",

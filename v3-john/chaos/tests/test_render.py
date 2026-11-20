@@ -30,6 +30,10 @@ class Render(unittest.TestCase):
         self.assertIn("| 채점 완료율 | 97.56% (유실 2, 업무 거절 1) |", md)
         self.assertIn("판정 가능", md)
 
+    def test_mitigation_from_responder_signal(self):
+        md = self.render(dict(SAMPLE, mitigation_seconds=630))
+        self.assertIn("| 완화 시간 | 10분 30초 (대응자 완화 신호) |", md)
+
     def test_manual_fields_left_blank_for_human(self):
         md = self.render(SAMPLE)
         self.assertIn("| 선언 시간 | (사람이 적는다) |", md)

@@ -34,17 +34,21 @@ def recovery_seconds(samples, inject_t, target, hold=HOLD):
                 return int(cand - inject_t)
     return 0 if not breached else None
 
-def first_alert(alerts, inject_t, names):
-    """주입 뒤 처음 firing이 된 증상 알림 (이름, 초). 주입 전부터 firing이던 알림은 이 실험의 탐지로 보지 않는다."""
+def first_alert(alerts, inject_t, names, step=STEP):
+    """주입 뒤 처음 firing으로 바뀐 증상 알림 (이름, 초).
+    alerts: 이름 → 시계열(라벨 조합)별 firing 시각 목록. 시계열마다 '직전 간격에는 firing이 아니었던' 시각을 찾는다.
+    주입 전부터 이어지던 firing은 이 실험의 탐지로 보지 않고, 다른 시계열(앞 회차 testid 등)이 firing이어도 가리지 않는다."""
     best = None
-    for name, ts in alerts.items():
-        if name not in names or not ts:
+    for name, series_list in alerts.items():
+        if name not in names:
             continue
-        ts = sorted(ts)
-        if ts[0] <= inject_t:
-            continue
-        if best is None or ts[0] < best[1]:
-            best = (name, ts[0])
+        for ts in series_list:
+            on = set(int(t) for t in ts)
+            for t in sorted(on):
+                if t > inject_t and (t - step) not in on:
+                    if best is None or t < best[1]:
+                        best = (name, t)
+                    break
     return None if best is None else (best[0], int(best[1] - inject_t))
 
 def budget_percent(fail_ratio, minutes, slo, period_min=PERIOD_MIN):
@@ -127,10 +131,10 @@ def core_ratio_1m(prom, start, end):
 
 def alert_firing_times(prom, start, end):
     names = "|".join(SYMPTOM_ALERTS)
-    r = rng(prom, f'max by (alertname) (ALERTS{{alertstate="firing", alertname=~"{names}"}})', start - 300, end)
+    r = rng(prom, f'ALERTS{{alertstate="firing", alertname=~"{names}"}}', start - 300, end)
     out = {}
     for k, pts in r.items():
-        out[json.loads(k)["alertname"]] = [t for t, v in pts if v >= 1]
+        out.setdefault(json.loads(k)["alertname"], []).append([t for t, v in pts if v >= 1])
     return out
 
 def k6_window(prom, testid, end, window):
@@ -148,6 +152,7 @@ def main():
         ap.add_argument(f"--{a.replace('_', '-')}")
     for a in ("start", "inject", "stop", "end"):
         ap.add_argument(f"--{a}", type=int, required=True)
+    ap.add_argument("--mitigated", type=int)
     a = ap.parse_args()
     window = a.end - a.inject
     journeys, read_p95 = journey_window(a.prom, a.end, window)
@@ -170,11 +175,12 @@ def main():
         "read_p95_ms": read_p95,
         "budget_percent_core": budget_percent(fr, window / 60, CORE_SLO),
         "judge": {**k6, "completion_ratio": (done / (done + lost)) if (done + lost) else None},
-        "symptom_alerts_fired": sorted(k for k, v in alerts.items() if any(t > a.inject for t in v)),
+        "symptom_alerts_fired": sorted(k for k, v in alerts.items() if any(t > a.inject for ts in v for t in ts)),
         "revisions": {"before": rb, "after": ra, "scenario_own": own},
         "aborted": a.aborted or None,
         "verdict_blockers": verdict(core.get("requests", 0), rb, ra, a.aborted, own),
-        "manual": {"declared_at": None, "severity": None, "mitigated_at": None, "cause_identified_at": None, "cause_evidence": None},
+        "mitigation_seconds": (a.mitigated - a.inject) if a.mitigated else None,
+        "manual": {"declared_at": None, "severity": None, "mitigated_at": a.mitigated, "cause_identified_at": None, "cause_evidence": None},
     }
     json.dump(clean(rec), sys.stdout, ensure_ascii=False, indent=1, allow_nan=False)
 
