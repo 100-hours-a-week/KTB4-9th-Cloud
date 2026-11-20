@@ -52,14 +52,17 @@ def budget_percent(fail_ratio, minutes, slo, period_min=PERIOD_MIN):
     allowed = period_min * (1 - slo)
     return round(fail_ratio * minutes / allowed * 100, 2)
 
-def verdict(core_requests, rev_before, rev_after, aborted):
-    """판정 불가 사유 목록. 비어 있으면 판정 가능."""
+def verdict(core_requests, rev_before, rev_after, aborted, own=()):
+    """판정 불가 사유 목록. 비어 있으면 판정 가능.
+    own: 시나리오가 스스로 병합한 리비전(S1 주입·원복). 이 리비전으로 바뀐 앱은 외부 배포로 보지 않는다."""
     reasons = []
     if aborted:
         reasons.append(f"중단: {aborted}")
     if core_requests < 1000:
         reasons.append(f"핵심 요청 {int(core_requests)}건(1,000건 미만)")
-    changed = sorted(k for k in set(rev_before) | set(rev_after) if rev_before.get(k) != rev_after.get(k))
+    own = set(own)
+    changed = sorted(k for k in set(rev_before) | set(rev_after)
+                     if rev_before.get(k) != rev_after.get(k) and rev_after.get(k) not in own)
     if changed:
         reasons.append("실험 중 배포 변경: " + ", ".join(changed))
     return reasons
@@ -141,7 +144,7 @@ def k6_window(prom, testid, end, window):
 
 def main():
     ap = argparse.ArgumentParser()
-    for a in ("prom", "testid", "rev_before", "rev_after", "aborted", "scenario", "step"):
+    for a in ("prom", "testid", "rev_before", "rev_after", "aborted", "scenario", "step", "own_revisions"):
         ap.add_argument(f"--{a.replace('_', '-')}")
     for a in ("start", "inject", "stop", "end"):
         ap.add_argument(f"--{a}", type=int, required=True)
@@ -157,6 +160,7 @@ def main():
     lost, done = k6.get("judge_lost", 0), k6.get("judge_completed", 0)
     rb = json.load(open(a.rev_before)) if a.rev_before else {}
     ra = json.load(open(a.rev_after)) if a.rev_after else {}
+    own = open(a.own_revisions).read().split() if a.own_revisions else []
     rec = {
         "scenario": a.scenario, "step": a.step, "testid": a.testid,
         "times": {"k6_start": a.start, "inject": a.inject, "stop": a.stop, "end": a.end},
@@ -167,9 +171,9 @@ def main():
         "budget_percent_core": budget_percent(fr, window / 60, CORE_SLO),
         "judge": {**k6, "completion_ratio": (done / (done + lost)) if (done + lost) else None},
         "symptom_alerts_fired": sorted(k for k, v in alerts.items() if any(t > a.inject for t in v)),
-        "revisions": {"before": rb, "after": ra},
+        "revisions": {"before": rb, "after": ra, "scenario_own": own},
         "aborted": a.aborted or None,
-        "verdict_blockers": verdict(core.get("requests", 0), rb, ra, a.aborted),
+        "verdict_blockers": verdict(core.get("requests", 0), rb, ra, a.aborted, own),
         "manual": {"declared_at": None, "severity": None, "mitigated_at": None, "cause_identified_at": None, "cause_evidence": None},
     }
     json.dump(clean(rec), sys.stdout, ensure_ascii=False, indent=1, allow_nan=False)

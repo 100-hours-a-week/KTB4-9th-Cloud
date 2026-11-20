@@ -143,11 +143,14 @@ if [ -z "$ABORTED" ]; then wait "$K6_PID" || log "k6 실패(기록에 남김)"; 
 K6_PID=""
 
 # 8~10. 집계, 리비전 비교, 저장
+# 시나리오가 직접 병합한 리비전(scenarios/*가 $RECORD_DIR/own-revisions에 남김)은 외부 배포로 보지 않는다.
+OWN_REV=""; [ -s "$RECORD_DIR/own-revisions" ] && OWN_REV="$RECORD_DIR/own-revisions"
 revisions > "$RECORD_DIR/revisions-after.json"
 python3 "$CHAOS/lib/aggregate.py" --prom "$PROM_URL" --scenario "$SCENARIO" --step "$STEP" --testid "$TESTID" \
   --start "$T_START" --inject "$T_INJECT" \
   --stop "$T_STOP" --end "$T_END" \
   --rev-before "$RECORD_DIR/revisions-before.json" --rev-after "$RECORD_DIR/revisions-after.json" \
+  ${OWN_REV:+--own-revisions "$OWN_REV"} \
   ${ABORTED:+--aborted "$ABORTED"} > "$RECORD_DIR/record.json"
 cp "$RECORD_DIR/record.json" "$CHAOS/records/$NAME.json"
 python3 "$CHAOS/lib/render_record.py" "$CHAOS/records/$NAME.json" > "$CHAOS/records/$NAME.md" || log "기록 md 생성 실패"

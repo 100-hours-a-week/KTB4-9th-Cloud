@@ -60,6 +60,16 @@ class Verdict(unittest.TestCase):
         r = ag.verdict(2000, {"prod-core": "r1", "prod-auth": "a"}, {"prod-core": "r2", "prod-auth": "a"}, aborted=None)
         self.assertEqual(r, ["실험 중 배포 변경: prod-core"])
 
+    def test_scenario_own_merge_is_not_a_foreign_deploy(self):
+        # S1은 주입 자체가 main 병합이라 모든 앱 리비전이 바뀐다. 시나리오가 남긴 병합 SHA는 제외한다.
+        r = ag.verdict(2000, {"prod-core": "r1", "prod-auth": "r1"}, {"prod-core": "s1rev", "prod-auth": "s1rev"},
+                       aborted=None, own=["s1rev"])
+        self.assertEqual(r, [])
+
+    def test_foreign_merge_after_scenario_is_flagged(self):
+        r = ag.verdict(2000, {"prod-core": "r1"}, {"prod-core": "teammate"}, aborted=None, own=["s1rev"])
+        self.assertEqual(r, ["실험 중 배포 변경: prod-core"])
+
     def test_aborted(self):
         self.assertEqual(ag.verdict(2000, {}, {}, aborted="vcpu"), ["중단: vcpu"])
 
