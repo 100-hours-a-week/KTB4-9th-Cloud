@@ -32,8 +32,8 @@ secrets:
   - secret: /cosmos-v2/stage/spring
     keys: { kakao_client_id: KAKAO_CLIENT_ID, kakao_client_secret: KAKAO_CLIENT_SECRET, kakao_redirect_uri: KAKAO_REDIRECT_URI, jwt_secret: JWT_SECRET }
 resources:
-  requests: { cpu: "1", memory: 1Gi }
-  limits: { cpu: "2", memory: 2Gi }
+  requests: { cpu: "1", memory: 512Mi }
+  limits: { cpu: "2", memory: 512Mi }
 probes:
   startupProbe: { tcpSocket: { port: 8080 }, periodSeconds: 5, timeoutSeconds: 2, failureThreshold: 36 }
   readinessProbe: { httpGet: { path: /actuator/health, port: 9091 }, periodSeconds: 5, timeoutSeconds: 2, failureThreshold: 3 }
