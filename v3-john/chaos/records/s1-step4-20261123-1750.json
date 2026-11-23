@@ -1,0 +1,85 @@
+{
+ "scenario": "s1",
+ "step": "step4",
+ "testid": "s1-step4-11231750",
+ "times": {
+  "k6_start": 1795423845,
+  "inject": 1795424033,
+  "stop": 1795424654,
+  "end": 1795425264
+ },
+ "detection": null,
+ "recovery_seconds_core": 180,
+ "journeys": {
+  "core": {
+   "requests": 16480,
+   "errors_5xx": 5,
+   "failure_ratio": 0.0003073896471166851,
+   "p95_ms": 36.65356394129966
+  },
+  "major": {
+   "requests": 15943,
+   "errors_5xx": 6,
+   "failure_ratio": 0.0003812913065582104,
+   "p95_ms": 47.45445544554454
+  }
+ },
+ "read_p95_ms": 24.330457614403596,
+ "budget_percent_core": 0.0,
+ "judge": {
+  "submit_p95_s": 1.1459590333,
+  "judge_lost": 0,
+  "judge_completed": 493,
+  "submit_rejected": 29,
+  "completion_ratio": 1.0
+ },
+ "symptom_alerts_fired": [],
+ "revisions": {
+  "before": {
+   "prod-ai-llm": "549f5f6c70b4656bcb4a2397a0c0b0c416b7d20f",
+   "prod-ai-make-problem": "0e186040ca88928c1600746b72ff58884d73a0a0",
+   "prod-ai-postgres": "0e186040ca88928c1600746b72ff58884d73a0a0",
+   "prod-ai-problem-batch": "0e186040ca88928c1600746b72ff58884d73a0a0",
+   "prod-auth": "549f5f6c70b4656bcb4a2397a0c0b0c416b7d20f",
+   "prod-battle": "0e186040ca88928c1600746b72ff58884d73a0a0",
+   "prod-core": "0e186040ca88928c1600746b72ff58884d73a0a0",
+   "prod-judge-api": "0e186040ca88928c1600746b72ff58884d73a0a0",
+   "prod-judge-postgres": "549f5f6c70b4656bcb4a2397a0c0b0c416b7d20f",
+   "prod-judge-redis": "0e186040ca88928c1600746b72ff58884d73a0a0",
+   "prod-judge-worker": "549f5f6c70b4656bcb4a2397a0c0b0c416b7d20f",
+   "prod-mlflow": "0e186040ca88928c1600746b72ff58884d73a0a0",
+   "prod-platform": "0e186040ca88928c1600746b72ff58884d73a0a0",
+   "prod-rabbitmq": "549f5f6c70b4656bcb4a2397a0c0b0c416b7d20f"
+  },
+  "after": {
+   "prod-ai-llm": "f9fed5744cf8866565ec9e0934e5a3fae2118ba9",
+   "prod-ai-make-problem": "f9fed5744cf8866565ec9e0934e5a3fae2118ba9",
+   "prod-ai-postgres": "f9fed5744cf8866565ec9e0934e5a3fae2118ba9",
+   "prod-ai-problem-batch": "f9fed5744cf8866565ec9e0934e5a3fae2118ba9",
+   "prod-auth": "f9fed5744cf8866565ec9e0934e5a3fae2118ba9",
+   "prod-battle": "f9fed5744cf8866565ec9e0934e5a3fae2118ba9",
+   "prod-core": "f9fed5744cf8866565ec9e0934e5a3fae2118ba9",
+   "prod-judge-api": "f9fed5744cf8866565ec9e0934e5a3fae2118ba9",
+   "prod-judge-postgres": "f9fed5744cf8866565ec9e0934e5a3fae2118ba9",
+   "prod-judge-redis": "f9fed5744cf8866565ec9e0934e5a3fae2118ba9",
+   "prod-judge-worker": "f9fed5744cf8866565ec9e0934e5a3fae2118ba9",
+   "prod-mlflow": "f9fed5744cf8866565ec9e0934e5a3fae2118ba9",
+   "prod-platform": "f9fed5744cf8866565ec9e0934e5a3fae2118ba9",
+   "prod-rabbitmq": "f9fed5744cf8866565ec9e0934e5a3fae2118ba9"
+  },
+  "scenario_own": [
+   "10f1458b923d4aae765bf7a32bf6066ecab67074",
+   "f9fed5744cf8866565ec9e0934e5a3fae2118ba9"
+  ]
+ },
+ "aborted": null,
+ "verdict_blockers": [],
+ "mitigation_seconds": null,
+ "manual": {
+  "declared_at": null,
+  "severity": null,
+  "mitigated_at": null,
+  "cause_identified_at": null,
+  "cause_evidence": null
+ }
+}
