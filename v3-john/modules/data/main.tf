@@ -29,17 +29,24 @@ resource "aws_db_instance" "main" {
   instance_class      = "db.t4g.medium"
   storage_type        = "gp3"
   # 시드 스냅샷이 암호화되어 있어 복원본도 암호화된다. 지정하지 않으면 매 apply마다 교체된다.
-  storage_encrypted       = true
-  multi_az                = false
-  password                = var.master_password
-  db_subnet_group_name    = aws_db_subnet_group.main.name
-  vpc_security_group_ids  = [aws_security_group.mysql.id]
-  parameter_group_name    = "default.mysql8.4"
-  publicly_accessible     = false
-  apply_immediately       = true
-  backup_retention_period = 0
-  deletion_protection     = false
-  skip_final_snapshot     = true
+  storage_encrypted      = true
+  multi_az               = false
+  password               = var.master_password
+  db_subnet_group_name   = aws_db_subnet_group.main.name
+  vpc_security_group_ids = [aws_security_group.mysql.id]
+  parameter_group_name   = "default.mysql8.4"
+  publicly_accessible    = false
+  apply_immediately      = true
+  # S3b 단계 3: 실수로 지워도 되살릴 수 있게 한다. 자동 백업 1일(특정 시점 복원), 삭제 보호, 삭제 시 최종 스냅샷.
+  backup_retention_period   = 1
+  deletion_protection       = true
+  skip_final_snapshot       = false
+  final_snapshot_identifier = "${var.name}-mysql-final"
+
+  # 특정 시점 복원으로 다시 만든 인스턴스를 import하면 snapshot_identifier가 비어 교체로 보인다.
+  lifecycle {
+    ignore_changes = [snapshot_identifier]
+  }
 }
 
 resource "aws_elasticache_serverless_cache" "main" {

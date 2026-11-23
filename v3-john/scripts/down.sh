@@ -18,5 +18,15 @@ if aws eks update-kubeconfig --region "$REGION" --name "$CLUSTER" >/dev/null 2>&
   until [ -z "$(kubectl get pv -o name)" ]; do sleep 10; done
   while aws elbv2 describe-load-balancers --region "$REGION" --names "$CLUSTER" >/dev/null 2>&1; do sleep 10; done
 fi
+# RDS 삭제 보호를 풀고, 이전 최종 스냅샷이 있으면 지운다(destroy가 같은 이름으로 새 최종 스냅샷을 만든다).
+DB="$CLUSTER-mysql"
+if aws rds describe-db-instances --region "$REGION" --db-instance-identifier "$DB" >/dev/null 2>&1; then
+  aws rds modify-db-instance --region "$REGION" --db-instance-identifier "$DB" --no-deletion-protection --apply-immediately >/dev/null
+  until [ "$(aws rds describe-db-instances --region "$REGION" --db-instance-identifier "$DB" --query 'DBInstances[0].DeletionProtection' --output text)" = False ]; do sleep 5; done
+fi
+if aws rds describe-db-snapshots --region "$REGION" --db-snapshot-identifier "$DB-final" >/dev/null 2>&1; then
+  aws rds delete-db-snapshot --region "$REGION" --db-snapshot-identifier "$DB-final" >/dev/null
+  aws rds wait db-snapshot-deleted --region "$REGION" --db-snapshot-identifier "$DB-final"
+fi
 tf destroy -input=false -auto-approve -var "seed_snapshot_identifier=$SNAPSHOT" -var enable_edge=false
 echo "삭제 완료: $CLUSTER"
