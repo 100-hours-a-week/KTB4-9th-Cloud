@@ -6,5 +6,5 @@ metadata:
   name: {{ $name }}
 value: {{ $value }}
 globalDefault: false
-preemptionPolicy: Never
+preemptionPolicy: {{ if has $name ($.Values.preemptingClasses | default list) }}PreemptLowerPriority{{ else }}Never{{ end }}
 {{- end }}

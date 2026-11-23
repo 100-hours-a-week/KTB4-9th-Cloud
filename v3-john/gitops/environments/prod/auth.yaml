@@ -44,3 +44,4 @@ otel: { enabled: true, agent: true, serviceName: cosmos-auth }
 pdb: { minAvailable: 1 }
 spread: true
 jvmOptions: -XX:MaxRAMPercentage=75
+priorityClass: cosmos-core-journey # S2 단계 2
