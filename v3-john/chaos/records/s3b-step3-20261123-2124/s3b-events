@@ -1,0 +1,11 @@
+1795436684 시작 step3 pitr, 표식 응답 200
+1795436866 안전망 스냅샷 cosmos-v3-john-safety-20261123-2124 available
+1795436866 삭제 요청 --skip-final-snapshot --no-delete-automated-backups
+1795436957 삭제 완료
+1795436958 복구 시작(특정 시점 복원 2026-11-23T12:26:46Z)
+1795436958 요청 시각 2026-11-23T12:26:46Z가 복원 가능 끝 2026-11-23T12:24:56+00:00보다 늦어 끝 시각으로 복원
+1795436964 복원 요청(백업 arn:aws:rds:ap-northeast-2:352635536602:auto-backup:ab-edmqh42koy5ptfy632lsljgpwp45v4fzhrgmgjusw6twzlsajv43dlddwwnunurq)
+1795437630 RDS 복원 완료(available)
+1795437646 Terraform 상태 반영(plan 종료 코드 2: 0 변경 없음, 2 변경 있음)
+1795437767 Spring 재시작 완료, 표식 응답 200
+1795437767 끝, 표식 응답 200

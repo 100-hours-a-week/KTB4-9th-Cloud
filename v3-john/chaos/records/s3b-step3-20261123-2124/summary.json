@@ -1,0 +1,8 @@
+{
+ "delete_requested": 1795436866,
+ "first_failure": 1795436876,
+ "service_back": 1795437299,
+ "service_unavailable_seconds": 423,
+ "last_probe": "200",
+ "marker_after_recovery": "200"
+}

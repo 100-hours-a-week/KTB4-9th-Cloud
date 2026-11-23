@@ -9,6 +9,12 @@ s3b_event "복구 시작(특정 시점 복원 $T)"
 arn=$(aws rds describe-db-instance-automated-backups --region "$S3B_REGION" --db-instance-identifier "$S3B_DB" \
   --query 'DBInstanceAutomatedBackups[0].DBInstanceAutomatedBackupsArn' --output text)
 [ -n "$arn" ] && [ "$arn" != None ] || { s3b_event "남은 자동 백업 없음"; exit 1; }
+# 요청 시각이 복원 가능 구간보다 늦으면 구간 끝으로 맞춘다(트랜잭션 로그 업로드가 몇 분 늦다).
+latest=$(aws rds describe-db-instance-automated-backups --region "$S3B_REGION" --db-instance-identifier "$S3B_DB" \
+  --query 'DBInstanceAutomatedBackups[0].RestoreWindow.LatestTime' --output text)
+if [ "$(date -j -u -f %Y-%m-%dT%H:%M:%SZ "$T" +%s)" -gt "$(python3 -c "import sys,datetime;print(int(datetime.datetime.fromisoformat(sys.argv[1]).timestamp()))" "$latest")" ]; then
+  s3b_event "요청 시각 $T가 복원 가능 끝 $latest보다 늦어 끝 시각으로 복원"; T=$(python3 -c "import sys,datetime;print(datetime.datetime.fromisoformat(sys.argv[1]).astimezone(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'))" "$latest")
+fi
 subnet=$(tf state show -no-color module.data.aws_db_subnet_group.main | awk -F'"' '/^ *name +=/{print $2; exit}')
 sg=$(tf output -raw mysql_sg_id 2>/dev/null || tf state show -no-color module.data.aws_security_group.mysql | awk -F'"' '/^ *id +=/{print $2; exit}')
 aws rds restore-db-instance-to-point-in-time --region "$S3B_REGION" \
