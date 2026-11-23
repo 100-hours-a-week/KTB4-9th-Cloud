@@ -91,5 +91,24 @@ class Clean(unittest.TestCase):
         self.assertEqual(out["judge"]["judge_completed"], 83)
         self.assertEqual(out["judge"]["submit_p95_s"], 1.17)
 
+class Impact(unittest.TestCase):
+    def test_slo_hold_ratio_ignores_nan(self):
+        # NaN은 분모에서 빠진다: 목표 이하 2건 / 유효 3건
+        s = series([(0, 0.001), (15, float("nan")), (30, 0.01), (45, 0.002)])
+        self.assertAlmostEqual(ag.slo_hold_ratio(s, T0, T0 + 100), 2 / 3)
+
+    def test_slo_hold_ratio_empty_is_none(self):
+        self.assertIsNone(ag.slo_hold_ratio([], T0, T0 + 100))
+        self.assertIsNone(ag.slo_hold_ratio(series([(0, float("nan"))]), T0, T0 + 100))
+
+    def test_blast_radius_threshold(self):
+        routes = {"journey-core-auth": series([(0, 0.0), (15, 0.06), (30, 0.0)]),
+                  "journey-core-problem": series([(0, 0.01), (15, 0.01)])}
+        self.assertEqual(ag.blast_radius(routes, T0, T0 + 100), ["journey-core-auth"])
+
+    def test_blast_radius_outside_window_ignored(self):
+        routes = {"journey-core-auth": series([(-30, 0.9), (200, 0.9), (15, 0.0)])}
+        self.assertEqual(ag.blast_radius(routes, T0, T0 + 100), [])
+
 if __name__ == "__main__":
     unittest.main()
