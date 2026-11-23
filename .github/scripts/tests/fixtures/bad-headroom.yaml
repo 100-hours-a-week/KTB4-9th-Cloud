@@ -1,0 +1,6 @@
+name: cosmos-core
+image: 352635536602.dkr.ecr.ap-northeast-2.amazonaws.com/cosmos-v2/spring:approved-0123456789abcdef0123456789abcdef01234567
+resources:
+  requests: { cpu: 500m, memory: 448Mi }
+  limits: { cpu: "2", memory: 448Mi }
+jvmOptions: -XX:MaxRAMPercentage=75

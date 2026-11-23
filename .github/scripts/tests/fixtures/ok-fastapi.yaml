@@ -1,0 +1,5 @@
+name: cosmos-ai-llm
+image: 352635536602.dkr.ecr.ap-northeast-2.amazonaws.com/cosmos-v2/fastapi:approved-0123456789abcdef0123456789abcdef01234567
+resources:
+  requests: { cpu: 500m, memory: 512Mi }
+  limits: { cpu: "1", memory: 1Gi }
