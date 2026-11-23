@@ -49,13 +49,8 @@ RDS 쪽 전체 연결은 CloudWatch `DatabaseConnections`(RDS 인스턴스, 1분
    git push -u origin revert/<이름>   # PR 생성 후 병합
    ```
 3. 배포 직후 `sum by (app)` 합이 줄어드는지 본다. 줄지 않으면 다음으로 큰 서비스를 같은 방식으로 확인한다
-4. Git을 바로 고칠 수 없을 때만 임시 조치한다. core, auth, battle은 자동 동기화가 켜져 있어 `argocd app rollback`이 거부되므로 먼저 자동 동기화를 끈다
-   ```bash
-   argocd app set prod-<서비스> --sync-policy none
-   argocd app rollback prod-<서비스> <이력 ID>
-   # 되돌리는 PR을 병합한 뒤 반드시 다시 켠다
-   argocd app set prod-<서비스> --sync-policy automated
-   ```
+
+Argo CD CLI 롤백은 쓰지 않는다. prod 앱은 ApplicationSet이 만들고 동기화 정책도 ApplicationSet이 소유하므로, CLI로 자동 동기화를 끄거나 바꿔도 다음 조정 때 되돌아간다. 완화 경로는 되돌리는 PR 하나뿐이다.
 
 ## 4. 복구 확인
 
