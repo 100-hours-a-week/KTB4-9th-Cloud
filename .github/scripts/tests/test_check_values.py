@@ -79,5 +79,25 @@ class ConnectionBudget(unittest.TestCase):
         r = subprocess.run([sys.executable, SCRIPT, *files], capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
+class MinimumIdle(unittest.TestCase):
+    def test_missing_minimum_idle_fails(self):
+        r = run("bad-minidle-missing.yaml")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("bad-minidle-missing.yaml", r.stdout)
+        self.assertIn("최소 유휴 연결", r.stdout)
+
+    def test_pool40_minimum_idle2_passes(self):
+        r = run("ok-minidle-pool40.yaml")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_minimum_idle_above_half_fails(self):
+        r = run("bad-minidle-high.yaml")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("최소 유휴 연결", r.stdout)
+
+    def test_fastapi_not_checked(self):
+        r = run("ok-fastapi.yaml")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
 if __name__ == "__main__":
     unittest.main()

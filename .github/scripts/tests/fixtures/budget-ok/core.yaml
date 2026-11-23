@@ -2,6 +2,7 @@ name: cosmos-core
 image: 352635536602.dkr.ecr.ap-northeast-2.amazonaws.com/cosmos-v2/spring:approved-0123456789abcdef0123456789abcdef01234567
 env:
   SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "40"
+  SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: "2"
   SPRING_PROFILES_ACTIVE: prod
 resources:
   requests: { cpu: 500m, memory: 1Gi }

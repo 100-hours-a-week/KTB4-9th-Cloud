@@ -9,6 +9,8 @@
 #      넘기면 "연결 예산" 실패 한 줄을 출력한다. 전달된 파일 전체를 한 번에 계산한다.
 #      surge는 rollout이 켜져 있으면 ceil(hpa.max x 0.25), 아니면 rollingUpdate maxSurge(값 파일에 없으면 차트 기본 1)이다.
 #      풀 크기 줄이 없으면 Hikari 기본 10으로 계산한다
+#   5. Spring 이미지면 SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE이 있고 최대 풀의 절반 이하다(S1' 단계 4).
+#      Hikari는 최소 유휴 연결을 정하지 않으면 최대 풀과 같게 잡아 파드마다 연결을 끝까지 쥐고 있다. 풀 기본값은 10이다
 import math, os, re, sys
 
 HEADROOM_MI = 256
@@ -41,6 +43,13 @@ def check(path):
             head = mi(lim.group(1)) * (1 - float(pct.group(1)) / 100)
             if head < HEADROOM_MI:
                 errs.append(f"힙 밖 메모리 {head:.0f}Mi < {HEADROOM_MI}Mi(한도 {lim.group(1)}, MaxRAMPercentage={pct.group(1)})")
+        idle = re.search(r"^\s*SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE:\s*\"?(\d+)", s, re.M)
+        pool = re.search(r"^\s*SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE:\s*\"?(\d+)", s, re.M)
+        size = int(pool.group(1)) if pool else HIKARI_DEFAULT_POOL
+        if not idle:
+            errs.append("Spring 이미지인데 SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE이 없어 최소 유휴 연결이 최대 풀과 같아진다")
+        elif int(idle.group(1)) * 2 > size:
+            errs.append(f"최소 유휴 연결 {idle.group(1)}이 최대 풀 {size}의 절반을 넘는다")
     return errs
 
 def connection_budget(paths):
