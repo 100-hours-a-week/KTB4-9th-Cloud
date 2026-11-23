@@ -47,3 +47,22 @@ PY
   [ "$(kubectl get application prod-core -n argocd -o jsonpath='{.status.sync.revision}')" = "$sha" ] || { echo "Argo CD가 $sha로 동기화하지 않았다" >&2; return 1; }
   echo "$(date +%s) Argo CD 동기화 $sha" >> "$RECORD_DIR/s1-events"
 }
+# S1 공통 대기 함수. Deployment와 Argo Rollouts(단계 4) 어느 쪽이 파드를 관리해도 같게 동작하도록 파드의 메모리 한도로 판단한다.
+# s1_pods_state <한도>: 그 한도를 가진 core 파드의 Ready 상태 목록("True False ...")
+s1_pods_state() {
+  kubectl get pods -n prod -l app.kubernetes.io/name=cosmos-core -o json | jq -r --arg m "$1" \
+    '[.items[]|select(.metadata.deletionTimestamp==null)|select(.spec.containers[0].resources.limits.memory==$m)
+      |(.status.conditions[]?|select(.type=="Ready")|.status)]|join(" ")'
+}
+# s1_wait_all <한도> <초>: 살아 있는 core 파드가 모두 그 한도이고 모두 Ready가 될 때까지 기다린다.
+s1_wait_all() {
+  local deadline=$(( $(date +%s) + $2 )) total ok
+  while :; do
+    read -r total ok <<<"$(kubectl get pods -n prod -l app.kubernetes.io/name=cosmos-core -o json | jq -r --arg m "$1" \
+      '[.items[]|select(.metadata.deletionTimestamp==null)] as $p
+       | "\($p|length) \([$p[]|select(.spec.containers[0].resources.limits.memory==$m)|select(any(.status.conditions[]?; .type=="Ready" and .status=="True"))]|length)"')"
+    (( total > 0 && total == ok )) && return 0
+    (( $(date +%s) >= deadline )) && { echo "core 파드 ${ok}/${total}개만 $1 준비" >&2; return 1; }
+    sleep 5
+  done
+}

@@ -5,8 +5,11 @@ set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 R=$S2_REGION
 
-node=$(kubectl get pods -n prod -l app.kubernetes.io/name=cosmos-core --field-selector status.phase=Running \
-  -o jsonpath='{.items[0].spec.nodeName}')
+# S2_NODE로 대상을 고정할 수 있다(core가 여러 노드에 있을 때 실행 전 cordon한 노드와 맞추려고 쓴다). 그 노드에도 core가 있어야 한다.
+node=${S2_NODE:-$(kubectl get pods -n prod -l app.kubernetes.io/name=cosmos-core --field-selector status.phase=Running \
+  -o jsonpath='{.items[0].spec.nodeName}')}
+kubectl get pods -n prod -l app.kubernetes.io/name=cosmos-core --field-selector "status.phase=Running,spec.nodeName=$node" -o name | grep -q . \
+  || { echo "노드 $node에 core 파드가 없다" >&2; exit 1; }
 [ -n "$node" ] || { echo "실행 중인 core 파드가 없다" >&2; exit 1; }
 cls=$(kubectl get node "$node" -o jsonpath='{.metadata.labels.workload-class}/{.metadata.labels.eks\.amazonaws\.com/capacityType}')
 [ "$cls" = "application/SPOT" ] || { echo "core 노드 $node가 application 스팟 노드가 아니다($cls)" >&2; exit 1; }

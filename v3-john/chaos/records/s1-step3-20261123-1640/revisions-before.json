@@ -1,0 +1,16 @@
+{
+ "prod-ai-llm": "fd2bbe12538f08b53f7c6166576f5d96da8f057c",
+ "prod-ai-make-problem": "fd2bbe12538f08b53f7c6166576f5d96da8f057c",
+ "prod-ai-postgres": "fd2bbe12538f08b53f7c6166576f5d96da8f057c",
+ "prod-ai-problem-batch": "285f3df771d5118db24e00226acb605bd3d2144a",
+ "prod-auth": "fd2bbe12538f08b53f7c6166576f5d96da8f057c",
+ "prod-battle": "fd2bbe12538f08b53f7c6166576f5d96da8f057c",
+ "prod-core": "fd2bbe12538f08b53f7c6166576f5d96da8f057c",
+ "prod-judge-api": "fd2bbe12538f08b53f7c6166576f5d96da8f057c",
+ "prod-judge-postgres": "fd2bbe12538f08b53f7c6166576f5d96da8f057c",
+ "prod-judge-redis": "fd2bbe12538f08b53f7c6166576f5d96da8f057c",
+ "prod-judge-worker": "285f3df771d5118db24e00226acb605bd3d2144a",
+ "prod-mlflow": "fd2bbe12538f08b53f7c6166576f5d96da8f057c",
+ "prod-platform": "fd2bbe12538f08b53f7c6166576f5d96da8f057c",
+ "prod-rabbitmq": "fd2bbe12538f08b53f7c6166576f5d96da8f057c"
+}
