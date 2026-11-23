@@ -29,8 +29,8 @@ sum by (pod) (increase(hikaricp_connections_timeout_total{namespace="prod"}[5m])
 최근에 연결 값을 바꾼 PR을 찾는다.
 
 ```bash
-git log --since="3 days ago" --oneline -- v3-john/helm/apps | head -20
-git log -S"maximum-pool-size" --since="3 days ago" --oneline -- v3-john/helm
+git log --since="3 days ago" --oneline -- v3-john/gitops/environments/prod | head -20
+git log -S"SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE" --since="3 days ago" --oneline -- v3-john/gitops/environments/prod
 # 최근 동기화 이력(리비전, 시각)
 kubectl get application prod-core -n argocd -o jsonpath='{range .status.history[-3:]}{.revision} {.deployedAt}{"\n"}{end}'
 ```
@@ -44,10 +44,18 @@ RDS 쪽 전체 연결은 CloudWatch `DatabaseConnections`(RDS 인스턴스, 1분
 1. 2번의 `sum by (app)`에서 가장 큰 서비스를 정한다
 2. 그 서비스의 풀 값을 올린 PR을 되돌리는 PR로 main에 병합한다. Argo CD 자동 동기화가 배포한다
    ```bash
-   git revert <풀 값을 올린 커밋> && git push origin HEAD:revert/<이름>   # PR 생성 후 병합
+   git switch -c revert/<이름> origin/main
+   git revert <풀 값을 올린 커밋>
+   git push -u origin revert/<이름>   # PR 생성 후 병합
    ```
 3. 배포 직후 `sum by (app)` 합이 줄어드는지 본다. 줄지 않으면 다음으로 큰 서비스를 같은 방식으로 확인한다
-4. Git을 바로 고칠 수 없으면 `argocd app rollback prod-<서비스> <이력 ID>`로 임시 조치한다. 자동 동기화가 켜져 있으면 곧 Git 상태로 돌아간다
+4. Git을 바로 고칠 수 없을 때만 임시 조치한다. core, auth, battle은 자동 동기화가 켜져 있어 `argocd app rollback`이 거부되므로 먼저 자동 동기화를 끈다
+   ```bash
+   argocd app set prod-<서비스> --sync-policy none
+   argocd app rollback prod-<서비스> <이력 ID>
+   # 되돌리는 PR을 병합한 뒤 반드시 다시 켠다
+   argocd app set prod-<서비스> --sync-policy automated
+   ```
 
 ## 4. 복구 확인
 
