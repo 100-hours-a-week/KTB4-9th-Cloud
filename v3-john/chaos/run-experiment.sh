@@ -128,8 +128,16 @@ log "정상 상태 확인: 핵심 요청 ${req%.*}, 조회 p95 ${p95}ms"
 if [ -x "$SDIR/pre-inject.sh" ]; then
   INJECTED=1; T_PREP=$(date +%s)
   log "주입 준비 시작(최대 ${PRE_INJECT_MAX}s)"
-  "$SDIR/pre-inject.sh" >>"$LOG" 2>&1 || { log "pre-inject.sh 실패"; ABORTED="pre-inject-failed"; exit 1; }
-  if (( $(date +%s) - T_PREP > PRE_INJECT_MAX )); then log "주입 준비가 ${PRE_INJECT_MAX}s를 넘었다(부하가 먼저 끝난다)"; ABORTED="pre-inject-timeout"; exit 1; fi
+  # 한도를 넘기면 강제로 끊는다. 넘긴 채 기다리면 부하(k6)가 먼저 끝난다.
+  "$SDIR/pre-inject.sh" >>"$LOG" 2>&1 & PREP_PID=$!
+  while kill -0 "$PREP_PID" 2>/dev/null; do
+    if (( $(date +%s) - T_PREP > PRE_INJECT_MAX )); then
+      pkill -P "$PREP_PID" 2>/dev/null || true; kill "$PREP_PID" 2>/dev/null || true
+      log "주입 준비가 ${PRE_INJECT_MAX}s를 넘어 끊었다"; ABORTED="pre-inject-timeout"; exit 1
+    fi
+    sleep 1
+  done
+  wait "$PREP_PID" || { log "pre-inject.sh 실패"; ABORTED="pre-inject-failed"; exit 1; }
   log "주입 준비 완료($(( $(date +%s) - T_PREP ))s)"
   reason=$(guard_check) || { ABORTED=$reason; log "중단 조건 위반(주입 준비 뒤): $reason"; exit 1; }
 fi
