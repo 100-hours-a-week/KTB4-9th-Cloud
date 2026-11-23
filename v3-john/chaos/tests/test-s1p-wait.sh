@@ -7,6 +7,7 @@ cat > "$T/bin/kubectl" <<'K'
 #!/usr/bin/env bash
 case "$*" in
   *metadata.generation*) echo "$FAKE_GEN";; *observedGeneration*) echo "$FAKE_OBS";; *status.phase*) echo "$FAKE_PHASE";;
+  *status.abort*) echo "${FAKE_ABORT:-}";;
 esac
 K
 chmod +x "$T/bin/kubectl"
@@ -21,6 +22,15 @@ check "generation이 병합 전과 같으면 거부" 1 4 4 Healthy 4
 check "관측 전이면 거부" 1 5 4 Healthy 4
 check "Progressing이면 거부" 1 5 5 Progressing 4
 check "병합 전 값 없으면 generation 조건 생략" 0 4 4 Healthy ""
+# s1p_wait_core_settled: Healthy면 0, 카나리 중단(status.abort=true)이면 3, 시간 초과면 1
+settled() { # 이름 기대 gen obs phase abort before
+  FAKE_GEN=$3 FAKE_OBS=$4 FAKE_PHASE=$5 FAKE_ABORT=$6 s1p_wait_core_settled 1 "${7:-}" >/dev/null 2>&1; local rc=$?
+  [ "$rc" = "$2" ] && echo "ok   $1" || { echo "FAIL $1 (rc=$rc)"; fail=1; }
+}
+settled "settled: Healthy면 0" 0 5 5 Healthy "" 4
+settled "settled: 카나리 중단이면 3" 3 5 5 Degraded true 4
+settled "settled: 병합 전 generation의 중단은 무시(시간 초과 1)" 1 4 4 Degraded true 4
+settled "settled: Progressing이 이어지면 1" 1 5 5 Progressing "" 4
 # 병합 편집 함수: 정의가 있고 풀 크기 한 줄만 바꾼다
 if declare -F _s1p_edit_pool >/dev/null && declare -F s1p_merge_pool >/dev/null; then echo "ok   편집 함수 정의됨"; else echo "FAIL 편집 함수 없음"; fail=1; fi
 cp "$DIR/../../gitops/environments/prod/core.yaml" "$T/core.yaml"

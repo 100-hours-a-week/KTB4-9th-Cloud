@@ -4,7 +4,8 @@
 #   예) run-experiment.sh noop smoke --inject-after 3m --recover 2m
 # 시나리오 계약(scenarios/<id>/):
 #   inject.sh  주입하고 바로 끝난다.        stop.sh  원복한다. 여러 번 불려도 안전해야 한다.
-#   scenario.env (선택) INJECT_DURATION=<초>  주입을 유지할 시간. 기본 300초, 최대 600초.
+#   scenario.env (선택) INJECT_DURATION=<초>  주입을 유지할 시간. 기본 300초, 최대 600초. PRE_INJECT_MAX=<초> 주입 준비 한도.
+#   pre-inject.sh (선택) 주입 전제 조건을 만든다. 주입 시간에 넣지 않으며 원복 대상이다.
 #   두 스크립트는 RECORD_DIR(이번 실험 기록 폴더)과 SCENARIO, STEP 환경 변수를 받는다.
 # 끊겨도(Ctrl+C, 오류, 잠자기 후 종료) 주입이 남지 않게 EXIT/INT/TERM에서 stop.sh를 부른다.
 set -euo pipefail
@@ -14,7 +15,7 @@ source "$CHAOS/lib/guard.sh"
 source "$CHAOS/lib/annotate.sh"
 source "$CHAOS/lib/precheck.sh"
 
-usage() { sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 SCENARIO=${1:-}; STEP=${2:-}; shift 2 || usage
 INJECT_AFTER=3m RECOVER=10m VUS=10 INJECT_DURATION_OPT=""
 while [ $# -gt 0 ]; do
@@ -35,7 +36,9 @@ INJECT_DURATION=300; [ -f "$SDIR/scenario.env" ] && source "$SDIR/scenario.env"
 (( INJECT_DURATION <= GUARD_MAX_INJECT_S )) || { echo "주입 유지 시간은 ${GUARD_MAX_INJECT_S}초를 넘을 수 없다" >&2; exit 2; }
 AFTER_S=$(to_sec "$INJECT_AFTER"); RECOVER_S=$(to_sec "$RECOVER")
 (( AFTER_S >= 150 )) || { echo "--inject-after는 정상 상태 확인(2분)과 부하 예열을 위해 150초 이상이어야 한다" >&2; exit 2; }
-K6_S=$(( AFTER_S + INJECT_DURATION + RECOVER_S + 60 ))
+# PRE_INJECT_MAX: 시나리오 주입 준비(pre-inject.sh)의 최대 시간(scenario.env, 기본 0). 준비는 주입 시간에 넣지 않지만 부하는 그동안에도 돈다.
+PRE_INJECT_MAX=${PRE_INJECT_MAX:-0}
+K6_S=$(( AFTER_S + PRE_INJECT_MAX + INJECT_DURATION + RECOVER_S + 60 ))
 
 STAMP=$(date +%Y%m%d-%H%M)
 NAME="$SCENARIO-$STEP-$STAMP"
@@ -119,6 +122,25 @@ ok = req > 0 and not math.isnan(req) and (err / req) < 0.005 and not math.isnan(
 print("ok" if ok else f"요청 {req:.0f}, 5xx {err:.0f}, 조회 p95 {p95}ms")' "${req:-}" "${err:-0}" "${p95:-}")
 if [ "$steady" != "ok" ]; then log "정상 상태가 아니라 주입하지 않는다: $steady"; ABORTED="steady-state"; exit 1; fi
 log "정상 상태 확인: 핵심 요청 ${req%.*}, 조회 p95 ${p95}ms"
+
+# 4b. 주입 준비(선택): 시나리오의 pre-inject.sh. 장애의 전제 조건을 만든다(S1': core 풀 변경 PR 병합과 안정화).
+# 상태를 바꾸므로 원복 대상이지만 주입 시간(INJECT_DURATION)에는 넣지 않는다. 주입 시간은 실제 장애를 일으키는 순간부터 센다.
+if [ -x "$SDIR/pre-inject.sh" ]; then
+  INJECTED=1; T_PREP=$(date +%s)
+  log "주입 준비 시작(최대 ${PRE_INJECT_MAX}s)"
+  # 한도를 넘기면 강제로 끊는다. 넘긴 채 기다리면 부하(k6)가 먼저 끝난다.
+  "$SDIR/pre-inject.sh" >>"$LOG" 2>&1 & PREP_PID=$!
+  while kill -0 "$PREP_PID" 2>/dev/null; do
+    if (( $(date +%s) - T_PREP > PRE_INJECT_MAX )); then
+      pkill -P "$PREP_PID" 2>/dev/null || true; kill "$PREP_PID" 2>/dev/null || true
+      log "주입 준비가 ${PRE_INJECT_MAX}s를 넘어 끊었다"; ABORTED="pre-inject-timeout"; exit 1
+    fi
+    sleep 1
+  done
+  wait "$PREP_PID" || { log "pre-inject.sh 실패"; ABORTED="pre-inject-failed"; exit 1; }
+  log "주입 준비 완료($(( $(date +%s) - T_PREP ))s)"
+  reason=$(guard_check) || { ABORTED=$reason; log "중단 조건 위반(주입 준비 뒤): $reason"; exit 1; }
+fi
 
 # 5. 주입
 annotate "$SCENARIO $STEP 주입 시작" "chaos,$SCENARIO,$STEP" >/dev/null || log "Grafana 주석 실패(계속 진행)"

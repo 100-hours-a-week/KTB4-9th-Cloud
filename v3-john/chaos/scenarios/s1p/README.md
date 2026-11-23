@@ -12,11 +12,18 @@ S1P_POOL=<N> S1P_TRIGGER_DELAY=180 RATE=<r> v3-john/chaos/run-experiment.sh s1p 
 
 ## 흐름
 
+주입 준비(`pre-inject.sh`, 실행기가 주입 시간에 넣지 않는다. 한도 `PRE_INJECT_MAX` 1080초):
+
 1. 원래 풀 크기를 `s1p-original`에, `cosmos:db_connections:sum` 값을 `s1p-db-before`에 기록한다.
 2. 풀 크기를 바꾸는 PR을 만들어 main에 병합하고 Argo CD 동기화를 기다린다. 병합 SHA는 `own-revisions`에 남아 실행기가 외부 배포로 보지 않는다.
-3. core Rollout `cosmos-core`가 Healthy가 될 때까지 최대 600초 기다린다. 카나리 5분 분석을 포함한다.
-4. `S1P_TRIGGER_DELAY`초 뒤 `kubectl rollout restart deployment/cosmos-auth`를 실행하고 반환한다. auth 롤아웃 완료는 기다리지 않는다.
-5. 이벤트 시각은 `s1p-events`에 남는다.
+3. core Rollout `cosmos-core`가 Healthy가 되거나 카나리가 중단될 때까지 최대 600초 기다린다. 카나리 중단(S1' 단계 3의 영향 범위 카나리)은 `s1p-core-canary`에 `aborted`로 남기고 계속한다.
+4. `S1P_TRIGGER_DELAY`초 기다린다.
+
+주입(`inject.sh`, 여기서부터 주입 시간 600초):
+
+5. `kubectl rollout restart deployment/cosmos-auth`를 실행하고 반환한다. auth 롤아웃 완료는 기다리지 않는다.
+
+이벤트 시각은 `s1p-events`에 남는다. 처음 구현은 병합부터 주입 시간을 세서, 카나리 약 5분과 지연 3분을 빼면 auth 재시작 뒤 관찰이 1~2분밖에 남지 않았다(2026-11-24 보정 전 발견).
 
 ## 원복
 

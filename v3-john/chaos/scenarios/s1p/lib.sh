@@ -60,3 +60,21 @@ s1p_wait_core_healthy() {
     sleep 5
   done
 }
+
+# s1p_wait_core_settled <초> [<병합 전 generation>] : 새 스펙을 관측한 Rollout이 Healthy면 0, 카나리가 중단되면(status.abort=true) 3,
+# 시간 안에 둘 다 아니면 1. 영향 범위 카나리(S1' 단계 3)가 배포를 멈추는 것도 실험 결과이므로 실패로 보지 않는다.
+s1p_wait_core_settled() {
+  local deadline=$(( $(date +%s) + $1 )) before=${2:-} gen obs phase abort
+  while :; do
+    gen=$(kubectl get rollout cosmos-core -n prod -o jsonpath='{.metadata.generation}' 2>/dev/null || true)
+    obs=$(kubectl get rollout cosmos-core -n prod -o jsonpath='{.status.observedGeneration}' 2>/dev/null || true)
+    phase=$(kubectl get rollout cosmos-core -n prod -o jsonpath='{.status.phase}' 2>/dev/null || true)
+    abort=$(kubectl get rollout cosmos-core -n prod -o jsonpath='{.status.abort}' 2>/dev/null || true)
+    if [ -n "$gen" ] && [ "$gen" = "$obs" ] && { [ -z "$before" ] || [ "$gen" -gt "$before" ]; }; then
+      [ "$phase" = Healthy ] && return 0
+      [ "$abort" = true ] && return 3
+    fi
+    (( $(date +%s) >= deadline )) && { echo "core Rollout이 ${1}초 안에 Healthy나 중단에 이르지 않았다(generation=$gen 병합 전=$before observed=$obs phase=$phase abort=$abort)" >&2; return 1; }
+    sleep 5
+  done
+}
