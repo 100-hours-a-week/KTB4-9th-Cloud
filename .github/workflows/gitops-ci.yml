@@ -6,6 +6,7 @@ on:
       - "v3/gitops/**"
       - "v3-john/gitops/**"
       - "v3-wade/gitops/**"
+      - ".github/scripts/check-v3-john-values.py"
 
 permissions:
   contents: read
@@ -46,3 +47,9 @@ jobs:
             v3/gitops/environments/prod/*.yaml \
             v3-john/gitops/environments/prod/*.yaml \
             v3-wade/gitops/environments/prod/*.yaml)
+
+      - name: Check v3-john memory settings
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s .github/scripts/tests
+          python3 .github/scripts/check-v3-john-values.py v3-john/gitops/environments/prod/*.yaml
