@@ -69,8 +69,10 @@ for p in docs:
     r = p["spec"].get("retry", {})
     on = r.get("retryOn", {})
     chk(r.get("numRetries") == 2, "numRetries 2", f"numRetries {r.get('numRetries')}")
-    chk(sorted(on.get("triggers", [])) == ["connect-failure", "reset"], "triggers connect-failure, reset", f"triggers {on.get('triggers')}")
-    chk(on.get("httpStatusCodes") == [503], "httpStatusCodes [503]", f"httpStatusCodes {on.get('httpStatusCodes')}")
+    # 요청이 업스트림 앱에 닿기 전에 실패한 경우만 재시도한다(POST 중복 방지). 정확히 이 집합이어야 한다.
+    chk(sorted(on.get("triggers", [])) == ["connect-failure", "refused-stream", "reset-before-request"], "triggers connect-failure, refused-stream, reset-before-request", f"triggers {on.get('triggers')}")
+    chk("reset" not in on.get("triggers", []), "reset 트리거 없음(처리 중 끊김은 재시도하지 않는다)", "reset 트리거가 있다")
+    chk("httpStatusCodes" not in on and not ({"5xx", "gateway-error", "retriable-status-codes"} & set(on.get("triggers", []))), "503 등 상태 코드 재시도 없음", f"상태 코드 재시도가 있다: {on}")
     chk(r.get("perRetry", {}).get("timeout") == "2s", "perRetry timeout 2s", "perRetry timeout")
 
 chk(set(targets) == WANT and len(targets) == len(WANT), f"대상 목록이 정확히 {sorted(WANT)}", f"대상 목록 {sorted(targets)}")
