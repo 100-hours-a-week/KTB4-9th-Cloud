@@ -402,8 +402,8 @@ additionalPrometheusRulesMap:
       - name: cosmos-round2-s1p-step1
         rules:
           - alert: RdsConnectionBudgetHigh
-            # 300은 RDS max_connections 실측값을 넣기 전의 자리 표시 값이다. Task 4에서 잰 값으로 바꾼다.
-            expr: cosmos:db_connections:sum / 300 > 0.8
+            # 303은 RDS max_connections 실측값이다(2026-11-24 SHOW VARIABLES). CI 검사 RDS_MAX_CONNECTIONS, core connectionGuard rdsMax와 같아야 한다.
+            expr: cosmos:db_connections:sum / 303 > 0.8
             for: 1m
             labels: { severity: warning, sev: SEV2, namespace: prod }
             annotations:

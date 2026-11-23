@@ -41,7 +41,7 @@ tests:
           - exp_labels: { route: journey-core-auth, journey: core, severity: warning, sev: SEV2, namespace: prod }
             exp_annotations:
               summary: "journey-core-auth 오류율 10%, 타임아웃과 연결 실패 포함"
-  # 파드 두 개의 연결 합 250은 가정 한도 300의 83%, 230은 77%.
+  # 파드 두 개의 연결 합 250은 실측 한도 303의 82.5%, 230은 75.9%.
   - name: RdsConnectionBudgetHigh 250
     interval: 1m
     input_series:
@@ -55,7 +55,7 @@ tests:
         exp_alerts:
           - exp_labels: { severity: warning, sev: SEV2, namespace: prod }
             exp_annotations:
-              summary: "앱 전체 DB 연결 250개, RDS 최대 연결의 83.33%"
+              summary: "앱 전체 DB 연결 250개, RDS 최대 연결의 82.51%"
   - name: RdsConnectionBudgetHigh 230은 울리지 않음
     interval: 1m
     input_series:
