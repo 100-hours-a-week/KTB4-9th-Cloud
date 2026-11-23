@@ -347,37 +347,32 @@ additionalPrometheusRulesMap:
             annotations:
               summary: "Image Updater가 {{ $labels.application }} 이미지 갱신에 실패"
               description: "argocd-image-updater 로그에서 ECR 인증, Git 쓰기 오류를 확인한다."
-  # 2차 실험용 규칙. 업스트림 5xx 밖의 타임아웃과 연결 실패까지 오류로 세는 SLI와 DB 연결 알림이다.
+  # 2차 실험용 규칙. 타임아웃·연결 실패를 한 번만 세고 연결 실패 요청을 분모에 넣는 SLI와 DB 연결 알림이다.
   cosmos-round2:
     groups:
       - name: cosmos-round2.slo
         interval: 30s
         rules:
-          # 1차 오류 기록 규칙에 타임아웃과 연결 실패를 더한다. 라벨 route, journey는 1차와 같다.
-          - record: cosmos:route_errors_all:rate5m
+          # 2026-11-24 시험 경로 실측: Envoy는 요청 제한 시간 초과 504와 연결 실패 503을 이미 upstream_rq_xx 5xx에 올린다.
+          # 그래서 오류는 1차 규칙(5xx + 정상 엔드포인트 없음) 그대로 세고, rq_timeout·cx_connect_fail을 더하지 않는다(두 번 세게 된다).
+          # 대신 연결 실패 요청은 upstream_rq_total에 빠지므로 분모는 응답 코드별 합(upstream_rq_xx 전체)으로 잡는다.
+          - record: cosmos:route_requests_all:rate5m
             expr: |
-              sum by (route, journey) (
-                cosmos:route_errors:rate5m
-                or label_replace(label_replace(label_replace(
-                  sum by (envoy_cluster_name) (rate(envoy_cluster_upstream_rq_timeout{envoy_cluster_name=~"httproute/prod/journey-.+"}[5m])),
-                "route", "$1", "envoy_cluster_name", "httproute/prod/([^/]+)/rule/.*"),
-                "journey", "$1", "envoy_cluster_name", "httproute/prod/journey-([a-z]+).*"),
-                "src", "timeout", "", "")
-                or label_replace(label_replace(label_replace(
-                  sum by (envoy_cluster_name) (rate(envoy_cluster_upstream_cx_connect_fail{envoy_cluster_name=~"httproute/prod/journey-.+"}[5m])),
-                "route", "$1", "envoy_cluster_name", "httproute/prod/([^/]+)/rule/.*"),
-                "journey", "$1", "envoy_cluster_name", "httproute/prod/journey-([a-z]+).*"),
-                "src", "connect_fail", "", "")
-              )
+              sum by (route, journey) (label_replace(label_replace(
+                sum by (envoy_cluster_name) (rate(envoy_cluster_upstream_rq_xx{envoy_cluster_name=~"httproute/prod/journey-.+"}[5m]) or label_replace(rate(envoy_cluster_upstream_cx_none_healthy{envoy_cluster_name=~"httproute/prod/journey-.+"}[5m]), "src", "none_healthy", "", "")),
+              "route", "$1", "envoy_cluster_name", "httproute/prod/([^/]+)/rule/.*"),
+              "journey", "$1", "envoy_cluster_name", "httproute/prod/journey-([a-z]+).*"))
+          - record: cosmos:route_errors_all:rate5m
+            expr: sum by (route, journey) (cosmos:route_errors:rate5m)
           - record: cosmos:journey_error_ratio_all:rate5m
-            expr: sum by (journey) (cosmos:route_errors_all:rate5m) / sum by (journey) (cosmos:route_requests:rate5m)
+            expr: sum by (journey) (cosmos:route_errors_all:rate5m) / sum by (journey) (cosmos:route_requests_all:rate5m)
           - record: cosmos:db_connections:sum
             expr: sum(hikaricp_connections{namespace="prod"})
       - name: cosmos-round2.windows
         interval: 1m
         rules:
           - record: cosmos:journey_error_ratio_all:rate1h
-            expr: sum by (journey) (avg_over_time(cosmos:route_errors_all:rate5m[1h])) / sum by (journey) (avg_over_time(cosmos:route_requests:rate5m[1h]))
+            expr: sum by (journey) (avg_over_time(cosmos:route_errors_all:rate5m[1h])) / sum by (journey) (avg_over_time(cosmos:route_requests_all:rate5m[1h]))
       - name: cosmos-round2.symptoms
         rules:
           # 탐지 시간을 재는 기준 알림이다. CoreErrorBudgetBurnFast와 같은 임계값에 오류 기준만 넓혔다.
@@ -393,7 +388,7 @@ additionalPrometheusRulesMap:
           - alert: ServiceErrorHigh
             expr: |
               cosmos:route_errors_all:rate5m
-              / on (route, journey) cosmos:route_requests:rate5m > 0.05
+              / on (route, journey) cosmos:route_requests_all:rate5m > 0.05
             for: 2m
             labels: { severity: warning, sev: SEV2, namespace: prod }
             annotations:

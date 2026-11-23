@@ -147,7 +147,8 @@ J = 'envoy_cluster_name=~"httproute/prod/journey-.+"'
 LBL = '"journey", "$1", "envoy_cluster_name", "httproute/prod/journey-([a-z]+).*"'
 
 def journey_window(prom, end, window):
-    tot = instant(prom, f'sum by (journey) (label_replace(increase(envoy_cluster_upstream_rq_total{{{J}}}[{window}s]) or increase(envoy_cluster_upstream_cx_none_healthy{{{J}}}[{window}s]), {LBL}))', end, "journey")
+    # 분모는 응답 코드별 합이다. 연결 실패 503은 upstream_rq_total에 빠지기 때문이다(2026-11-24 시험 경로 실측).
+    tot = instant(prom, f'sum by (journey) (label_replace(increase(envoy_cluster_upstream_rq_xx{{{J}}}[{window}s]) or increase(envoy_cluster_upstream_cx_none_healthy{{{J}}}[{window}s]), {LBL}))', end, "journey")
     err = instant(prom, f'sum by (journey) (label_replace(increase(envoy_cluster_upstream_rq_xx{{{J}, envoy_response_code_class="5"}}[{window}s]) or increase(envoy_cluster_upstream_cx_none_healthy{{{J}}}[{window}s]), {LBL}))', end, "journey")
     p95 = instant(prom, f'histogram_quantile(0.95, sum by (journey, le) (label_replace(increase(envoy_cluster_upstream_rq_time_bucket{{{J}}}[{window}s]), {LBL})))', end, "journey")
     read = instant(prom, f'histogram_quantile(0.95, sum by (le) (increase(envoy_cluster_upstream_rq_time_bucket{{envoy_cluster_name=~"httproute/prod/journey-core-(auth|problem)/.+"}}[{window}s])))', end)
@@ -163,22 +164,22 @@ def core_ratio_1m(prom, start, end):
     c = 'envoy_cluster_name=~"httproute/prod/journey-core-.+"'
     none = f"sum(rate(envoy_cluster_upstream_cx_none_healthy{{{c}}}[1m])) or vector(0)"
     expr = (f'(sum(rate(envoy_cluster_upstream_rq_xx{{{c}, envoy_response_code_class="5"}}[1m])) or vector(0)) + ({none})'
-            f' ) / ( (sum(rate(envoy_cluster_upstream_rq_total{{{c}}}[1m])) or vector(0)) + ({none})')
+            f' ) / ( (sum(rate(envoy_cluster_upstream_rq_xx{{{c}}}[1m])) or vector(0)) + ({none})')
     r = rng(prom, "(" + expr + ")", start, end)
     return next(iter(r.values()), [])
 
 def route_ratios_1m(prom, start, end):
-    """route별 1분 창 오류율. 5xx, 업스트림 타임아웃, 연결 실패, 정상 호스트 없음을 오류로 센다(Task 2 규칙과 같은 구성)."""
+    """route별 1분 창 오류율. 5xx와 정상 호스트 없음을 오류로 센다(cosmos:route_errors_all 규칙과 같은 구성).
+    Envoy는 요청 제한 시간 초과 504와 연결 실패 503을 이미 5xx에 올리므로 rq_timeout·cx_connect_fail을 더하면 두 번 센다.
+    분모는 응답 코드별 합이다(연결 실패는 upstream_rq_total에 빠진다). 2026-11-24 시험 경로 실측."""
     r = 'envoy_cluster_name=~"httproute/prod/[^/]+/rule/.*"'
     lbl = '"route", "$1", "envoy_cluster_name", "httproute/prod/([^/]+)/rule/.*"'
     def part(metric, k, extra=""):
         # 같은 route의 여러 지표가 or 로 겹쳐 사라지지 않도록 k 라벨로 구분해 둔다
         return f'sum by (route, k) (label_replace(label_replace(rate({metric}{{{r}{extra}}}[1m]), {lbl}), "k", "{k}", "", ""))'
     none = part("envoy_cluster_upstream_cx_none_healthy", "n")
-    err = " or ".join((part("envoy_cluster_upstream_rq_xx", "5", ', envoy_response_code_class="5"'),
-                       part("envoy_cluster_upstream_rq_timeout", "t"),
-                       part("envoy_cluster_upstream_cx_connect_fail", "c"), none))
-    tot = " or ".join((part("envoy_cluster_upstream_rq_total", "r"), none))
+    err = " or ".join((part("envoy_cluster_upstream_rq_xx", "5", ', envoy_response_code_class="5"'), none))
+    tot = " or ".join((part("envoy_cluster_upstream_rq_xx", "r"), none))
     err_sum, tot_sum = f"sum by (route) ({err})", f"sum by (route) ({tot})"
     res = rng(prom, f"({err_sum}) / ({tot_sum})", start, end)
     return {json.loads(k).get("route", "-"): v for k, v in res.items()}

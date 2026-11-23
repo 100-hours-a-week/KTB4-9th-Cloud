@@ -1,17 +1,28 @@
-# 2차 실험 알림 단위 테스트. 오류 기준을 업스트림 5xx 밖(타임아웃, 연결 실패)까지 넓힌 SLI와 DB 연결 알림을 본다.
+# 2차 실험 알림 단위 테스트. 타임아웃·연결 실패를 한 번만 세고 연결 실패 요청을 분모에 넣는 SLI와 DB 연결 알림을 본다.
 rule_files: [cosmos-rules.yaml]
 evaluation_interval: 30s
 tests:
-  # 업스트림 5xx는 0이고 타임아웃만 요청의 30%. 1차 알림은 보지 못하고 확장 알림만 울려야 한다.
-  - name: CoreBurnFastAll 타임아웃만 있는 경우
+  # 2026-11-24 실측(시험 경로, 각 20건): Envoy는 라우터가 만든 504(요청 제한 시간 초과)를 upstream_rq_xx 5xx와
+  # upstream_rq_timeout에 함께 올리고, 연결 실패 503은 upstream_rq_xx 5xx와 upstream_cx_connect_fail에 올리되
+  # upstream_rq_total에는 올리지 않는다. 아래 입력은 그 모양을 그대로 따른다.
+  # 타임아웃이 요청의 30%. 오류율은 0.3이어야 한다(두 번 세면 0.6).
+  - name: 타임아웃은 한 번만 센다
     interval: 1m
     input_series:
       - series: 'envoy_cluster_upstream_rq_total{envoy_cluster_name="httproute/prod/journey-core-auth/rule/0"}'
         values: '0+600x20'
+      - series: 'envoy_cluster_upstream_rq_xx{envoy_cluster_name="httproute/prod/journey-core-auth/rule/0", envoy_response_code_class="2"}'
+        values: '0+420x20'
       - series: 'envoy_cluster_upstream_rq_xx{envoy_cluster_name="httproute/prod/journey-core-auth/rule/0", envoy_response_code_class="5"}'
-        values: '0x20'
+        values: '0+180x20'
       - series: 'envoy_cluster_upstream_rq_timeout{envoy_cluster_name="httproute/prod/journey-core-auth/rule/0"}'
         values: '0+180x20'
+    promql_expr_test:
+      - expr: cosmos:journey_error_ratio_all:rate5m
+        eval_time: 10m
+        exp_samples:
+          - labels: 'cosmos:journey_error_ratio_all:rate5m{journey="core"}'
+            value: 0.3
     alert_rule_test:
       - eval_time: 4m
         alertname: CoreBurnFastAll
@@ -19,18 +30,42 @@ tests:
           - exp_labels: { journey: core, severity: critical, sev: SEV1, namespace: prod }
             exp_annotations:
               summary: "핵심 기능 오류율이 에러 예산을 14.4배 넘는 속도로 소진 중 (타임아웃과 연결 실패 포함)"
-      - eval_time: 4m
-        alertname: CoreErrorBudgetBurnFast
-        exp_alerts: []
+  # 연결 실패가 응답의 30%. upstream_rq_total(420)에는 빠지므로 분모는 응답 코드 합(600)이어야 한다(1차 분모면 180/420).
+  - name: 연결 실패는 분모에도 넣고 한 번만 센다
+    interval: 1m
+    input_series:
+      - series: 'envoy_cluster_upstream_rq_total{envoy_cluster_name="httproute/prod/journey-core-auth/rule/0"}'
+        values: '0+420x20'
+      - series: 'envoy_cluster_upstream_rq_xx{envoy_cluster_name="httproute/prod/journey-core-auth/rule/0", envoy_response_code_class="2"}'
+        values: '0+420x20'
+      - series: 'envoy_cluster_upstream_rq_xx{envoy_cluster_name="httproute/prod/journey-core-auth/rule/0", envoy_response_code_class="5"}'
+        values: '0+180x20'
+      - series: 'envoy_cluster_upstream_cx_connect_fail{envoy_cluster_name="httproute/prod/journey-core-auth/rule/0"}'
+        values: '0+180x20'
+    promql_expr_test:
+      - expr: cosmos:journey_error_ratio_all:rate5m
+        eval_time: 10m
+        exp_samples:
+          - labels: 'cosmos:journey_error_ratio_all:rate5m{journey="core"}'
+            value: 0.3
+      - expr: cosmos:route_requests_all:rate5m
+        eval_time: 10m
+        exp_samples:
+          - labels: 'cosmos:route_requests_all:rate5m{route="journey-core-auth", journey="core"}'
+            value: 10
   # auth 경로만 오류 10%, problem 경로는 정상. 경로별 알림은 auth만 울린다.
   - name: ServiceErrorHigh auth 경로만
     interval: 1m
     input_series:
       - series: 'envoy_cluster_upstream_rq_total{envoy_cluster_name="httproute/prod/journey-core-auth/rule/0"}'
         values: '0+600x20'
+      - series: 'envoy_cluster_upstream_rq_xx{envoy_cluster_name="httproute/prod/journey-core-auth/rule/0", envoy_response_code_class="2"}'
+        values: '0+540x20'
       - series: 'envoy_cluster_upstream_rq_xx{envoy_cluster_name="httproute/prod/journey-core-auth/rule/0", envoy_response_code_class="5"}'
         values: '0+60x20'
       - series: 'envoy_cluster_upstream_rq_total{envoy_cluster_name="httproute/prod/journey-core-problem/rule/0"}'
+        values: '0+600x20'
+      - series: 'envoy_cluster_upstream_rq_xx{envoy_cluster_name="httproute/prod/journey-core-problem/rule/0", envoy_response_code_class="2"}'
         values: '0+600x20'
       - series: 'envoy_cluster_upstream_rq_xx{envoy_cluster_name="httproute/prod/journey-core-problem/rule/0", envoy_response_code_class="5"}'
         values: '0x20'
