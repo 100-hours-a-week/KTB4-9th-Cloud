@@ -121,6 +121,29 @@ grafana:
       type: loki
       access: proxy
       url: http://loki.monitoring.svc.cluster.local:3100
+      jsonData:
+        derivedFields:
+          - name: TraceID
+            matcherRegex: '(?:trace_id|traceId)[=:\" ]+([0-9a-f]{32})'
+            datasourceUid: tempo-john
+            url: '$${__value.raw}'
+            urlDisplayLabel: View trace
+    # 분산 트레이싱(S1 단계 2). 서비스 호출 지도는 Tempo metrics-generator가 Prometheus에 쓴 지표로 그린다.
+    - name: Tempo John
+      uid: tempo-john
+      type: tempo
+      access: proxy
+      url: http://tempo.monitoring.svc.cluster.local:3200
+      jsonData:
+        httpMethod: GET
+        nodeGraph: { enabled: true }
+        serviceMap: { datasourceUid: prometheus-v2 }
+        tracesToLogsV2:
+          datasourceUid: loki-v2
+          spanStartTimeShift: -5m
+          spanEndTimeShift: 5m
+          filterByTraceID: true
+          filterBySpanID: false
 prometheusOperator:
   resources:
     requests: { cpu: 100m, memory: 128Mi }

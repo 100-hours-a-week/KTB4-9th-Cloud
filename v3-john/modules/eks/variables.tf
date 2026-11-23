@@ -104,3 +104,7 @@ variable "mlflow_bucket_arn" {
   type = string
 }
 
+
+variable "tempo_bucket_arn" {
+  type = string
+}

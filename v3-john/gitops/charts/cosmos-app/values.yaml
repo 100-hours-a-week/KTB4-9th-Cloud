@@ -25,3 +25,12 @@ privileged: false
 rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
 hpa: { enabled: false, min: 1, max: 1, cpu: 70 }
 metrics: { enabled: false, port: management, path: /actuator/prometheus, interval: 30s }
+# 분산 트레이싱(S1 단계 2). agent가 참이면 init 컨테이너가 OTel Java 에이전트를 복사하고 JAVA_TOOL_OPTIONS에 붙인다.
+# BE 이미지에는 에이전트가 없다(2026-11-20 확인). 파이썬 서비스는 SDK가 이미지에 있어 enabled만 켠다.
+otel:
+  enabled: false
+  agent: false
+  serviceName: ""
+  agentImage: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:2.33.1@sha256:383a36e8d63a96435a04f2a32f0bf065f211f9ef0c6e75e9e895f0f7d272659a
+# JAVA_TOOL_OPTIONS에 이어 붙일 JVM 옵션(예: -XX:MaxRAMPercentage=75).
+jvmOptions: ""
