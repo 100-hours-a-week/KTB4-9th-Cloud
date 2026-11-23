@@ -2,6 +2,7 @@
 # k6를 클러스터 안 Job으로 실행하고, 끝나면 요약 JSON을 $OUT/<testid>.json에 둔다.
 #   v3-john/loadtest/k8s/run-k6.sh <testid> <duration> [vus]
 #   예) run-k6.sh baseline-1 10m 10      AI=1 run-k6.sh ai-1 10m 10
+#   RATE=<초당 반복 수>를 주면 열린 부하 모델로 돈다. 예) RATE=20 run-k6.sh open-1 10m
 # 종료 코드: 0 성공, 1 Job 실패(k6 오류), 2 사용법·사전 조건 오류.
 # 전제: prepare.sh로 Secret loadtest/k6-inputs가 있어야 한다.
 set -euo pipefail
@@ -12,6 +13,8 @@ usage() { echo "사용: $0 <testid> <duration(예: 10m)> [vus]" >&2; exit 2; }
 [[ "$TESTID" =~ ^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$ ]] || { echo "testid는 소문자, 숫자, -로 40자 이내" >&2; usage; }
 [[ "$DURATION" =~ ^[0-9]+[smh]$ ]] || usage
 [[ "$VUS" =~ ^[0-9]+$ ]] || usage
+RATE=${RATE:-}
+[[ -z "$RATE" || "$RATE" =~ ^[0-9]+$ ]] || usage
 
 to_sec() { local n=${1%[smh]}; case ${1: -1} in s) echo "$n";; m) echo $((n*60));; h) echo $((n*3600));; esac; }
 DUR_S=$(to_sec "$DURATION")
@@ -35,7 +38,7 @@ kubectl create configmap k6-script -n loadtest --from-file=baseline.js="$DIR/../
 kubectl delete job "k6-$TESTID" -n loadtest --ignore-not-found --wait=true >/dev/null
 
 sed -e "s|__TESTID__|$TESTID|g" -e "s|__BASE__|$BASE|g" -e "s|__VUS__|$VUS|g" \
-    -e "s|__DURATION__|$DURATION|g" -e "s|__AI__|${AI:-0}|g" -e "s|__DEADLINE__|$((DUR_S + 600))|g" \
+    -e "s|__DURATION__|$DURATION|g" -e "s|__AI__|${AI:-0}|g" -e "s|__RATE__|$RATE|g" -e "s|__DEADLINE__|$((DUR_S + 600))|g" \
     "$DIR/job.yaml" | kubectl apply -f - >/dev/null
 echo "k6-$TESTID 시작: $VUS VU, $DURATION, 대상 $BASE"
 

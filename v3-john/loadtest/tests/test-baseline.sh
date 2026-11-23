@@ -20,6 +20,7 @@ ok = m.get("judge_completed", {}).get("count", 0)
 assert ok > 0, f"성공 제출이 집계되지 않음: {ok}"
 assert rej > 0, f"400이 업무 거절로 집계되지 않음: {rej}"
 assert lost > 0, f"500·미완료가 유실로 집계되지 않음: {lost}"
+assert m["vus_max"]["value"] == 2 and "dropped_iterations" not in m, "RATE 없이 VUS=2면 constant-vus로 돌아야 함"
 assert "p(95)" in m["submit_latency"] and "p(95)" in m["read_latency"], "요약 형식이 summary-export와 다름"
 assert "value" in m["http_req_failed"], "rate 지표에 value 키가 없음"
 out = open(f"{w}/stdout.txt").read()
@@ -40,4 +41,15 @@ assert ok > 0, f"평가 성공이 집계되지 않음: {ok}"
 assert failed > 0, f"FAILED·시간 초과가 실패로 집계되지 않음: {failed}"
 assert "p(95)" in m["ai_eval_latency"], "ai_eval_latency 없음"
 print(f"PASS ai succeeded={ok} failed={failed}")
+PY
+# RATE=5: 열린 부하 모델(constant-arrival-rate). 응답 시간과 무관하게 초당 5회 반복이 시작된다.
+k6 run -q -e BASE=http://127.0.0.1:$PORT/api -e TOKENS="$W/tokens.json" -e PROBLEMS="$W/problems.json" \
+  -e RATE=5 -e DURATION=20s -e SUBMIT_RATIO=0 -e THINK=0.1 -e SUMMARY_OUT="$W/rate.json" \
+  "$DIR/../baseline.js" > /dev/null 2> "$W/rate-stderr.txt" || { tail -20 "$W/rate-stderr.txt"; exit 1; }
+python3 - "$W" <<'PY'
+import json, sys
+m = json.load(open(f"{sys.argv[1]}/rate.json"))["metrics"]
+it = m["iterations"]["count"]
+assert 80 <= it <= 120, f"RATE=5, 20초에서 반복 수가 80~120이어야 함: {it}"
+print(f"PASS rate iterations={it}")
 PY

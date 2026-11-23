@@ -1,6 +1,7 @@
 // v3-john SLO 기준선과 장애 주입 실험의 사용자 흐름. 정상 상태 사용자 흐름을 일정 부하로 보낸다.
-// 로컬:    k6 run -e TOKENS=$OUT/tokens.json -e PROBLEMS=$OUT/problems.json [-e VUS=10 -e DURATION=10m] baseline.js
+// 로컬:    k6 run -e TOKENS=$OUT/tokens.json -e PROBLEMS=$OUT/problems.json [-e VUS=10 -e DURATION=10m] [-e RATE=20] baseline.js
 // 클러스터: loadtest/k8s/run-k6.sh <testid> <duration> [vus] (BASE는 Envoy 내부 주소로 넘어온다)
+// RATE(초당 반복 수)를 주면 열린 부하 모델(constant-arrival-rate)로 돈다. 응답이 느려져도 도착 속도가 유지된다. 없으면 VUS 고정.
 // 핵심: 내 정보, 데일리 문제, 문제 상세, 코드 제출(SUBMIT_RATIO, 기본 10%). 주요: 랭킹, 배틀 현황, 알림.
 // AI는 가짜 Gemini 서버가 있을 때만 AI=1로 켠다. 요청 시점에 LLM을 부르는 경로는 자연어 풀이 평가뿐이다
 // (풀이 제출 202 → 평가 작업 조회로 SUCCEEDED/FAILED 확인). 힌트는 저장된 값이라 LLM을 부르지 않는다.
@@ -13,6 +14,7 @@ const BASE = __ENV.BASE || 'https://john.cosmoscode.site/api';
 const SAVED = JSON.parse(open(__ENV.PROBLEMS)); // prepare.sh가 만든 저장 문제 ID
 const VUS = parseInt(__ENV.VUS || '10');
 const DURATION = __ENV.DURATION || '10m';
+const RATE = parseInt(__ENV.RATE || '0'); // 0이면 닫힌 모델(constant-vus)
 const SUBMIT_RATIO = parseFloat(__ENV.SUBMIT_RATIO || '0.1');
 const THINK = parseFloat(__ENV.THINK || '1');
 const AI = __ENV.AI === '1';
@@ -32,7 +34,10 @@ const aiRejected = new Counter('ai_rejected');            // 제출 4xx(제출 �
 
 export const options = {
   scenarios: {
-    steady: { executor: 'constant-vus', vus: VUS, duration: DURATION },
+    steady: RATE > 0
+      ? { executor: 'constant-arrival-rate', rate: RATE, timeUnit: '1s', duration: DURATION,
+          preAllocatedVUs: Math.max(10, RATE * 2), maxVUs: RATE * 20 }
+      : { executor: 'constant-vus', vus: VUS, duration: DURATION },
   },
   summaryTrendStats: ['avg', 'med', 'p(90)', 'p(95)', 'p(99)', 'max'],
 };

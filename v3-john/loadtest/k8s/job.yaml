@@ -39,6 +39,8 @@ spec:
             - -e
             - AI=__AI__
             - -e
+            - RATE=__RATE__
+            - -e
             - TOKENS=/inputs/tokens.json
             - -e
             - PROBLEMS=/inputs/problems.json
