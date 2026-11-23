@@ -31,7 +31,7 @@
 
 쿼터는 다음과 같다. 새 노드 그룹은 온디맨드이므로 Spot vCPU 가드(실험 중단 기준 28, 한도 32)에 세지 않고 온디맨드 표준 vCPU 한도 128에서 2 vCPU를 쓴다. 기존 온디맨드 노드 vCPU 합은 단계 실험 전에 확인해 채운다.
 
-노드 용량은 다음과 같다. t3.large는 2 vCPU, 8GiB다. 요청 합산과 이동 범위는 구현 보고서에 적었고, Prometheus, Alertmanager, kube-state-metrics, Grafana, Tempo, Loki를 옮기며 요청 합은 CPU 1,250m, 메모리 4,736Mi다. 실제 할당 가능 용량과 DaemonSet 요청을 뺀 여유는 실험 전에 `kubectl describe node`로 확인해 채운다.
+노드 용량은 다음과 같다. t3.large는 2 vCPU, 8GiB다. 요청 합산과 이동 범위는 구현 보고서에 적었고, Prometheus, Alertmanager, kube-state-metrics, Grafana, Tempo, Loki를 옮기며 요청 합은 CPU 1,150m, 메모리 4,608Mi다. 실제 할당 가능 용량과 DaemonSet 요청을 뺀 여유는 실험 전에 `kubectl describe node`로 확인해 채운다.
 
 ## 검증 기준
 
