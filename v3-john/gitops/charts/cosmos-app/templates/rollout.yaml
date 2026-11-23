@@ -1,0 +1,53 @@
+{{- if .Values.rollout.enabled }}
+# S1 단계 4: 카나리와 자동 롤백. 기존 Deployment를 workloadRef로 참조하고, 새 버전을 절반에 올린 뒤 5분 분석이 실패하면 되돌린다.
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: {{ .Values.name }}
+  labels: {{- include "cosmos.labels" . | nindent 4 }}
+spec:
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels: {{- include "cosmos.selector" . | nindent 6 }}
+  workloadRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.name }}
+    scaleDown: progressively
+  strategy:
+    canary:
+      steps:
+        - setWeight: 50
+        - analysis:
+            templates:
+              - templateName: {{ .Values.name | trimPrefix "cosmos-" }}-health
+        - setWeight: 100
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: {{ .Values.name | trimPrefix "cosmos-" }}-health
+  labels: {{- include "cosmos.labels" . | nindent 4 }}
+spec:
+  metrics:
+    # 핵심 기능 오류율이 빠른 소진 기준(14.4배, 0.072) 아래
+    - name: error-ratio
+      interval: 1m
+      count: 5
+      failureLimit: 0
+      successCondition: len(result) == 0 || result[0] < 0.072
+      provider:
+        prometheus:
+          address: {{ .Values.rollout.prometheus }}
+          query: cosmos:journey_error_ratio:rate5m{journey="core"}
+    # 분석 동안 core 컨테이너 재시작이 없어야 한다(OOMKilled 같은 재시작을 오류율보다 먼저 잡는다)
+    - name: restarts
+      interval: 1m
+      count: 5
+      failureLimit: 0
+      successCondition: result[0] == 0
+      provider:
+        prometheus:
+          address: {{ .Values.rollout.prometheus }}
+          query: sum(increase(kube_pod_container_status_restarts_total{namespace="prod",pod=~"{{ .Values.name }}-.*"}[5m])) or vector(0)
+{{- end }}

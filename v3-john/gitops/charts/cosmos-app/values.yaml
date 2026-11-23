@@ -34,3 +34,11 @@ otel:
   agentImage: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:2.33.1@sha256:383a36e8d63a96435a04f2a32f0bf065f211f9ef0c6e75e9e895f0f7d272659a
 # JAVA_TOOL_OPTIONS에 이어 붙일 JVM 옵션(예: -XX:MaxRAMPercentage=75).
 jvmOptions: ""
+# 이중화(S1 단계 3 = S2 단계 1). minAvailable이 null이면 PDB를 만들지 않는다.
+pdb: { minAvailable: null }
+# 참이면 같은 서비스 파드를 노드에 고르게 나눈다(hostname, maxSkew 1, ScheduleAnyway).
+spread: false
+# 카나리와 자동 롤백(S1 단계 4). 켜면 Argo Rollouts가 Deployment 파드를 넘겨받는다.
+rollout:
+  enabled: false
+  prometheus: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090

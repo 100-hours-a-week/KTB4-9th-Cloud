@@ -1,0 +1,11 @@
+{{- if and (not .Values.cronJob.enabled) (not .Values.job.enabled) (not (kindIs "invalid" .Values.pdb.minAvailable)) }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Values.name }}
+  labels: {{- include "cosmos.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.pdb.minAvailable }}
+  selector:
+    matchLabels: {{- include "cosmos.selector" . | nindent 6 }}
+{{- end }}

@@ -25,6 +25,7 @@ inst aws-load-balancer-controller eks/aws-load-balancer-controller 3.6.2 kube-sy
 inst secrets-provider-aws aws-secrets-manager/secrets-store-csi-driver-provider-aws 3.1.4 kube-system "$V/secrets-store-csi/values.yaml"
 inst cluster-autoscaler autoscaler/cluster-autoscaler 9.60.0 kube-system "$V/cluster-autoscaler/values.yaml"
 inst keda kedacore/keda 2.21.0 keda "$V/keda/values.yaml"
+inst argo-rollouts argo/argo-rollouts 2.43.12 argo-rollouts "$V/argo-rollouts/values.yaml"
 inst envoy-gateway oci://docker.io/envoyproxy/gateway-helm 1.9.3 envoy-gateway-system "$V/envoy-gateway/values.yaml"
 
 kubectl create secret generic discord-webhook -n monitoring --from-literal="url=$(secret_json cosmos/monitoring/discord-webhook)" --dry-run=client -o yaml | kubectl apply -f -

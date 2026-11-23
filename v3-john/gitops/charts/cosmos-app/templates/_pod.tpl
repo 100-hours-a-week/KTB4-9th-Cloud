@@ -17,6 +17,14 @@ nodeSelector:
 tolerations:
   {{- toYaml . | nindent 2 }}
 {{- end }}
+{{- if .Values.spread }}
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels: {{- include "cosmos.selector" . | nindent 8 }}
+{{- end }}
 {{- $agent := and .Values.otel.enabled .Values.otel.agent }}
 {{- if $agent }}
 initContainers:
