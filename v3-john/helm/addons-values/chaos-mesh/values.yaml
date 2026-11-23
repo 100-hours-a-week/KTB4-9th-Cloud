@@ -1,0 +1,29 @@
+# chart: chaos-mesh/chaos-mesh 2.8.8. S3a RDS 연결 차단(NetworkChaos)에만 쓴다. 대시보드, DNS 서버는 끈다.
+images:
+  registry: ghcr.io
+  tag: v2.8.8
+controllerManager:
+  replicaCount: 1
+  image:
+    tag: v2.8.8@sha256:8d0cbda45236a51f8c1b572dd9abce990a086f3267ecd767a55b93ea57eb1595
+  nodeSelector: { workload-class: system }
+  tolerations:
+    - key: CriticalAddonsOnly
+      operator: Exists
+  resources:
+    requests: { cpu: 25m, memory: 128Mi }
+    limits: { cpu: 300m, memory: 256Mi }
+chaosDaemon:
+  image:
+    tag: v2.8.8@sha256:adbc4fb417ff425a449e904de582acaf72a7add0b465ee1e0545f9be94564443
+  runtime: containerd
+  socketPath: /run/containerd/containerd.sock
+  # 대상(auth, core, battle)이 있는 application 노드에만 띄운다.
+  nodeSelector: { workload-class: application }
+  resources:
+    requests: { cpu: 25m, memory: 64Mi }
+    limits: { cpu: 300m, memory: 256Mi }
+dashboard:
+  create: false
+dnsServer:
+  create: false
