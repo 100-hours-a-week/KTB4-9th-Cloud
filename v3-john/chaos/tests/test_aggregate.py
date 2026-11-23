@@ -122,7 +122,7 @@ class Placement(unittest.TestCase):
 
     def test_monitoring_gap_none_is_zero_and_all_missing_is_full_window(self):
         self.assertEqual(ag.monitoring_gap_seconds(series([(0, 1), (15, 1), (30, 1)]), T0, T0 + 30), 0)
-        self.assertEqual(ag.monitoring_gap_seconds([], T0, T0 + 30), 45)
+        self.assertEqual(ag.monitoring_gap_seconds([], T0, T0 + 30), 30)
 
     def test_monitoring_gap_ignores_samples_outside_window(self):
         s = series([(-30, 0), (0, 1), (15, 1), (30, 1), (200, 0)])
