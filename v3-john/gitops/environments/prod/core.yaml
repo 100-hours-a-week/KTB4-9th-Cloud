@@ -41,6 +41,7 @@ probes:
 replicas: null # HPA가 관리
 hpa: { enabled: true, min: 2, max: 3, cpu: 140 } # 요청 500m의 140% = 700m, 이전 기준(1코어의 70%)과 같은 값
 otel: { enabled: true, agent: true, serviceName: cosmos-core }
+rollout: { enabled: true } # S1 단계 4: 카나리 50% → 5분 분석 → 100%
 pdb: { minAvailable: 1 }
 spread: true
 jvmOptions: -XX:MaxRAMPercentage=75

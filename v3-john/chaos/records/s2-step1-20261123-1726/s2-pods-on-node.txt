@@ -1,0 +1,13 @@
+NAMESPACE     NAME                                                              READY   STATUS    RESTARTS   AGE    IP             NODE                                              NOMINATED NODE   READINESS GATES
+kube-system   aws-node-78d2c                                                    2/2     Running   0          151m   10.30.47.128   ip-10-30-47-128.ap-northeast-2.compute.internal   <none>           <none>
+kube-system   ebs-csi-node-2q2c5                                                3/3     Running   0          151m   10.30.39.63    ip-10-30-47-128.ap-northeast-2.compute.internal   <none>           <none>
+kube-system   eks-pod-identity-agent-rkvhz                                      1/1     Running   0          151m   10.30.47.128   ip-10-30-47-128.ap-northeast-2.compute.internal   <none>           <none>
+kube-system   kube-proxy-52kfw                                                  1/1     Running   0          151m   10.30.47.128   ip-10-30-47-128.ap-northeast-2.compute.internal   <none>           <none>
+kube-system   secrets-provider-aws-secrets-store-csi-driver-provider-awstvq86   1/1     Running   0          151m   10.30.37.59    ip-10-30-47-128.ap-northeast-2.compute.internal   <none>           <none>
+kube-system   secrets-store-csi-driver-nltlg                                    3/3     Running   0          151m   10.30.47.158   ip-10-30-47-128.ap-northeast-2.compute.internal   <none>           <none>
+monitoring    alloy-l99jq                                                       2/2     Running   0          151m   10.30.44.180   ip-10-30-47-128.ap-northeast-2.compute.internal   <none>           <none>
+monitoring    kube-prometheus-stack-prometheus-node-exporter-jjnpm              1/1     Running   0          151m   10.30.47.128   ip-10-30-47-128.ap-northeast-2.compute.internal   <none>           <none>
+prod          cosmos-ai-llm-67f697f58d-bx9pg                                    1/1     Running   0          151m   10.30.45.217   ip-10-30-47-128.ap-northeast-2.compute.internal   <none>           <none>
+prod          cosmos-auth-d546c5d7d-jv9sn                                       1/1     Running   0          51m    10.30.32.240   ip-10-30-47-128.ap-northeast-2.compute.internal   <none>           <none>
+prod          cosmos-battle-7968f9b4b-nks24                                     1/1     Running   0          50m    10.30.37.86    ip-10-30-47-128.ap-northeast-2.compute.internal   <none>           <none>
+prod          cosmos-core-55d966c9c5-cw8xz                                      1/1     Running   0          50m    10.30.32.60    ip-10-30-47-128.ap-northeast-2.compute.internal   <none>           <none>

@@ -8,6 +8,7 @@ on=$(helm template t "$C" -n prod -f "$P/core.yaml" --set rollout.enabled=true 2
 ro=$(kind Rollout <<<"$on")
 grep -A4 'workloadRef' <<<"$ro" | grep -q 'kind: Deployment' && grep -A4 'workloadRef' <<<"$ro" | grep -q 'name: cosmos-core' && ok "Rollout workloadRef → Deployment" || no "workloadRef"
 grep -q 'scaleDown: progressively' <<<"$ro" && ok "scaleDown progressively" || no "scaleDown"
+grep -q 'progressDeadlineSeconds: 300' <<<"$ro" && grep -q 'progressDeadlineAbort: true' <<<"$ro" && ok "준비 못 하는 카나리는 300초 뒤 자동 중단" || no "progressDeadline"
 steps=$(grep -E 'setWeight|templateName' <<<"$ro" | tr -d ' -' | tr '\n' ' ')
 [ "$steps" = "setWeight:50 templateName:corehealth setWeight:100 " ] && ok "단계 50 → 분석 → 100" || no "단계 [$steps]"
 at=$(kind AnalysisTemplate <<<"$on")

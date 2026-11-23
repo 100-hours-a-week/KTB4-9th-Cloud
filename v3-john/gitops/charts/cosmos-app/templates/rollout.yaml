@@ -7,6 +7,9 @@ metadata:
   labels: {{- include "cosmos.labels" . | nindent 4 }}
 spec:
   revisionHistoryLimit: 5
+  # 카나리 파드가 준비조차 못 하면 분석 단계에 닿지 못한다. 300초 안에 진행하지 못하면 자동으로 중단하고 안정 버전으로 되돌린다.
+  progressDeadlineSeconds: 300
+  progressDeadlineAbort: true
   selector:
     matchLabels: {{- include "cosmos.selector" . | nindent 6 }}
   workloadRef:
