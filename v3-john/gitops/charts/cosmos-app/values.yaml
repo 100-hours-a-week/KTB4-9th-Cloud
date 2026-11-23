@@ -18,6 +18,12 @@ priorityClass: cosmos-api
 nodeSelector: { workload-class: application }
 tolerations: []
 terminationGracePeriodSeconds: 60
+# S2' 단계 1: 종료 정리. 0보다 크면 주 컨테이너에 preStop sleep을 넣어, 파드가 엔드포인트에서 빠진 뒤에 SIGTERM을 받게 한다.
+# 이미지에 sh가 있어야 한다(distroless 이미지는 불가).
+preStopSleepSeconds: 0
+# 앱의 종료 단계 제한(Spring이면 SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE와 같은 초 단위 값). 렌더링 검사에만 쓰며 파드에는 반영되지 않는다.
+# preStop이 켜져 있을 때 terminationGracePeriodSeconds가 preStopSleepSeconds + shutdownPhaseSeconds보다 크지 않으면 렌더링을 실패시킨다.
+shutdownPhaseSeconds: 0
 stateful: { enabled: false, storage: 30Gi, mountPath: "", storageClass: gp3-retain }
 cronJob: { enabled: false, schedule: "", suspend: true, activeDeadlineSeconds: 5400 }
 job: { enabled: false }

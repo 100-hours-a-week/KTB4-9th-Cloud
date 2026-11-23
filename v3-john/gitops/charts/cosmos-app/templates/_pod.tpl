@@ -8,6 +8,11 @@ app.kubernetes.io/instance: {{ .Release.Namespace }}-{{ .Values.name }}
 app.kubernetes.io/name: {{ .Values.name }}
 {{- end -}}
 {{- define "cosmos.podSpec" -}}
+{{- if gt (int .Values.preStopSleepSeconds) 0 }}
+{{- if le (int .Values.terminationGracePeriodSeconds) (add (int .Values.preStopSleepSeconds) (int .Values.shutdownPhaseSeconds)) }}
+{{- fail (printf "terminationGracePeriodSeconds는 preStopSleepSeconds와 shutdownPhaseSeconds의 합보다 커야 한다(종료 유예 %v초, preStop %v초, 종료 단계 %v초)" .Values.terminationGracePeriodSeconds .Values.preStopSleepSeconds .Values.shutdownPhaseSeconds) }}
+{{- end }}
+{{- end }}
 serviceAccountName: {{ .Values.serviceAccount }}
 automountServiceAccountToken: false
 priorityClassName: {{ .Values.priorityClass }}
@@ -84,6 +89,12 @@ containers:
       {{- end }}
     {{- with .Values.probes }}
     {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- if gt (int .Values.preStopSleepSeconds) 0 }}
+    lifecycle:
+      preStop:
+        exec:
+          command: ["sh", "-c", "sleep {{ int .Values.preStopSleepSeconds }}"]
     {{- end }}
     resources:
       {{- toYaml .Values.resources | nindent 6 }}

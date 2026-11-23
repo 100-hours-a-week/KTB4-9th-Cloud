@@ -7,6 +7,9 @@ service: { name: battle-service }
 extraPorts: [{ name: management, port: 9091 }]
 metrics: { enabled: true }
 env:
+  # S2' 단계 1: 종료 시 새 요청을 거절하고 진행 중 요청을 마친다(최대 20초). preStop 10초 + 20초 < 종료 유예 60초.
+  SERVER_SHUTDOWN: graceful
+  SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE: 20s
   SPRING_PROFILES_ACTIVE: stage
   SPRING_CONFIG_IMPORT: optional:configtree:/mnt/secrets/
   SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "10"
@@ -49,3 +52,6 @@ otel: { enabled: true, agent: true, serviceName: cosmos-battle }
 pdb: { minAvailable: 1 }
 spread: true
 jvmOptions: -XX:MaxRAMPercentage=75
+# S2' 단계 1: 엔드포인트에서 빠질 시간을 주고 SIGTERM을 보낸다. 이미지 베이스가 distroless면 sh가 없어 preStop이 실패하므로 확인이 필요하다(저장소에 Dockerfile이 없어 미확인).
+preStopSleepSeconds: 10
+shutdownPhaseSeconds: 20
