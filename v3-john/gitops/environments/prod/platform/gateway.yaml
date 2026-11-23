@@ -172,3 +172,30 @@ spec:
     - { group: gateway.networking.k8s.io, kind: HTTPRoute, name: journey-core-submit }
   circuitBreaker:
     maxParallelRequests: 8
+---
+# S2' 단계 2: 조회 위주 경로 4개에만 게이트웨이 재시도를 건다. 제출(journey-core-submit)과 AI(journey-ai)는 중복 채점과
+# 중복 호출 위험이 있어 제외한다. 재시도 조건은 연결 실패, 연결 리셋, 503으로 한정한다.
+# 주의: BackendTrafficPolicy의 재시도는 메서드로 제한할 수 없고, 위 라우트에는 메서드 매치가 없어 POST도 같은 정책을 받는다.
+# 대상 경로가 GET만 받는지는 백엔드 소스로 확인해야 한다(chaos/decisions/s2p-step2.md 위험 항목).
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: retry-read-routes
+  namespace: prod
+spec:
+  targetRefs:
+    - { group: gateway.networking.k8s.io, kind: HTTPRoute, name: journey-core-auth }
+    - { group: gateway.networking.k8s.io, kind: HTTPRoute, name: journey-core-problem }
+    - { group: gateway.networking.k8s.io, kind: HTTPRoute, name: journey-major-battle }
+    - { group: gateway.networking.k8s.io, kind: HTTPRoute, name: journey-major-core }
+  retry:
+    numRetries: 2
+    retryOn:
+      triggers: [connect-failure, reset]
+      httpStatusCodes: [503]
+    perRetry:
+      timeout: 2s
+      # 재시도가 한꺼번에 몰려 폭주하지 않도록 간격을 둔다.
+      backOff:
+        baseInterval: 100ms
+        maxInterval: 1s
