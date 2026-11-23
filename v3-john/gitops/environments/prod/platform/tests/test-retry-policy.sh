@@ -10,10 +10,11 @@ VER=${EG_VERSION:-1.9.3}
 CRD=${CRD_FILE:-}
 if [ -z "$CRD" ]; then
   CRD=$(mktemp -t eg-crds.XXXXXX)
+  trap 'rm -f "$CRD"' EXIT
   helm show crds oci://docker.io/envoyproxy/gateway-helm --version "$VER" >"$CRD" 2>/dev/null \
     || { echo "FAIL CRD 내려받기(helm show crds) 실패"; exit 1; }
 fi
-exec python3 -I - "$GW" "$CRD" <<'PY'
+python3 -I - "$GW" "$CRD" <<'PY'
 import sys
 try:
     import yaml, jsonschema
@@ -73,7 +74,10 @@ for p in docs:
     chk(sorted(on.get("triggers", [])) == ["connect-failure", "refused-stream", "reset-before-request"], "triggers connect-failure, refused-stream, reset-before-request", f"triggers {on.get('triggers')}")
     chk("reset" not in on.get("triggers", []), "reset 트리거 없음(처리 중 끊김은 재시도하지 않는다)", "reset 트리거가 있다")
     chk("httpStatusCodes" not in on and not ({"5xx", "gateway-error", "retriable-status-codes"} & set(on.get("triggers", []))), "503 등 상태 코드 재시도 없음", f"상태 코드 재시도가 있다: {on}")
-    chk(r.get("perRetry", {}).get("timeout") == "2s", "perRetry timeout 2s", "perRetry timeout")
+    # 재시도별 제한 시간은 첫 시도에도 적용된다. 시간 초과는 재시도 트리거가 아니라 504로 끝나 느린 쓰기 요청을 끊으므로 두지 않는다.
+    pr = r.get("perRetry", {})
+    chk("timeout" not in pr, "perRetry timeout 없음", f"perRetry timeout이 있다: {pr.get('timeout')}")
+    chk(pr.get("backOff") == {"baseInterval": "100ms", "maxInterval": "1s"}, "backOff 100ms/1s", f"backOff {pr.get('backOff')}")
 
 chk(set(targets) == WANT and len(targets) == len(WANT), f"대상 목록이 정확히 {sorted(WANT)}", f"대상 목록 {sorted(targets)}")
 bad = FORBID & set(targets)
