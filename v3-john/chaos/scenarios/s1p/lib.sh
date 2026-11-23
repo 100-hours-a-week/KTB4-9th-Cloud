@@ -42,6 +42,8 @@ s1p_merge_edit() {
   echo "$(date +%s) Argo CD 동기화 $sha" >> "$RECORD_DIR/s1p-events"
 }
 
+_s1p_edit_pool() { python3 "$S1P_DIR/set_pool.py" "$2" "$1"; }  # <n> <값 파일>
+
 # s1p_merge_pool <n> <커밋 메시지> : core 풀 크기만 바꿔 병합한다.
 s1p_merge_pool() { s1p_merge_edit "$2" _s1p_edit_pool "$1"; }
 
