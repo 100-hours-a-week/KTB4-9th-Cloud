@@ -23,6 +23,8 @@
 | 전체 탐지 시간 | {detection_all} |
 | 영향 범위 | {blast} |
 | 핵심 SLO 유지율 | {slo_hold} |
+| 관측 공백 | {monitoring_gap} |
+| 노드당 최대 레플리카 | {placement_skew} |
 | 예산 소진량(핵심) | {budget} |
 | 조회 p95 | {read_p95} |
 | 채점 처리 p95 | {submit_p95} |

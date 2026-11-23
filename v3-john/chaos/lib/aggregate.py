@@ -64,6 +64,30 @@ def first_alert(alerts, inject_t, names, step=STEP):
                     break
     return None if best is None else (best[0], int(best[1] - inject_t))
 
+def monitoring_gap_seconds(samples, start_t, end_t, step=STEP):
+    """판정 구간 안에서 Prometheus 자기 up 표본이 없거나 0인 구간의 길이(초).
+    start_t부터 step 간격 격자마다 표본이 없거나 NaN이거나 0이면 한 칸(step초)으로 센다."""
+    by_idx = {}
+    for t, v in samples:
+        if start_t <= t <= end_t:
+            by_idx[int(round((t - start_t) / step))] = v
+    n = int((end_t - start_t) // step) + 1
+    bad = sum(1 for i in range(n) if not _finite(by_idx.get(i)) or by_idx[i] == 0)
+    return bad * step
+
+PLACEMENT_SERVICES = ("auth", "core", "battle", "judge-api")
+
+def placement_skew(pods):
+    """서비스별 같은 노드의 최대 레플리카 수. pods: (파드 이름, 노드 이름) 목록.
+    파드 이름이 cosmos-<서비스>-로 시작하는 것만 센다. 대상 서비스가 하나도 없으면 0."""
+    per = {s: {} for s in PLACEMENT_SERVICES}
+    for pod, node in pods:
+        for svc in PLACEMENT_SERVICES:
+            if pod.startswith(f"cosmos-{svc}-"):
+                per[svc][node] = per[svc].get(node, 0) + 1
+                break
+    return {s: max(c.values(), default=0) for s, c in per.items()}
+
 def budget_percent(fail_ratio, minutes, slo, period_min=PERIOD_MIN):
     """설계서 6.2: (실패 비율 × 지속 시간) ÷ 4주 허용 실패 시간, 백분율."""
     allowed = period_min * (1 - slo)
@@ -175,6 +199,18 @@ def k6_window(prom, testid, end, window):
         "submit_rejected": q(f'sum(increase(k6_submit_rejected_total{{testid="{testid}"}}[{window}s]))') or 0,
     }
 
+def monitoring_up_1m(prom, start, end):
+    """Prometheus 자기 up 시계열. 운영자 잡은 빼고, 여러 시계열이면 가장 큰 값으로 합쳐 하나라도 살아 있으면 1로 본다."""
+    r = rng(prom, 'max(up{job=~".*prometheus.*", job!~".*operator.*"})', start, end)
+    return next(iter(r.values()), [])
+
+def placement_pods(prom, end):
+    """실험 끝 시각의 prod 실행 중 파드와 노드(kube-state-metrics kube_pod_info 기준)."""
+    expr = ('kube_pod_info{namespace="prod", pod=~"cosmos-(auth|core|battle|judge-api)-.*"}'
+            ' * on(namespace, pod) group_left() (kube_pod_status_phase{namespace="prod", phase="Running"} == 1)')
+    res = _get(prom, "/api/v1/query", {"query": expr, "time": end})
+    return [(x["metric"].get("pod", ""), x["metric"].get("node", "")) for x in res]
+
 def main():
     ap = argparse.ArgumentParser()
     for a in ("prom", "testid", "rev_before", "rev_after", "aborted", "scenario", "step", "own_revisions"):
@@ -205,6 +241,8 @@ def main():
         "detection_all": {"alert": det_all[0], "seconds": det_all[1]} if det_all else None,
         "core_slo_hold": slo_hold_ratio(rec_series, a.inject, a.end, 1 - CORE_SLO),
         "blast_radius": blast_radius(routes, a.inject, a.end),
+        "monitoring_gap_seconds": monitoring_gap_seconds(monitoring_up_1m(a.prom, a.inject, a.end), a.inject, a.end),
+        "placement_skew": placement_skew(placement_pods(a.prom, a.end)),
         "journeys": journeys,
         "read_p95_ms": read_p95,
         "budget_percent_core": budget_percent(fr, window / 60, CORE_SLO),

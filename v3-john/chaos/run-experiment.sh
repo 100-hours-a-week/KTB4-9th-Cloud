@@ -86,6 +86,10 @@ running=$(aws fis list-experiments --region ap-northeast-2 \
   --query "length(experiments[?state.status=='running' || state.status=='initiating'])" --output text) \
   || { log "FIS 실험 목록을 확인할 수 없다(AWS 인증 확인)"; exit 1; }
 (( running == 0 )) || { log "실행 중인 FIS 실험 ${running}개. 먼저 멈춘다."; exit 1; }
+# 이전 stage.sh가 중단돼 cordon이 남으면 노드 한 대가 비어 있는 채로 실험하게 된다.
+cordoned=$(kubectl get nodes -l workload-class=application -o jsonpath='{range .items[?(@.spec.unschedulable==true)]}{.metadata.name}{" "}{end}' 2>/dev/null) \
+  || { log "application 노드 상태를 확인할 수 없다"; exit 1; }
+[ -z "${cordoned// /}" ] || { log "cordon된 application 노드가 있다: ${cordoned}. kubectl uncordon 후 다시 실행한다."; exit 1; }
 
 # 2. 배포 리비전 기록
 revisions() { kubectl get applications.argoproj.io -n argocd -o json | python3 -c '

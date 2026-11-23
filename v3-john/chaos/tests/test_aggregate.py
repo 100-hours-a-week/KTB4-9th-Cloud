@@ -110,5 +110,34 @@ class Impact(unittest.TestCase):
         routes = {"journey-core-auth": series([(-30, 0.9), (200, 0.9), (15, 0.0)])}
         self.assertEqual(ag.blast_radius(routes, T0, T0 + 100), [])
 
+class Placement(unittest.TestCase):
+    NAN = float("nan")
+
+    def test_monitoring_gap_counts_empty_and_zero_samples(self):
+        # 15초 간격 표본 [1, 1, 빈, 빈, 1]: 빈 표본 2개 = 30초
+        s = series([(0, 1), (15, 1), (60, 1)])  # 30, 45초 표본은 아예 없다
+        self.assertEqual(ag.monitoring_gap_seconds(s, T0, T0 + 60), 30)
+        s = series([(0, 1), (15, 1), (30, self.NAN), (45, 0), (60, 1)])
+        self.assertEqual(ag.monitoring_gap_seconds(s, T0, T0 + 60), 30)
+
+    def test_monitoring_gap_none_is_zero_and_all_missing_is_full_window(self):
+        self.assertEqual(ag.monitoring_gap_seconds(series([(0, 1), (15, 1), (30, 1)]), T0, T0 + 30), 0)
+        self.assertEqual(ag.monitoring_gap_seconds([], T0, T0 + 30), 45)
+
+    def test_monitoring_gap_ignores_samples_outside_window(self):
+        s = series([(-30, 0), (0, 1), (15, 1), (30, 1), (200, 0)])
+        self.assertEqual(ag.monitoring_gap_seconds(s, T0, T0 + 30), 0)
+
+    def test_placement_skew_two_core_on_same_node(self):
+        pods = [("cosmos-core-abc-1", "n1"), ("cosmos-core-abc-2", "n1"),
+                ("cosmos-auth-x-1", "n1"), ("cosmos-auth-x-2", "n2"),
+                ("cosmos-battle-y-1", "n2"), ("cosmos-judge-api-z-1", "n2"), ("cosmos-judge-api-z-2", "n2"),
+                ("other-1", "n1")]
+        self.assertEqual(ag.placement_skew(pods), {"auth": 1, "core": 2, "battle": 1, "judge-api": 2})
+
+    def test_placement_skew_missing_service_is_zero(self):
+        self.assertEqual(ag.placement_skew([("cosmos-core-a-1", "n1")]),
+                         {"auth": 0, "core": 1, "battle": 0, "judge-api": 0})
+
 if __name__ == "__main__":
     unittest.main()

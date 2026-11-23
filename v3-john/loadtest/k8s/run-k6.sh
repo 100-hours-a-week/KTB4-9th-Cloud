@@ -2,6 +2,7 @@
 # k6를 클러스터 안 Job으로 실행하고, 끝나면 요약 JSON을 $OUT/<testid>.json에 둔다.
 #   v3-john/loadtest/k8s/run-k6.sh <testid> <duration> [vus]
 #   예) run-k6.sh baseline-1 10m 10      AI=1 run-k6.sh ai-1 10m 10
+#   K6_AVOID_NODE=<노드 이름>을 주면 k6 파드가 그 노드에 뜨지 않는다(실험 대상 노드 회수에 부하 발생기가 같이 죽지 않게).
 #   RATE=<초당 반복 수>를 주면 열린 부하 모델로 돈다. 예) RATE=20 run-k6.sh open-1 10m
 # 종료 코드: 0 성공, 1 Job 실패(k6 오류), 2 사용법·사전 조건 오류.
 # 전제: prepare.sh로 Secret loadtest/k6-inputs가 있어야 한다.
@@ -37,9 +38,20 @@ kubectl create configmap k6-script -n loadtest --from-file=baseline.js="$DIR/../
   --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 kubectl delete job "k6-$TESTID" -n loadtest --ignore-not-found --wait=true >/dev/null
 
-sed -e "s|__TESTID__|$TESTID|g" -e "s|__BASE__|$BASE|g" -e "s|__VUS__|$VUS|g" \
+render_job() {
+  local avoid=${K6_AVOID_NODE:-}
+  if [ -n "$avoid" ]; then
+    [[ "$avoid" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "K6_AVOID_NODE 형식이 올바르지 않다" >&2; exit 2; }
+    # 치환할 줄을 YAML 조각으로 바꾼다. 줄 시작 공백은 spec.template.spec 들여쓰기(6칸)와 맞춘다.
+    local aff="      affinity: { nodeAffinity: { requiredDuringSchedulingIgnoredDuringExecution: { nodeSelectorTerms: [ { matchExpressions: [ { key: kubernetes.io/hostname, operator: NotIn, values: [ \"$avoid\" ] } ] } ] } } }"
+    awk -v aff="$aff" '$0=="__AFFINITY__"{print aff; next} {print}' "$DIR/job.yaml"
+  else
+    grep -v '^__AFFINITY__$' "$DIR/job.yaml"
+  fi
+}
+render_job | sed -e "s|__TESTID__|$TESTID|g" -e "s|__BASE__|$BASE|g" -e "s|__VUS__|$VUS|g" \
     -e "s|__DURATION__|$DURATION|g" -e "s|__AI__|${AI:-0}|g" -e "s|__RATE__|$RATE|g" -e "s|__DEADLINE__|$((DUR_S + 600))|g" \
-    "$DIR/job.yaml" | kubectl apply -f - >/dev/null
+    | kubectl apply -f - >/dev/null
 echo "k6-$TESTID 시작: $VUS VU, $DURATION, 대상 $BASE"
 
 # 완료 또는 실패까지 기다린다(실행 길이 + 10분).

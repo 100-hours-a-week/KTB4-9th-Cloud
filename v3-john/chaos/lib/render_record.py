@@ -26,6 +26,8 @@ def main():
     da = rec.get("detection_all")
     br = rec.get("blast_radius")
     hold = rec.get("core_slo_hold")
+    gap = rec.get("monitoring_gap_seconds")
+    skew = rec.get("placement_skew")
     t = rec["times"]
     print(tpl.format(
         scenario=rec["scenario"], step=rec["step"], testid=rec.get("testid"),
@@ -38,6 +40,8 @@ def main():
         detection_all=(f"{dur(da['seconds'])} ({da['alert']})" if da else "탐지되지 않음") if "detection_all" in rec else "-",
         blast=", ".join(br) if br else ("없음" if br is not None else "-"),
         slo_hold=pct(hold),
+        monitoring_gap="-" if gap is None else f"{gap}초",
+        placement_skew="-" if not skew else ", ".join(f"{k} {v}" for k, v in skew.items()),
         budget=f"{rec.get('budget_percent_core')}%",
         read_p95="-" if rec.get("read_p95_ms") is None else f"{rec['read_p95_ms']:.0f}ms",
         submit_p95="-" if j.get("submit_p95_s") is None else f"{j['submit_p95_s']:.2f}초",
