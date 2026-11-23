@@ -11,6 +11,7 @@ VPC_ID=$(tf output -raw vpc_id)
 helm repo add eks https://aws.github.io/eks-charts --force-update >/dev/null
 helm repo add autoscaler https://kubernetes.github.io/autoscaler --force-update >/dev/null
 helm repo add kedacore https://kedacore.github.io/charts --force-update >/dev/null
+helm repo add descheduler https://kubernetes-sigs.github.io/descheduler/ --force-update >/dev/null
 helm repo add argo https://argoproj.github.io/argo-helm --force-update >/dev/null
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts --force-update >/dev/null
 helm repo add grafana https://grafana.github.io/helm-charts --force-update >/dev/null
@@ -25,6 +26,7 @@ helm upgrade --install cosmos-foundation "$BASE/helm/platform/cosmos-foundation"
 inst aws-load-balancer-controller eks/aws-load-balancer-controller 3.6.2 kube-system "$V/lb-controller/values.yaml" --set "vpcId=$VPC_ID"
 inst secrets-provider-aws aws-secrets-manager/secrets-store-csi-driver-provider-aws 3.1.4 kube-system "$V/secrets-store-csi/values.yaml"
 inst cluster-autoscaler autoscaler/cluster-autoscaler 9.60.0 kube-system "$V/cluster-autoscaler/values.yaml"
+inst descheduler descheduler/descheduler 0.37.0 kube-system "$V/descheduler/values.yaml"
 inst keda kedacore/keda 2.21.0 keda "$V/keda/values.yaml"
 inst chaos-mesh chaos-mesh/chaos-mesh 2.8.8 chaos-mesh "$V/chaos-mesh/values.yaml"
 inst envoy-gateway oci://docker.io/envoyproxy/gateway-helm 1.9.3 envoy-gateway-system "$V/envoy-gateway/values.yaml"

@@ -1,0 +1,47 @@
+# chart: descheduler/descheduler 0.37.0
+# 이미지 digest: registry.k8s.io v2 API로 v0.37.0 매니페스트 목록의 Docker-Content-Digest를 조회했고 docker buildx imagetools inspect로 교차 확인했다(2026-11-24)
+# 목적: 노드 그룹 교체나 스팟 회수 뒤 한 노드에 몰린 파드를 다시 나눈다. 분산 규칙이 ScheduleAnyway라 스케줄러는 몰림을 되돌리지 않는다
+kind: Deployment
+deschedulingInterval: 2m
+replicas: 1
+
+image:
+  tag: "v0.37.0@sha256:88deef34ff5c85cb69676d7073dd641bd5c35b156bc1ef4a35ca8fbf9644da98"
+
+resources:
+  requests: { cpu: 50m, memory: 64Mi }
+  limits: { cpu: 200m, memory: 128Mi }
+
+# 시스템 노드에서만 실행한다(keda 값과 같은 방식)
+nodeSelector: { workload-class: system }
+tolerations:
+  - key: CriticalAddonsOnly
+    operator: Exists
+
+deschedulerPolicyAPIVersion: "descheduler/v1alpha2"
+deschedulerPolicy:
+  profiles:
+    - name: topology-spread
+      pluginConfig:
+        # 기본 보호(시스템 핵심 파드, 로컬 저장소, 데몬셋, PDB)를 그대로 둔다. 차트 기본값이 로컬 저장소 보호를 끄므로 이 목록을 새로 정의한다
+        # 축출은 Eviction API로 하므로 PDB가 막으면 그 파드는 건너뛴다
+        - name: DefaultEvictor
+          args:
+            nodeFit: true
+            podProtections:
+              extraEnabled:
+                - PodsWithPVC
+        - name: RemovePodsViolatingTopologySpreadConstraint
+          args:
+            # 기본은 DoNotSchedule만 본다. 이 클러스터 규칙은 ScheduleAnyway라 둘 다 지정한다
+            constraints:
+              - DoNotSchedule
+              - ScheduleAnyway
+            namespaces:
+              include:
+                - prod
+                - envoy-gateway-system
+      plugins:
+        balance:
+          enabled:
+            - RemovePodsViolatingTopologySpreadConstraint
