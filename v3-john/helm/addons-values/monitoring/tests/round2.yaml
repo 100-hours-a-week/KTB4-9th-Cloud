@@ -1,0 +1,83 @@
+# 2차 실험 알림 단위 테스트. 오류 기준을 업스트림 5xx 밖(타임아웃, 연결 실패)까지 넓힌 SLI와 DB 연결 알림을 본다.
+rule_files: [cosmos-rules.yaml]
+evaluation_interval: 30s
+tests:
+  # 업스트림 5xx는 0이고 타임아웃만 요청의 30%. 1차 알림은 보지 못하고 확장 알림만 울려야 한다.
+  - name: CoreBurnFastAll 타임아웃만 있는 경우
+    interval: 1m
+    input_series:
+      - series: 'envoy_cluster_upstream_rq_total{envoy_cluster_name="httproute/prod/journey-core-auth/rule/0"}'
+        values: '0+600x20'
+      - series: 'envoy_cluster_upstream_rq_xx{envoy_cluster_name="httproute/prod/journey-core-auth/rule/0", envoy_response_code_class="5"}'
+        values: '0x20'
+      - series: 'envoy_cluster_upstream_rq_timeout{envoy_cluster_name="httproute/prod/journey-core-auth/rule/0"}'
+        values: '0+180x20'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: CoreBurnFastAll
+        exp_alerts:
+          - exp_labels: { journey: core, severity: critical, sev: SEV1, namespace: prod }
+            exp_annotations:
+              summary: "핵심 기능 오류율이 에러 예산을 14.4배 넘는 속도로 소진 중 (타임아웃과 연결 실패 포함)"
+      - eval_time: 4m
+        alertname: CoreErrorBudgetBurnFast
+        exp_alerts: []
+  # auth 경로만 오류 10%, problem 경로는 정상. 경로별 알림은 auth만 울린다.
+  - name: ServiceErrorHigh auth 경로만
+    interval: 1m
+    input_series:
+      - series: 'envoy_cluster_upstream_rq_total{envoy_cluster_name="httproute/prod/journey-core-auth/rule/0"}'
+        values: '0+600x20'
+      - series: 'envoy_cluster_upstream_rq_xx{envoy_cluster_name="httproute/prod/journey-core-auth/rule/0", envoy_response_code_class="5"}'
+        values: '0+60x20'
+      - series: 'envoy_cluster_upstream_rq_total{envoy_cluster_name="httproute/prod/journey-core-problem/rule/0"}'
+        values: '0+600x20'
+      - series: 'envoy_cluster_upstream_rq_xx{envoy_cluster_name="httproute/prod/journey-core-problem/rule/0", envoy_response_code_class="5"}'
+        values: '0x20'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ServiceErrorHigh
+        exp_alerts:
+          - exp_labels: { route: journey-core-auth, journey: core, severity: warning, sev: SEV2, namespace: prod }
+            exp_annotations:
+              summary: "journey-core-auth 오류율 10%, 타임아웃과 연결 실패 포함"
+  # 파드 두 개의 연결 합 250은 가정 한도 300의 83%, 230은 77%.
+  - name: RdsConnectionBudgetHigh 250
+    interval: 1m
+    input_series:
+      - series: 'hikaricp_connections{namespace="prod", pod="core-a"}'
+        values: '125x10'
+      - series: 'hikaricp_connections{namespace="prod", pod="core-b"}'
+        values: '125x10'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: RdsConnectionBudgetHigh
+        exp_alerts:
+          - exp_labels: { severity: warning, sev: SEV2, namespace: prod }
+            exp_annotations:
+              summary: "앱 전체 DB 연결 250개, RDS 최대 연결의 83.33%"
+  - name: RdsConnectionBudgetHigh 230은 울리지 않음
+    interval: 1m
+    input_series:
+      - series: 'hikaricp_connections{namespace="prod", pod="core-a"}'
+        values: '115x10'
+      - series: 'hikaricp_connections{namespace="prod", pod="core-b"}'
+        values: '115x10'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: RdsConnectionBudgetHigh
+        exp_alerts: []
+  - name: DbConnectionAcquireFailed 타임아웃 증가
+    interval: 1m
+    input_series:
+      - series: 'hikaricp_connections_timeout_total{namespace="prod", pod="core-a"}'
+        values: '0 0 0 5 10 15 20 25'
+      - series: 'hikaricp_connections_timeout_total{namespace="prod", pod="core-b"}'
+        values: '0x7'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: DbConnectionAcquireFailed
+        exp_alerts:
+          - exp_labels: { pod: core-a, severity: warning, sev: SEV2, namespace: prod }
+            exp_annotations:
+              summary: "core-a가 2분 동안 DB 연결을 얻지 못한 건 10건"
