@@ -13,6 +13,7 @@ s1p_current() {
 # 작업 트리 → 편집 → 커밋 → PR → 병합 → own-revisions 기록 → Argo CD 새로 고침 → 동기화 대기(s1_merge와 같은 흐름)
 s1p_merge_edit() {
   local msg=$1 wt br pr sha; shift
+  S1P_GEN_BEFORE=$(kubectl get rollout cosmos-core -n prod -o jsonpath='{.metadata.generation}' 2>/dev/null || true)
   br="chaos/s1p-$(date +%Y%m%d-%H%M%S)"
   wt=$(mktemp -d)
   git -C "$GIT_DIR_ROOT" worktree add -q -b "$br" "$wt" origin/main
@@ -32,23 +33,28 @@ s1p_merge_edit() {
     [ "$(kubectl get application prod-core -n argocd -o jsonpath='{.status.sync.revision}')" = "$sha" ] && break; sleep 5
   done
   [ "$(kubectl get application prod-core -n argocd -o jsonpath='{.status.sync.revision}')" = "$sha" ] || { echo "Argo CD가 $sha로 동기화하지 않았다" >&2; return 1; }
+  # sync.revision은 비교한 리비전일 뿐이므로, 그 리비전의 동기화 작업이 성공으로 끝났는지도 확인한다.
+  for _ in $(seq 60); do
+    [ "$(kubectl get application prod-core -n argocd -o jsonpath='{.status.operationState.phase}')" = Succeeded ] &&
+    [ "$(kubectl get application prod-core -n argocd -o jsonpath='{.status.operationState.syncResult.revision}')" = "$sha" ] && break; sleep 5
+  done
+  [ "$(kubectl get application prod-core -n argocd -o jsonpath='{.status.operationState.syncResult.revision}')" = "$sha" ] || { echo "Argo CD 동기화 작업이 $sha로 성공하지 않았다" >&2; return 1; }
   echo "$(date +%s) Argo CD 동기화 $sha" >> "$RECORD_DIR/s1p-events"
 }
-
-_s1p_edit_pool() { python3 "$S1P_DIR/set_pool.py" "$2" "$1"; }  # <n> <값 파일>
 
 # s1p_merge_pool <n> <커밋 메시지> : core 풀 크기만 바꿔 병합한다.
 s1p_merge_pool() { s1p_merge_edit "$2" _s1p_edit_pool "$1"; }
 
-# s1p_wait_core_healthy <초> : Rollout이 새 스펙을 보고(observedGeneration) Healthy가 될 때까지 기다린다. 카나리 분석 포함.
+# s1p_wait_core_healthy <초> [<병합 전 generation>] : generation이 병합 전 값보다 커지고(주어진 경우),
+# Rollout이 그 스펙을 보고(observedGeneration == generation) Healthy가 될 때까지 기다린다. 카나리 분석 포함.
 s1p_wait_core_healthy() {
-  local deadline=$(( $(date +%s) + $1 )) gen obs phase
+  local deadline=$(( $(date +%s) + $1 )) before=${2:-} gen obs phase
   while :; do
     gen=$(kubectl get rollout cosmos-core -n prod -o jsonpath='{.metadata.generation}' 2>/dev/null || true)
     obs=$(kubectl get rollout cosmos-core -n prod -o jsonpath='{.status.observedGeneration}' 2>/dev/null || true)
     phase=$(kubectl get rollout cosmos-core -n prod -o jsonpath='{.status.phase}' 2>/dev/null || true)
-    [ -n "$gen" ] && [ "$gen" = "$obs" ] && [ "$phase" = Healthy ] && return 0
-    (( $(date +%s) >= deadline )) && { echo "core Rollout이 ${1}초 안에 Healthy가 되지 않았다(phase=$phase)" >&2; return 1; }
+    if [ -n "$gen" ] && [ "$gen" = "$obs" ] && [ "$phase" = Healthy ] && { [ -z "$before" ] || [ "$gen" -gt "$before" ]; }; then return 0; fi
+    (( $(date +%s) >= deadline )) && { echo "core Rollout이 ${1}초 안에 Healthy가 되지 않았다(generation=$gen 병합 전=$before observed=$obs phase=$phase)" >&2; return 1; }
     sleep 5
   done
 }

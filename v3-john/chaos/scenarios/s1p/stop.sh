@@ -7,13 +7,15 @@ source "$S1P_DIR/../../lib/prom.sh"
 [ -s "$RECORD_DIR/s1p-original" ] || { echo "주입 기록 없음"; exit 0; }
 orig=$(cat "$RECORD_DIR/s1p-original")
 cur=$(s1p_current)
+gen_before=
 if [ "$cur" = "$orig" ]; then
   echo "이미 원래 풀 크기($orig)"
 else
   s1p_merge_pool "$orig" "chaos(S1'): core 풀 크기 되돌림(${orig})"
+  gen_before=$S1P_GEN_BEFORE
   echo "$(date +%s) 풀 크기 원복 병합($orig)" >> "$RECORD_DIR/s1p-events"
 fi
-s1p_wait_core_healthy 600
+s1p_wait_core_healthy 600 "$gen_before"
 echo "$(date +%s) 원복 core Rollout Healthy" >> "$RECORD_DIR/s1p-events"
 
 # auth가 모두 Ready가 아니면 재시작
