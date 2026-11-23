@@ -26,7 +26,6 @@ inst aws-load-balancer-controller eks/aws-load-balancer-controller 3.6.2 kube-sy
 inst secrets-provider-aws aws-secrets-manager/secrets-store-csi-driver-provider-aws 3.1.4 kube-system "$V/secrets-store-csi/values.yaml"
 inst cluster-autoscaler autoscaler/cluster-autoscaler 9.60.0 kube-system "$V/cluster-autoscaler/values.yaml"
 inst keda kedacore/keda 2.21.0 keda "$V/keda/values.yaml"
-inst argo-rollouts argo/argo-rollouts 2.43.12 argo-rollouts "$V/argo-rollouts/values.yaml"
 inst chaos-mesh chaos-mesh/chaos-mesh 2.8.8 chaos-mesh "$V/chaos-mesh/values.yaml"
 inst envoy-gateway oci://docker.io/envoyproxy/gateway-helm 1.9.3 envoy-gateway-system "$V/envoy-gateway/values.yaml"
 
@@ -39,6 +38,8 @@ inst alloy grafana/alloy 1.15.0 monitoring "$V/monitoring/alloy.yaml"
 TEMPO_BUCKET="$(tf output -raw tempo_bucket_name)"
 inst tempo grafana/tempo 1.24.4 monitoring "$V/monitoring/tempo.yaml" --set-string "tempo.storage.trace.s3.bucket=$TEMPO_BUCKET" --set-string "tempo.storage.trace.s3.region=$REGION" --set-string "tempo.storage.trace.s3.endpoint=s3.dualstack.$REGION.amazonaws.com"
 inst otel-collector open-telemetry/opentelemetry-collector 0.178.3 monitoring "$V/monitoring/otel-collector.yaml"
+# Argo Rollouts 값이 ServiceMonitor를 만들므로 kube-prometheus-stack(CRD) 뒤에 설치한다(2026-11-24 기동 실패). Argo CD 앞이어야 core Rollout이 동기화된다.
+inst argo-rollouts argo/argo-rollouts 2.43.12 argo-rollouts "$V/argo-rollouts/values.yaml"
 for f in "$V"/monitoring/dashboards/*.json; do
   n="dash-$(basename "$f" .json)"
   kubectl create configmap "$n" -n monitoring --from-file="$f" --dry-run=client -o yaml | kubectl apply --server-side -f -
