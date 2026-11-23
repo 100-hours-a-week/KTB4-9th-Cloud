@@ -39,7 +39,7 @@ K6_S=$(( AFTER_S + INJECT_DURATION + RECOVER_S + 60 ))
 STAMP=$(date +%Y%m%d-%H%M)
 NAME="$SCENARIO-$STEP-$STAMP"
 TESTID=$(echo "$SCENARIO-$STEP-$(date +%m%d%H%M)" | cut -c1-40 | sed 's/-*$//')
-export RECORD_DIR="$CHAOS/records/$NAME" SCENARIO STEP
+export RECORD_DIR="$CHAOS/records/$NAME" SCENARIO STEP TESTID
 mkdir -p "$RECORD_DIR"
 LOG="$RECORD_DIR/run.log"
 log() { echo "[$(date +%H:%M:%S)] $*" | tee -a "$LOG"; }

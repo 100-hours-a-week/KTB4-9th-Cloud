@@ -4,3 +4,4 @@ output "subnet_ids" { value = { for key, subnet in aws_subnet.eks : key => subne
 output "node_role_arn" { value = aws_iam_role.node.arn }
 output "cluster_security_group_id" { value = aws_eks_cluster.main.vpc_config[0].cluster_security_group_id }
 output "image_updater_role_arn" { value = aws_iam_role.image_updater.arn }
+output "node_group_asg_names" { value = { for key, ng in aws_eks_node_group.main : key => ng.resources[0].autoscaling_groups[0].name } }

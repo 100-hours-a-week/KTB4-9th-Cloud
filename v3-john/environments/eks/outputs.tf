@@ -4,3 +4,5 @@ output "mysql_address" { value = module.data.mysql_address }
 output "edge_bucket" { value = var.enable_edge ? module.edge[0].bucket : null }
 output "edge_distribution_id" { value = var.enable_edge ? module.edge[0].distribution_id : null }
 output "image_updater_role_arn" { value = module.eks.image_updater_role_arn }
+output "fis_role_arn" { value = aws_iam_role.fis.arn }
+output "fis_stop_alarm_arn" { value = aws_cloudwatch_metric_alarm.fis_stop_application.arn }
