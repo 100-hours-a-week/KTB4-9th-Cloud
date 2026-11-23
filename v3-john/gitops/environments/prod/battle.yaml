@@ -22,9 +22,9 @@ env:
   # 채점 이벤트는 outbox에 남았다가 다시 발행되므로 브로커 장애로 트래픽에서 빠지지 않게 준비 상태 검사에서 뺀다.
   SPRING_RABBITMQ_HOST: rabbitmq
   MANAGEMENT_HEALTH_RABBIT_ENABLED: "false"
-  # S3a 단계 1: 준비 상태 검사는 앱 상태(readinessState)만 본다. DB가 끊겨도 DB가 필요 없는 요청은 계속 받는다.
-  MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
-  MANAGEMENT_ENDPOINT_HEALTH_GROUP_READINESS_INCLUDE: readinessState
+  # S3a 단계 1: 준비 상태 검사(/actuator/health)에서 DB를 뺀다. DB가 끊겨도 DB가 필요 없는 요청은 계속 받는다.
+  # /actuator/health/readiness는 앱 보안 설정이 401로 막아 쓸 수 없다(하위 경로 허용은 앱 코드 제안).
+  MANAGEMENT_HEALTH_DB_ENABLED: "false"
 secrets:
   - secret: cosmos/john/spring-config
     keys: { DB_URL: DB_URL }
@@ -39,7 +39,7 @@ resources:
   limits: { cpu: "2", memory: 2Gi }
 probes:
   startupProbe: { tcpSocket: { port: 8080 }, periodSeconds: 5, timeoutSeconds: 2, failureThreshold: 36 }
-  readinessProbe: { httpGet: { path: /actuator/health/readiness, port: 9091 }, periodSeconds: 5, timeoutSeconds: 2, failureThreshold: 3 }
+  readinessProbe: { httpGet: { path: /actuator/health, port: 9091 }, periodSeconds: 5, timeoutSeconds: 2, failureThreshold: 3 }
   livenessProbe: { tcpSocket: { port: 8080 }, periodSeconds: 10, timeoutSeconds: 2, failureThreshold: 3 }
 replicas: null # HPA가 관리
 hpa: { enabled: true, min: 2, max: 3, cpu: 140 } # 요청 500m의 140% = 700m, 이전 기준(1코어의 70%)과 같은 값
