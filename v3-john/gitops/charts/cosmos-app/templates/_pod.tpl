@@ -17,6 +17,21 @@ nodeSelector:
 tolerations:
   {{- toYaml . | nindent 2 }}
 {{- end }}
+{{- $agent := and .Values.otel.enabled .Values.otel.agent }}
+{{- if $agent }}
+initContainers:
+  - name: otel-agent
+    image: {{ .Values.otel.agentImage }}
+    command: [cp, /javaagent.jar, /otel/javaagent.jar]
+    resources:
+      requests: { cpu: 10m, memory: 32Mi }
+      limits: { cpu: 100m, memory: 64Mi }
+    securityContext:
+      allowPrivilegeEscalation: false
+    volumeMounts:
+      - name: otel-agent
+        mountPath: /otel
+{{- end }}
 containers:
   - name: {{ .Values.name }}
     image: {{ .Values.image }}
@@ -38,6 +53,27 @@ containers:
       - name: {{ $k }}
         value: {{ $v | quote }}
       {{- end }}
+      {{- $jto := compact (list (ternary "-javaagent:/otel/javaagent.jar" "" $agent) .Values.jvmOptions) | join " " }}
+      {{- if $jto }}
+      - name: JAVA_TOOL_OPTIONS
+        value: {{ $jto | quote }}
+      {{- end }}
+      {{- if .Values.otel.enabled }}
+      - name: OTEL_SERVICE_NAME
+        value: {{ default .Values.name .Values.otel.serviceName | quote }}
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: "http://otel-collector.monitoring.svc.cluster.local:4317"
+      - name: OTEL_EXPORTER_OTLP_PROTOCOL
+        value: "grpc"
+      - name: OTEL_TRACES_EXPORTER
+        value: "otlp"
+      - name: OTEL_METRICS_EXPORTER
+        value: "none"
+      - name: OTEL_LOGS_EXPORTER
+        value: "none"
+      - name: OTEL_RESOURCE_ATTRIBUTES
+        value: {{ printf "deployment.environment.name=john,service.namespace=cosmos,k8s.cluster.name=cosmos-v3-john,service.version=%s" (default "unknown" (regexFind "[0-9a-f]{40}" .Values.image)) | quote }}
+      {{- end }}
     {{- with .Values.probes }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
@@ -57,6 +93,11 @@ containers:
       - name: data
         mountPath: {{ .Values.stateful.mountPath }}
       {{- end }}
+      {{- if $agent }}
+      - name: otel-agent
+        mountPath: /otel
+        readOnly: true
+      {{- end }}
 volumes:
   - name: secrets
     csi:
@@ -64,4 +105,8 @@ volumes:
       readOnly: true
       volumeAttributes:
         secretProviderClass: {{ .Values.name }}
+  {{- if $agent }}
+  - name: otel-agent
+    emptyDir: { sizeLimit: 64Mi }
+  {{- end }}
 {{- end -}}

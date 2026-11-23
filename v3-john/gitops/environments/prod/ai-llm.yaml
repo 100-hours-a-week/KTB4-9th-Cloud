@@ -42,3 +42,4 @@ probes:
   livenessProbe: { httpGet: { path: /health, port: 8000 }, periodSeconds: 10, timeoutSeconds: 2, failureThreshold: 3 }
 replicas: null # HPA가 관리
 hpa: { enabled: true, min: 1, max: 2, cpu: 70 }
+otel: { enabled: true, agent: false, serviceName: cosmos-ai-llm }

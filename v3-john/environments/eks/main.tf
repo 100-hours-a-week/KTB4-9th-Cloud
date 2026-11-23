@@ -94,6 +94,7 @@ module "eks" {
   }
   public_access_cidrs = var.public_access_cidrs
   mlflow_bucket_arn   = aws_s3_bucket.mlflow.arn
+  tempo_bucket_arn    = aws_s3_bucket.tempo.arn
 
   workload_secrets = {
     auth-sa           = local.spring

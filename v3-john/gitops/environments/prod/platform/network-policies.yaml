@@ -401,6 +401,28 @@ spec:
       ports:
         - { protocol: TCP, port: 9091 }
 ---
+# 트레이스 송신(S1 단계 2): 계측한 서비스는 monitoring의 OTel Collector 4317(gRPC)로만 보낸다.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-otel-export
+  namespace: prod
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values: [cosmos-auth, cosmos-core, cosmos-battle, cosmos-ai-llm]
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: monitoring }
+          podSelector:
+            matchLabels: { app.kubernetes.io/name: opentelemetry-collector }
+      ports:
+        - { protocol: TCP, port: 4317 }
+---
 # RabbitMQ는 Spring 3개의 발행(5672)과 Prometheus 수집(15692)만 받는다.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
