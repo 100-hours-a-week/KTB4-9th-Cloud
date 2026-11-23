@@ -1,0 +1,19 @@
+# S3a: Spring 3개(auth, core, battle)에서 RDS 데이터 서브넷(10.30.20.0/23)으로 가는 연결을 끊는다(설계서 9.3).
+# RDS 인스턴스는 살아 있고 앱에서만 닿지 않는다. 클러스터 안 DB(ai-postgres 등)는 영향이 없어야 한다.
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: s3a-rds-partition
+  namespace: prod
+spec:
+  action: partition
+  mode: all
+  direction: to
+  selector:
+    namespaces: [prod]
+    expressionSelectors:
+      - key: app.kubernetes.io/name
+        operator: In
+        values: [cosmos-auth, cosmos-core, cosmos-battle]
+  externalTargets: [10.30.20.0/23]
+  duration: 5m

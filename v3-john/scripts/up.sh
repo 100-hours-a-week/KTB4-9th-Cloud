@@ -14,6 +14,7 @@ helm repo add kedacore https://kedacore.github.io/charts --force-update >/dev/nu
 helm repo add argo https://argoproj.github.io/argo-helm --force-update >/dev/null
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts --force-update >/dev/null
 helm repo add grafana https://grafana.github.io/helm-charts --force-update >/dev/null
+helm repo add chaos-mesh https://charts.chaos-mesh.org --force-update >/dev/null
 helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts --force-update >/dev/null
 helm repo add secrets-store-csi-driver https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts --force-update >/dev/null
 helm repo add aws-secrets-manager https://aws.github.io/secrets-store-csi-driver-provider-aws --force-update >/dev/null
@@ -26,6 +27,7 @@ inst secrets-provider-aws aws-secrets-manager/secrets-store-csi-driver-provider-
 inst cluster-autoscaler autoscaler/cluster-autoscaler 9.60.0 kube-system "$V/cluster-autoscaler/values.yaml"
 inst keda kedacore/keda 2.21.0 keda "$V/keda/values.yaml"
 inst argo-rollouts argo/argo-rollouts 2.43.12 argo-rollouts "$V/argo-rollouts/values.yaml"
+inst chaos-mesh chaos-mesh/chaos-mesh 2.8.8 chaos-mesh "$V/chaos-mesh/values.yaml"
 inst envoy-gateway oci://docker.io/envoyproxy/gateway-helm 1.9.3 envoy-gateway-system "$V/envoy-gateway/values.yaml"
 
 kubectl create secret generic discord-webhook -n monitoring --from-literal="url=$(secret_json cosmos/monitoring/discord-webhook)" --dry-run=client -o yaml | kubectl apply -f -

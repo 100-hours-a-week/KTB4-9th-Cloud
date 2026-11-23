@@ -77,7 +77,8 @@ if (( ${exp:-0} < $(date +%s) + K6_S + 600 )); then
   log "테스트 토큰이 실험 도중 만료된다. prepare.sh를 다시 실행한다."; exit 1
 fi
 leftover=0
-for kind in $(kubectl api-resources --api-group=chaos-mesh.org -o name 2>/dev/null | grep -v -E 'schedules|workflow|physicalmachine|remotecluster|statuscheck'); do
+for kind in $(kubectl api-resources --api-group=chaos-mesh.org -o name 2>/dev/null | grep -v -E 'schedules|workflow|physicalmachine|remotecluster|statuscheck|^pod(network|http|io)chaos'); do
+  # pod*chaos는 컨트롤러가 파드마다 남기는 내부 기록이다. 실험 리소스를 지우면 규칙이 비워지지만 객체는 남는다.
   leftover=$(( leftover + $(kubectl get "$kind" -A --no-headers 2>/dev/null | wc -l) ))
 done
 (( leftover == 0 )) || { log "남은 Chaos Mesh 리소스 ${leftover}개. 먼저 정리한다."; exit 1; }
@@ -88,7 +89,10 @@ running=$(aws fis list-experiments --region ap-northeast-2 \
 
 # 2. 배포 리비전 기록
 revisions() { kubectl get applications.argoproj.io -n argocd -o json | python3 -c '
-import json,sys; print(json.dumps({i["metadata"]["name"]: i.get("status",{}).get("sync",{}).get("revision") for i in json.load(sys.stdin)["items"]}, indent=1))'; }
+import json,sys; st=lambda i: i.get("status",{})
+# 마지막으로 실제 동기화한 리비전. 자동 동기화가 없는 앱은 sync.revision이 비교 대상(HEAD)만 따라가므로 쓰지 않는다(2026-11-23 s3a).
+rev=lambda i: (st(i).get("operationState",{}).get("syncResult",{}).get("revision") or st(i).get("sync",{}).get("revision"))
+print(json.dumps({i["metadata"]["name"]: rev(i) for i in json.load(sys.stdin)["items"]}, indent=1))'; }
 revisions > "$RECORD_DIR/revisions-before.json"
 
 # 3. 부하 시작
