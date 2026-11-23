@@ -32,14 +32,14 @@ secrets:
   - secret: /cosmos-v2/stage/spring
     keys: { kakao_client_id: KAKAO_CLIENT_ID, kakao_client_secret: KAKAO_CLIENT_SECRET, kakao_redirect_uri: KAKAO_REDIRECT_URI, jwt_secret: JWT_SECRET }
 resources:
-  requests: { cpu: "1", memory: 1Gi }
+  requests: { cpu: 500m, memory: 1Gi } # 실사용 30m 안팎(2026-11-23). 이중화 뒤 노드 3대에 들어가게 낮춤
   limits: { cpu: "2", memory: 2Gi }
 probes:
   startupProbe: { tcpSocket: { port: 8080 }, periodSeconds: 5, timeoutSeconds: 2, failureThreshold: 36 }
   readinessProbe: { httpGet: { path: /actuator/health, port: 9091 }, periodSeconds: 5, timeoutSeconds: 2, failureThreshold: 3 }
   livenessProbe: { tcpSocket: { port: 8080 }, periodSeconds: 10, timeoutSeconds: 2, failureThreshold: 3 }
 replicas: null # HPA가 관리
-hpa: { enabled: true, min: 2, max: 3, cpu: 70 }
+hpa: { enabled: true, min: 2, max: 3, cpu: 140 } # 요청 500m의 140% = 700m, 이전 기준(1코어의 70%)과 같은 값
 otel: { enabled: true, agent: true, serviceName: cosmos-battle }
 pdb: { minAvailable: 1 }
 spread: true
