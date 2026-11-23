@@ -29,6 +29,10 @@ probes:
   readinessProbe: { httpGet: { path: /version, port: 2358 }, periodSeconds: 5, timeoutSeconds: 2, failureThreshold: 3 }
   livenessProbe: { httpGet: { path: /version, port: 2358 }, periodSeconds: 10, timeoutSeconds: 2, failureThreshold: 3 }
 replicas: null # HPA가 관리
-hpa: { enabled: true, min: 1, max: 2, cpu: 70 }
+# S2' 단계 3: 회수 노드 하나가 사라져도 채점 접수가 끊기지 않도록 2개로 늘리고 노드를 나눈다.
+# Judge0 API는 상태를 갖지 않는다(채점 큐는 judge-redis, 제출 저장은 judge-postgres). 근거는 chaos/decisions/s2p-step3.md.
+hpa: { enabled: true, min: 2, max: 2, cpu: 70 }
+pdb: { minAvailable: 1 }
+spread: true
 # S2' 단계 1: Ruby(Judge0) 앱이라 Spring 종료 설정은 없고 preStop만 둔다. 컨테이너 command가 sh를 쓰므로 sh가 있다.
 preStopSleepSeconds: 10
