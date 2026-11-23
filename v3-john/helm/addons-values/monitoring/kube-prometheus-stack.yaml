@@ -46,10 +46,6 @@ alertmanager:
       group_interval: 5m
       repeat_interval: 4h
       routes:
-        # 2차 실험 S1' 단계 1 전까지 연결 예산 알림은 개선 전 조건을 유지하려고 어디로도 보내지 않는다. 단계 1에서 이 경로만 지운다.
-        - receiver: blackhole
-          matchers:
-            - alertname=~"RdsConnectionBudgetHigh|DbConnectionAcquireFailed"
         # Watchdog은 항상 firing인 알림이다. 1시간마다 Discord에 오지 않으면 Prometheus나 Alertmanager 경로가 끊긴 것이다.
         - receiver: discord
           matchers:
@@ -81,7 +77,6 @@ alertmanager:
       - target_matchers: ['alertname = InfoInhibitor']
     receivers:
       - name: "null"
-      - name: blackhole
       - name: discord
         discord_configs:
           - webhook_url_file: /etc/alertmanager/secrets/discord-webhook/url
@@ -393,7 +388,7 @@ additionalPrometheusRulesMap:
             labels: { severity: warning, sev: SEV2, namespace: prod }
             annotations:
               summary: "{{ $labels.route }} 오류율 {{ $value | humanizePercentage }}, 타임아웃과 연결 실패 포함"
-      # S1' 단계 1의 개선이다. Alertmanager 경로에서 blackhole로 보내다가 단계 1에서 경로만 연다.
+      # S1' 단계 1의 개선이다. 일반 경로로 Discord에 보낸다(개선 전 실험 동안에는 blackhole 경로로 막아 두었다).
       - name: cosmos-round2-s1p-step1
         rules:
           - alert: RdsConnectionBudgetHigh
