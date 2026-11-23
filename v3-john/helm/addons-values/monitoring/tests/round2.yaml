@@ -116,3 +116,63 @@ tests:
           - exp_labels: { pod: core-a, severity: warning, sev: SEV2, namespace: prod }
             exp_annotations:
               summary: "core-a가 2분 동안 DB 연결을 얻지 못한 건 10건"
+  # S1' 단계 3 카나리 질의. 차트 rollout.yaml의 auth-route-error 질의와 같은 식이다. auth 경로만 오류 10%면 0.05를 넘어야 한다.
+  - name: 카나리 auth 경로 질의 auth만 오류
+    interval: 1m
+    input_series:
+      - series: 'envoy_cluster_upstream_rq_total{envoy_cluster_name="httproute/prod/journey-core-auth/rule/0"}'
+        values: '0+600x20'
+      - series: 'envoy_cluster_upstream_rq_xx{envoy_cluster_name="httproute/prod/journey-core-auth/rule/0", envoy_response_code_class="2"}'
+        values: '0+540x20'
+      - series: 'envoy_cluster_upstream_rq_xx{envoy_cluster_name="httproute/prod/journey-core-auth/rule/0", envoy_response_code_class="5"}'
+        values: '0+60x20'
+      - series: 'envoy_cluster_upstream_rq_total{envoy_cluster_name="httproute/prod/journey-core-problem/rule/0"}'
+        values: '0+600x20'
+      - series: 'envoy_cluster_upstream_rq_xx{envoy_cluster_name="httproute/prod/journey-core-problem/rule/0", envoy_response_code_class="2"}'
+        values: '0+600x20'
+      - series: 'envoy_cluster_upstream_rq_xx{envoy_cluster_name="httproute/prod/journey-core-problem/rule/0", envoy_response_code_class="5"}'
+        values: '0x20'
+    promql_expr_test:
+      - expr: 'max((cosmos:route_errors_all:rate5m{route="journey-core-auth"} / on (route, journey) cosmos:route_requests_all:rate5m{route="journey-core-auth"}) >= 0) or vector(0)'
+        eval_time: 10m
+        exp_samples:
+          - value: 0.1
+  - name: 카나리 auth 경로 질의 auth 정상
+    interval: 1m
+    input_series:
+      - series: 'envoy_cluster_upstream_rq_total{envoy_cluster_name="httproute/prod/journey-core-auth/rule/0"}'
+        values: '0+600x20'
+      - series: 'envoy_cluster_upstream_rq_xx{envoy_cluster_name="httproute/prod/journey-core-auth/rule/0", envoy_response_code_class="2"}'
+        values: '0+600x20'
+      - series: 'envoy_cluster_upstream_rq_xx{envoy_cluster_name="httproute/prod/journey-core-auth/rule/0", envoy_response_code_class="5"}'
+        values: '0x20'
+      - series: 'envoy_cluster_upstream_rq_total{envoy_cluster_name="httproute/prod/journey-core-problem/rule/0"}'
+        values: '0+600x20'
+      - series: 'envoy_cluster_upstream_rq_xx{envoy_cluster_name="httproute/prod/journey-core-problem/rule/0", envoy_response_code_class="2"}'
+        values: '0+540x20'
+      - series: 'envoy_cluster_upstream_rq_xx{envoy_cluster_name="httproute/prod/journey-core-problem/rule/0", envoy_response_code_class="5"}'
+        values: '0+60x20'
+    promql_expr_test:
+      - expr: 'max((cosmos:route_errors_all:rate5m{route="journey-core-auth"} / on (route, journey) cosmos:route_requests_all:rate5m{route="journey-core-auth"}) >= 0) or vector(0)'
+        eval_time: 10m
+        exp_samples:
+          - value: 0
+  # journey="major" 질의. major 묶음 경로 오류 10%면 0.05를 넘고, 트래픽이 없으면 0이다.
+  - name: 카나리 major 질의 오류와 무트래픽
+    interval: 1m
+    input_series:
+      - series: 'envoy_cluster_upstream_rq_total{envoy_cluster_name="httproute/prod/journey-major-battle/rule/0"}'
+        values: '0+600x20'
+      - series: 'envoy_cluster_upstream_rq_xx{envoy_cluster_name="httproute/prod/journey-major-battle/rule/0", envoy_response_code_class="2"}'
+        values: '0+540x20'
+      - series: 'envoy_cluster_upstream_rq_xx{envoy_cluster_name="httproute/prod/journey-major-battle/rule/0", envoy_response_code_class="5"}'
+        values: '0+60x20'
+    promql_expr_test:
+      - expr: 'max(cosmos:journey_error_ratio_all:rate5m{journey="major"} >= 0) or vector(0)'
+        eval_time: 10m
+        exp_samples:
+          - value: 0.1
+      - expr: 'max(cosmos:journey_error_ratio_all:rate5m{journey="ai"} >= 0) or vector(0)'
+        eval_time: 10m
+        exp_samples:
+          - value: 0

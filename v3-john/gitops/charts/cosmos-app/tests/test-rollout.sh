@@ -26,7 +26,10 @@ grep -q 'cosmos:db_connections:sum or vector(0)' <<<"$gat" && ok "연결 수 질
 grep -q 'result\[0\] <= 270' <<<"$gat" && ok "성공 조건에 rdsMax - reserve(270) 렌더링" || no "연결 여유 조건"
 grep -q 'len(result) == 0 || result\[0\] <= 270' <<<"$gat" && ok "연결 여유: 결과 없음은 통과" || no "연결 여유 빈 결과"
 grep -q 'max(cosmos:journey_error_ratio_all:rate5m{journey="major"} >= 0) or vector(0)' <<<"$gat" && ok "다른 경로 오류율 질의(NaN 처리)" || no "다른 경로 질의"
-grep -q 'route="journey-core-auth"' <<<"$gat" && ok "auth 경로 오류율 질의" || no "auth 경로 질의"
+grep -qF 'max((cosmos:route_errors_all:rate5m{route="journey-core-auth"} / on (route, journey) cosmos:route_requests_all:rate5m{route="journey-core-auth"}) >= 0) or vector(0)' <<<"$gat" && ok "auth 경로 오류율 질의(route 라벨이 있는 기록 규칙)" || no "auth 경로 질의"
+! grep -q 'journey_error_ratio_all:rate5m{route=' <<<"$gat" && ok "route 라벨 없는 규칙에 route 선택자를 쓰지 않음" || no "잘못된 route 선택자"
+z=$(helm template t "$C" -n prod -f "$P/core.yaml" --set rollout.connectionGuard.rdsMax=0 2>&1)
+grep -q 'rdsMax는 0보다 커야' <<<"$z" && ok "enabled인데 rdsMax 0이면 렌더 실패" || no "rdsMax 0 검사"
 [ "$(grep -c 'result\[0\] < 0.05' <<<"$gat")" -ge 2 ] && grep -c 'len(result) == 0 || result\[0\] < 0.05' <<<"$gat" | grep -q '^2$' && ok "다른 경로 조건 0.05 두 곳, 빈 결과 통과" || no "다른 경로 조건"
 [ "$(grep -c 'interval: 1m' <<<"$gat")" = 5 ] && [ "$(grep -c 'count: 5' <<<"$gat")" = 5 ] && [ "$(grep -c 'failureLimit: 0' <<<"$gat")" = 5 ] && ok "새 지표도 1분 5회 실패 허용 0" || no "새 지표 간격"
 offat=$(helm template t "$C" -n prod -f "$P/core.yaml" --set rollout.connectionGuard.enabled=false 2>&1 | kind AnalysisTemplate)
