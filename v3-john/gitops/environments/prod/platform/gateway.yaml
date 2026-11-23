@@ -177,9 +177,11 @@ spec:
     maxParallelRequests: 8
 ---
 # S2' 단계 2: 조회 위주 경로 4개에만 게이트웨이 재시도를 건다. 제출(journey-core-submit)과 AI(journey-ai)는 중복 채점과
-# 중복 호출 위험이 있어 제외한다. 재시도 조건은 연결 실패, 연결 리셋, 503으로 한정한다.
+# 중복 호출 위험이 있어 제외한다. 재시도 조건은 요청이 업스트림 앱에 닿기 전에 실패한 경우로 한정한다.
 # 주의: BackendTrafficPolicy의 재시도는 메서드로 제한할 수 없고, 위 라우트에는 메서드 매치가 없어 POST도 같은 정책을 받는다.
-# 대상 경로가 GET만 받는지는 백엔드 소스로 확인해야 한다(chaos/decisions/s2p-step2.md 위험 항목).
+# journey-core-auth는 로그인 등 POST를, journey-major-core는 /api 전체 나머지(쓰기 포함)를 받는다. 재시도는 메서드로 제한할 수 없으므로
+# 트리거를 connect-failure, refused-stream, reset-before-request로 한정한다. 셋 다 요청이 앱에 전달되기 전의 실패라 POST도 중복되지 않는다.
+# reset(처리 중 끊김)과 503 재시도는 쓰기 요청을 중복시킬 수 있어 쓰지 않는다. 종료 중 끊김은 단계 1(preStop, 정상 종료)이 맡는다.
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: BackendTrafficPolicy
 metadata:
@@ -194,8 +196,7 @@ spec:
   retry:
     numRetries: 2
     retryOn:
-      triggers: [connect-failure, reset]
-      httpStatusCodes: [503]
+      triggers: [connect-failure, refused-stream, reset-before-request]
     perRetry:
       timeout: 2s
       # 재시도가 한꺼번에 몰려 폭주하지 않도록 간격을 둔다.
