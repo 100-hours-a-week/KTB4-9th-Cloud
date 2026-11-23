@@ -10,8 +10,9 @@ tempo:
         grpc: { endpoint: "0.0.0.0:4317" }
         http: { endpoint: "0.0.0.0:4318" }
   resources:
-    requests: { cpu: 250m, memory: 768Mi }
-    limits: { cpu: "1", memory: 2Gi }
+    # 표본 100%와 k6 10 VU 부하에서 2Gi는 시작 시 WAL 재생 중 OOMKilled를 반복했다(2026-11-23).
+    requests: { cpu: 250m, memory: 1536Mi }
+    limits: { cpu: "1", memory: 4Gi }
   livenessProbe:
     httpGet: { path: /ready, port: 3200 }
     initialDelaySeconds: 300

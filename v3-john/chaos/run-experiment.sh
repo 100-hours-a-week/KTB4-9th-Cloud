@@ -149,6 +149,12 @@ if [ -z "$ABORTED" ]; then wait "$K6_PID" || log "k6 실패(기록에 남김)"; 
 K6_PID=""
 
 # 8~10. 집계, 리비전 비교, 저장
+# k6를 기다리는 동안 port-forward가 끊길 수 있다(2026-11-23 s1-step2 집계 실패). 집계 전에 다시 잇는다.
+if ! _prom_ok; then
+  log "Prometheus 연결이 끊겨 port-forward를 다시 연다"
+  port_forward kube-prometheus-stack-prometheus 19090 9090
+  for _ in $(seq 20); do _prom_ok && break; sleep 1; done
+fi
 # 시나리오가 직접 병합한 리비전(scenarios/*가 $RECORD_DIR/own-revisions에 남김)은 외부 배포로 보지 않는다.
 OWN_REV=""; [ -s "$RECORD_DIR/own-revisions" ] && OWN_REV="$RECORD_DIR/own-revisions"
 revisions > "$RECORD_DIR/revisions-after.json"
