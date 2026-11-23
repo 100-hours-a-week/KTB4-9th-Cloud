@@ -57,6 +57,8 @@ resource "aws_iam_role_policy" "fis" {
 # 관리형 노드 그룹의 ASG는 그룹 지표를 기본으로 내지 않는다. 지표가 없으면 아래 알람이 영영 울리지 않으므로 켠다.
 resource "terraform_data" "application_asg_metrics" {
   input = module.eks.node_group_asg_names[local.fis_target_node_group]
+  # 노드 그룹이 교체되면 ASG가 새로 생기므로 수집을 다시 켠다.
+  triggers_replace = module.eks.node_group_asg_names[local.fis_target_node_group]
 
   provisioner "local-exec" {
     command = "aws autoscaling enable-metrics-collection --region ${var.aws_region} --auto-scaling-group-name ${self.input} --granularity 1Minute --metrics GroupInServiceInstances"
