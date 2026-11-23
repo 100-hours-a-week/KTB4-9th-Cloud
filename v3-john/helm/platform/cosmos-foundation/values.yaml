@@ -20,5 +20,9 @@ deployerNamespaces: [prod]
 
 priorityClasses:
   cosmos-platform-critical: 1000000
+  # S2 단계 2: 핵심 기능(auth, core). 자리가 모자라면 낮은 우선순위 파드를 밀어낸다(아래 preemptingClasses).
+  cosmos-core-journey: 200000
   cosmos-api: 100000
   cosmos-batch: 1000
+# 낮은 우선순위 파드를 밀어낼 수 있는 클래스. 나머지는 preemptionPolicy: Never다.
+preemptingClasses: [cosmos-core-journey]

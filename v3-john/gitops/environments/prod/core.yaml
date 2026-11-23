@@ -45,3 +45,4 @@ rollout: { enabled: true } # S1 단계 4: 카나리 50% → 5분 분석 → 100%
 pdb: { minAvailable: 1 }
 spread: true
 jvmOptions: -XX:MaxRAMPercentage=75
+priorityClass: cosmos-core-journey # S2 단계 2
