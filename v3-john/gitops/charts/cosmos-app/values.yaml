@@ -41,4 +41,7 @@ spread: false
 # 카나리와 자동 롤백(S1 단계 4). 켜면 Argo Rollouts가 Deployment 파드를 넘겨받는다.
 rollout:
   enabled: false
+  # S1' 단계 3: 영향 범위 카나리. 켜면 분석에 DB 연결 여유와 다른 경로 오류율 지표가 추가된다.
+  # 연결 수가 rdsMax - reserve를 넘으면 중단한다. reserve는 다른 서비스가 한 번 재배포할 여유다.
+  connectionGuard: { enabled: false, rdsMax: 0, reserve: 0 }
   prometheus: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090

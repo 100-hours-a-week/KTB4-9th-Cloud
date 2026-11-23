@@ -54,4 +54,40 @@ spec:
         prometheus:
           address: {{ .Values.rollout.prometheus }}
           query: sum(increase(kube_pod_container_status_restarts_total{namespace="prod",pod=~"{{ .Values.name }}-.*"}[5m])) or vector(0)
+{{- with .Values.rollout.connectionGuard }}
+{{- if .enabled }}
+    # S1' 단계 3: 영향 범위 카나리. 카나리 파드가 DB 연결을 더 잡아 다른 서비스가 재시작할 여유가 없어지면 사용자 영향 전에 중단한다.
+    # 모든 질의는 데이터가 없을 때도 값을 돌려주고(or vector(0)), 빈 결과는 통과로 본다. 1차의 NaN 중단을 되풀이하지 않는다.
+    # 전체 연결 수가 (RDS 한도 - 다른 서비스 한 번 재배포 여유) 이하여야 한다. rdsMax는 Prometheus 규칙·CI 상수와 같은 값이다.
+    - name: db-connection-headroom
+      interval: 1m
+      count: 5
+      failureLimit: 0
+      successCondition: len(result) == 0 || result[0] <= {{ sub (int .rdsMax) (int .reserve) }}
+      provider:
+        prometheus:
+          address: {{ $.Values.rollout.prometheus }}
+          query: cosmos:db_connections:sum or vector(0)
+    # 다른 주요 경로의 오류율이 5% 아래
+    - name: other-routes-error
+      interval: 1m
+      count: 5
+      failureLimit: 0
+      successCondition: len(result) == 0 || result[0] < 0.05
+      provider:
+        prometheus:
+          address: {{ $.Values.rollout.prometheus }}
+          query: max(cosmos:journey_error_ratio_all:rate5m{journey="major"} >= 0) or vector(0)
+    # auth 경로(로그인) 오류율이 5% 아래
+    - name: auth-route-error
+      interval: 1m
+      count: 5
+      failureLimit: 0
+      successCondition: len(result) == 0 || result[0] < 0.05
+      provider:
+        prometheus:
+          address: {{ $.Values.rollout.prometheus }}
+          query: max(cosmos:journey_error_ratio_all:rate5m{route="journey-core-auth"} >= 0) or vector(0)
+{{- end }}
+{{- end }}
 {{- end }}

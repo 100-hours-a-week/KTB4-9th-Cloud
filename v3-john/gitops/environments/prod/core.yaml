@@ -46,7 +46,10 @@ probes:
 replicas: null # HPA가 관리
 hpa: { enabled: true, min: 2, max: 3, cpu: 140 } # 요청 500m의 140% = 700m, 이전 기준(1코어의 70%)과 같은 값
 otel: { enabled: true, agent: true, serviceName: cosmos-core }
-rollout: { enabled: true } # S1 단계 4: 카나리 50% → 5분 분석 → 100%
+# S1 단계 4: 카나리 50% → 5분 분석 → 100%
+# S1' 단계 3: connectionGuard. rdsMax 303은 RDS max_connections 실측값이다(Prometheus 규칙·CI 상수와 같아야 한다).
+# reserve 30 = 다른 서비스가 한 번 재배포할 여유 = 가장 큰 서비스의 (HPA 최대 x 풀) = max(auth 2x10, core 3x10, battle 3x10) = 30
+rollout: { enabled: true, connectionGuard: { enabled: true, rdsMax: 303, reserve: 30 } }
 pdb: { minAvailable: 1 }
 spread: true
 jvmOptions: -XX:MaxRAMPercentage=75
