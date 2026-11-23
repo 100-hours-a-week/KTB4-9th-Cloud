@@ -79,3 +79,33 @@ resource "aws_eks_pod_identity_association" "tempo" {
   service_account = "tempo-sa"
   role_arn        = aws_iam_role.tempo.arn
 }
+
+# S3a 단계 2: Grafana가 CloudWatch에서 RDS 지표(연결 수, CPU, 지연)를 읽는다. 읽기 전용이다.
+data "aws_iam_policy_document" "grafana_cloudwatch" {
+  statement {
+    actions   = ["cloudwatch:GetMetricData", "cloudwatch:ListMetrics", "cloudwatch:GetMetricStatistics", "cloudwatch:DescribeAlarmsForMetric"]
+    resources = ["*"]
+  }
+  statement {
+    actions   = ["rds:DescribeDBInstances", "ec2:DescribeRegions"]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role" "grafana" {
+  name               = "${var.cluster_name}-grafana-role"
+  assume_role_policy = data.aws_iam_policy_document.pod_identity_assume.json
+}
+
+resource "aws_iam_role_policy" "grafana_cloudwatch" {
+  name   = "cloudwatch-read"
+  role   = aws_iam_role.grafana.id
+  policy = data.aws_iam_policy_document.grafana_cloudwatch.json
+}
+
+resource "aws_eks_pod_identity_association" "grafana" {
+  cluster_name    = aws_eks_cluster.main.name
+  namespace       = "monitoring"
+  service_account = "kube-prometheus-stack-grafana"
+  role_arn        = aws_iam_role.grafana.arn
+}
