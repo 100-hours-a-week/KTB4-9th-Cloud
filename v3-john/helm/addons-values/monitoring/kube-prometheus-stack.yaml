@@ -1,5 +1,6 @@
 # chart: prometheus-community/kube-prometheus-stack 92.18.0
 # Grafana 관리자 계정은 Secret grafana-admin을 사용한다. Secret discord-webhook은 Secrets Manager cosmos/monitoring/discord-webhook 값이다.
+# S2 개선 단계 4: 탐지 경로(Prometheus, Alertmanager, kube-state-metrics)와 Grafana를 온디맨드 monitoring 노드에 둔다.
 kubeEtcd: { enabled: false }
 kubeScheduler: { enabled: false }
 kubeControllerManager: { enabled: false }
@@ -26,6 +27,9 @@ prometheus:
     serviceMonitorSelectorNilUsesHelmValues: false
     podMonitorSelectorNilUsesHelmValues: false
     ruleSelectorNilUsesHelmValues: false
+    nodeSelector: { workload-class: monitoring }
+    tolerations:
+      - { key: workload, operator: Equal, value: monitoring, effect: NoSchedule }
     resources:
       requests: { cpu: 500m, memory: 2Gi }
       limits: { cpu: "2", memory: 4Gi }
@@ -88,6 +92,9 @@ alertmanager:
               {{ end }}
   alertmanagerSpec:
     secrets: [discord-webhook]
+    nodeSelector: { workload-class: monitoring }
+    tolerations:
+      - { key: workload, operator: Equal, value: monitoring, effect: NoSchedule }
     resources:
       requests: { cpu: 50m, memory: 128Mi }
       limits: { cpu: 200m, memory: 256Mi }
@@ -105,6 +112,9 @@ grafana:
     existingSecret: grafana-admin
     userKey: admin-user
     passwordKey: admin-password
+  nodeSelector: { workload-class: monitoring }
+  tolerations:
+    - { key: workload, operator: Equal, value: monitoring, effect: NoSchedule }
   resources:
     requests: { cpu: 100m, memory: 256Mi }
     limits: { cpu: 500m, memory: 512Mi }
@@ -157,6 +167,9 @@ prometheusOperator:
     requests: { cpu: 100m, memory: 128Mi }
     limits: { cpu: 300m, memory: 256Mi }
 kube-state-metrics:
+  nodeSelector: { workload-class: monitoring }
+  tolerations:
+    - { key: workload, operator: Equal, value: monitoring, effect: NoSchedule }
   resources:
     requests: { cpu: 50m, memory: 128Mi }
     limits: { cpu: 200m, memory: 256Mi }

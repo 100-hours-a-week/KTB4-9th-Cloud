@@ -96,6 +96,18 @@ variable "node_groups" {
       labels   = { "workload-class" = "application" }
       taints   = []
     }
+    monitoring-od-ng = {
+      # S2 개선 단계 4: 스팟 회수가 탐지 수단(Prometheus, Alertmanager, Tempo)을 함께 지우지 않게 온디맨드 노드에 분리한다.
+      # 모니터링 볼륨(EBS)이 ap-northeast-2a에 있으므로 서브넷은 a 하나다. 온디맨드 vCPU는 Spot 한도와 별개 쿼터(128)로 센다.
+      capacity_type  = "ON_DEMAND"
+      subnet_keys    = ["a"]
+      instance_types = ["t3.large"]
+      min_size       = 1
+      desired_size   = 1
+      max_size       = 1
+      labels         = { "workload-class" = "monitoring" }
+      taints         = [{ key = "workload", value = "monitoring", effect = "NO_SCHEDULE" }]
+    }
   }
 }
 

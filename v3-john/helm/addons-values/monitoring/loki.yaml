@@ -17,6 +17,10 @@ loki:
     delete_request_store: filesystem
 singleBinary:
   replicas: 1
+  # S2 개선 단계 4: 온디맨드 monitoring 노드에 둔다.
+  nodeSelector: { workload-class: monitoring }
+  tolerations:
+    - { key: workload, operator: Equal, value: monitoring, effect: NoSchedule }
   resources:
     requests: { cpu: 200m, memory: 512Mi }
     limits: { cpu: "1", memory: 2Gi }
