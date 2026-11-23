@@ -48,10 +48,12 @@ variable "node_groups" {
     instance_types = list(string)
     # Spot 재고가 없을 때 그룹별로 ON_DEMAND로 바꾼다.
     capacity_type = optional(string, "SPOT")
-    min_size      = number
-    desired_size  = number
-    max_size      = number
-    labels        = map(string)
+    # 노드 그룹이 쓸 EKS 서브넷 키(var.subnets). 클러스터 안 DB의 EBS가 a에 있으므로 기본은 a 하나다.
+    subnet_keys  = optional(list(string), ["a"])
+    min_size     = number
+    desired_size = number
+    max_size     = number
+    labels       = map(string)
     taints = list(object({
       key    = string
       value  = string
@@ -84,7 +86,9 @@ variable "node_groups" {
       taints         = [{ key = "workload", value = "judge", effect = "NO_SCHEDULE" }]
     }
     application-ng = {
-      instance_types = ["t3.xlarge", "t3a.xlarge", "m5.xlarge"]
+      # S2 단계 3: 같은 AZ·같은 유형이 한꺼번에 회수되거나 용량이 없는 위험을 줄인다(AZ 두 곳, 유형 5개, 모두 4 vCPU).
+      subnet_keys    = ["a", "c"]
+      instance_types = ["t3.xlarge", "t3a.xlarge", "m5.xlarge", "m6i.xlarge", "m5a.xlarge"]
       min_size       = 2
       desired_size   = 2
       # 노드 1대가 빠져도 나머지에 다시 올릴 수 있게 1대 여유를 둔다(KubeCPUOvercommit). Spot vCPU 최대 20, 한도 32.
