@@ -91,5 +91,53 @@ class Clean(unittest.TestCase):
         self.assertEqual(out["judge"]["judge_completed"], 83)
         self.assertEqual(out["judge"]["submit_p95_s"], 1.17)
 
+class Impact(unittest.TestCase):
+    def test_slo_hold_ratio_ignores_nan(self):
+        # NaN은 분모에서 빠진다: 목표 이하 2건 / 유효 3건
+        s = series([(0, 0.001), (15, float("nan")), (30, 0.01), (45, 0.002)])
+        self.assertAlmostEqual(ag.slo_hold_ratio(s, T0, T0 + 100), 2 / 3)
+
+    def test_slo_hold_ratio_empty_is_none(self):
+        self.assertIsNone(ag.slo_hold_ratio([], T0, T0 + 100))
+        self.assertIsNone(ag.slo_hold_ratio(series([(0, float("nan"))]), T0, T0 + 100))
+
+    def test_blast_radius_threshold(self):
+        routes = {"journey-core-auth": series([(0, 0.0), (15, 0.06), (30, 0.0)]),
+                  "journey-core-problem": series([(0, 0.01), (15, 0.01)])}
+        self.assertEqual(ag.blast_radius(routes, T0, T0 + 100), ["journey-core-auth"])
+
+    def test_blast_radius_outside_window_ignored(self):
+        routes = {"journey-core-auth": series([(-30, 0.9), (200, 0.9), (15, 0.0)])}
+        self.assertEqual(ag.blast_radius(routes, T0, T0 + 100), [])
+
+class Placement(unittest.TestCase):
+    NAN = float("nan")
+
+    def test_monitoring_gap_counts_empty_and_zero_samples(self):
+        # 15초 간격 표본 [1, 1, 빈, 빈, 1]: 빈 표본 2개 = 30초
+        s = series([(0, 1), (15, 1), (60, 1)])  # 30, 45초 표본은 아예 없다
+        self.assertEqual(ag.monitoring_gap_seconds(s, T0, T0 + 60), 30)
+        s = series([(0, 1), (15, 1), (30, self.NAN), (45, 0), (60, 1)])
+        self.assertEqual(ag.monitoring_gap_seconds(s, T0, T0 + 60), 30)
+
+    def test_monitoring_gap_none_is_zero_and_all_missing_is_full_window(self):
+        self.assertEqual(ag.monitoring_gap_seconds(series([(0, 1), (15, 1), (30, 1)]), T0, T0 + 30), 0)
+        self.assertEqual(ag.monitoring_gap_seconds([], T0, T0 + 30), 30)
+
+    def test_monitoring_gap_ignores_samples_outside_window(self):
+        s = series([(-30, 0), (0, 1), (15, 1), (30, 1), (200, 0)])
+        self.assertEqual(ag.monitoring_gap_seconds(s, T0, T0 + 30), 0)
+
+    def test_placement_skew_two_core_on_same_node(self):
+        pods = [("cosmos-core-abc-1", "n1"), ("cosmos-core-abc-2", "n1"),
+                ("cosmos-auth-x-1", "n1"), ("cosmos-auth-x-2", "n2"),
+                ("cosmos-battle-y-1", "n2"), ("cosmos-judge-api-z-1", "n2"), ("cosmos-judge-api-z-2", "n2"),
+                ("other-1", "n1")]
+        self.assertEqual(ag.placement_skew(pods), {"auth": 1, "core": 2, "battle": 1, "judge-api": 2})
+
+    def test_placement_skew_missing_service_is_zero(self):
+        self.assertEqual(ag.placement_skew([("cosmos-core-a-1", "n1")]),
+                         {"auth": 0, "core": 1, "battle": 0, "judge-api": 0})
+
 if __name__ == "__main__":
     unittest.main()

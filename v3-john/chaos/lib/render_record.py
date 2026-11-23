@@ -23,6 +23,11 @@ def main():
     blockers = rec.get("verdict_blockers") or []
     rows = "\n".join(f"| {k} | {v['requests']} | {pct(v.get('failure_ratio'))} | {num(v.get('p95_ms'))} |"
                      for k, v in sorted(rec.get("journeys", {}).items()))
+    da = rec.get("detection_all")
+    br = rec.get("blast_radius")
+    hold = rec.get("core_slo_hold")
+    gap = rec.get("monitoring_gap_seconds")
+    skew = rec.get("placement_skew")
     t = rec["times"]
     print(tpl.format(
         scenario=rec["scenario"], step=rec["step"], testid=rec.get("testid"),
@@ -32,6 +37,11 @@ def main():
         recovery="관찰 구간 안에 회복하지 못함" if rs is None else ("영향 없음" if rs == 0 else dur(rs)),
         mitigation=(f"{dur(rec['mitigation_seconds'])} (대응자 완화 신호)" if rec.get("mitigation_seconds") is not None
                     else "(사람이 적는다. 완화 신호 없이 정해진 시간에 원복)"),
+        detection_all=(f"{dur(da['seconds'])} ({da['alert']})" if da else "탐지되지 않음") if "detection_all" in rec else "-",
+        blast=", ".join(br) if br else ("없음" if br is not None else "-"),
+        slo_hold=pct(hold),
+        monitoring_gap="-" if gap is None else f"{gap}초",
+        placement_skew="-" if not skew else ", ".join(f"{k} {v}" for k, v in skew.items()),
         budget=f"{rec.get('budget_percent_core')}%",
         read_p95="-" if rec.get("read_p95_ms") is None else f"{rec['read_p95_ms']:.0f}ms",
         submit_p95="-" if j.get("submit_p95_s") is None else f"{j['submit_p95_s']:.2f}초",

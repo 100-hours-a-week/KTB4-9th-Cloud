@@ -12,6 +12,7 @@ CHAOS=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$CHAOS/.." && pwd)
 source "$CHAOS/lib/guard.sh"
 source "$CHAOS/lib/annotate.sh"
+source "$CHAOS/lib/precheck.sh"
 
 usage() { sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 SCENARIO=${1:-}; STEP=${2:-}; shift 2 || usage
@@ -86,6 +87,7 @@ running=$(aws fis list-experiments --region ap-northeast-2 \
   --query "length(experiments[?state.status=='running' || state.status=='initiating'])" --output text) \
   || { log "FIS 실험 목록을 확인할 수 없다(AWS 인증 확인)"; exit 1; }
 (( running == 0 )) || { log "실행 중인 FIS 실험 ${running}개. 먼저 멈춘다."; exit 1; }
+reason=$(precheck_nodes) || { log "$reason"; exit 1; }
 
 # 2. 배포 리비전 기록
 revisions() { kubectl get applications.argoproj.io -n argocd -o json | python3 -c '

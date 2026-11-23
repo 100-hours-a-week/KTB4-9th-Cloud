@@ -46,6 +46,10 @@ alertmanager:
       group_interval: 5m
       repeat_interval: 4h
       routes:
+        # 2차 실험 S1' 단계 1 전까지 연결 예산 알림은 개선 전 조건을 유지하려고 어디로도 보내지 않는다. 단계 1에서 이 경로만 지운다.
+        - receiver: blackhole
+          matchers:
+            - alertname=~"RdsConnectionBudgetHigh|DbConnectionAcquireFailed"
         # Watchdog은 항상 firing인 알림이다. 1시간마다 Discord에 오지 않으면 Prometheus나 Alertmanager 경로가 끊긴 것이다.
         - receiver: discord
           matchers:
@@ -77,6 +81,7 @@ alertmanager:
       - target_matchers: ['alertname = InfoInhibitor']
     receivers:
       - name: "null"
+      - name: blackhole
       - name: discord
         discord_configs:
           - webhook_url_file: /etc/alertmanager/secrets/discord-webhook/url
@@ -342,3 +347,69 @@ additionalPrometheusRulesMap:
             annotations:
               summary: "Image Updater가 {{ $labels.application }} 이미지 갱신에 실패"
               description: "argocd-image-updater 로그에서 ECR 인증, Git 쓰기 오류를 확인한다."
+  # 2차 실험용 규칙. 업스트림 5xx 밖의 타임아웃과 연결 실패까지 오류로 세는 SLI와 DB 연결 알림이다.
+  cosmos-round2:
+    groups:
+      - name: cosmos-round2.slo
+        interval: 30s
+        rules:
+          # 1차 오류 기록 규칙에 타임아웃과 연결 실패를 더한다. 라벨 route, journey는 1차와 같다.
+          - record: cosmos:route_errors_all:rate5m
+            expr: |
+              sum by (route, journey) (
+                cosmos:route_errors:rate5m
+                or label_replace(label_replace(label_replace(
+                  sum by (envoy_cluster_name) (rate(envoy_cluster_upstream_rq_timeout{envoy_cluster_name=~"httproute/prod/journey-.+"}[5m])),
+                "route", "$1", "envoy_cluster_name", "httproute/prod/([^/]+)/rule/.*"),
+                "journey", "$1", "envoy_cluster_name", "httproute/prod/journey-([a-z]+).*"),
+                "src", "timeout", "", "")
+                or label_replace(label_replace(label_replace(
+                  sum by (envoy_cluster_name) (rate(envoy_cluster_upstream_cx_connect_fail{envoy_cluster_name=~"httproute/prod/journey-.+"}[5m])),
+                "route", "$1", "envoy_cluster_name", "httproute/prod/([^/]+)/rule/.*"),
+                "journey", "$1", "envoy_cluster_name", "httproute/prod/journey-([a-z]+).*"),
+                "src", "connect_fail", "", "")
+              )
+          - record: cosmos:journey_error_ratio_all:rate5m
+            expr: sum by (journey) (cosmos:route_errors_all:rate5m) / sum by (journey) (cosmos:route_requests:rate5m)
+          - record: cosmos:db_connections:sum
+            expr: sum(hikaricp_connections{namespace="prod"})
+      - name: cosmos-round2.windows
+        interval: 1m
+        rules:
+          - record: cosmos:journey_error_ratio_all:rate1h
+            expr: sum by (journey) (avg_over_time(cosmos:route_errors_all:rate5m[1h])) / sum by (journey) (avg_over_time(cosmos:route_requests:rate5m[1h]))
+      - name: cosmos-round2.symptoms
+        rules:
+          # 탐지 시간을 재는 기준 알림이다. CoreErrorBudgetBurnFast와 같은 임계값에 오류 기준만 넓혔다.
+          - alert: CoreBurnFastAll
+            expr: |
+              cosmos:journey_error_ratio_all:rate1h{journey="core"} > 0.072
+              and cosmos:journey_error_ratio_all:rate5m{journey="core"} > 0.072
+            for: 2m
+            labels: { severity: critical, sev: SEV1, namespace: prod }
+            annotations:
+              summary: "핵심 기능 오류율이 에러 예산을 14.4배 넘는 속도로 소진 중 (타임아웃과 연결 실패 포함)"
+          # 어느 경로가 먼저 무너졌는지 보여 준다.
+          - alert: ServiceErrorHigh
+            expr: |
+              cosmos:route_errors_all:rate5m
+              / on (route, journey) cosmos:route_requests:rate5m > 0.05
+            for: 2m
+            labels: { severity: warning, sev: SEV2, namespace: prod }
+            annotations:
+              summary: "{{ $labels.route }} 오류율 {{ $value | humanizePercentage }}, 타임아웃과 연결 실패 포함"
+      # S1' 단계 1의 개선이다. Alertmanager 경로에서 blackhole로 보내다가 단계 1에서 경로만 연다.
+      - name: cosmos-round2-s1p-step1
+        rules:
+          - alert: RdsConnectionBudgetHigh
+            # 300은 RDS max_connections 실측값을 넣기 전의 자리 표시 값이다. Task 4에서 잰 값으로 바꾼다.
+            expr: cosmos:db_connections:sum / 300 > 0.8
+            for: 1m
+            labels: { severity: warning, sev: SEV2, namespace: prod }
+            annotations:
+              summary: "앱 전체 DB 연결 {{ with query \"cosmos:db_connections:sum\" }}{{ . | first | value | humanize }}{{ end }}개, RDS 최대 연결의 {{ $value | humanizePercentage }}"
+          - alert: DbConnectionAcquireFailed
+            expr: sum by (pod) (increase(hikaricp_connections_timeout_total{namespace="prod"}[2m])) > 0
+            labels: { severity: warning, sev: SEV2, namespace: prod }
+            annotations:
+              summary: "{{ $labels.pod }}가 2분 동안 DB 연결을 얻지 못한 건 {{ $value | humanize }}건"

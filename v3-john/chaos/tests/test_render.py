@@ -30,6 +30,19 @@ class Render(unittest.TestCase):
         self.assertIn("| 채점 완료율 | 97.56% (유실 2, 업무 거절 1) |", md)
         self.assertIn("판정 가능", md)
 
+    def test_impact_fields(self):
+        md = self.render(dict(SAMPLE, detection_all={"alert": "ServiceErrorHigh", "seconds": 90},
+                              blast_radius=["journey-core-auth"], core_slo_hold=0.8))
+        self.assertIn("| 전체 탐지 시간 | 1분 30초 (ServiceErrorHigh) |", md)
+        self.assertIn("| 영향 범위 | journey-core-auth |", md)
+        self.assertIn("| 핵심 SLO 유지율 | 80.00% |", md)
+
+    def test_placement_fields(self):
+        md = self.render(dict(SAMPLE, monitoring_gap_seconds=45, placement_skew={"auth": 1, "core": 2}))
+        self.assertIn("| 관측 공백 | 45초 |", md)
+        self.assertIn("| 노드당 최대 레플리카 | auth 1, core 2 |", md)
+        self.assertIn("| 관측 공백 | - |", self.render(SAMPLE))
+
     def test_mitigation_from_responder_signal(self):
         md = self.render(dict(SAMPLE, mitigation_seconds=630))
         self.assertIn("| 완화 시간 | 10분 30초 (대응자 완화 신호) |", md)

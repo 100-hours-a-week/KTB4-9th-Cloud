@@ -8,6 +8,9 @@ CORE_SLO, MAJOR_SLO, AI_SLO = 0.995, 0.99, 0.95
 PERIOD_MIN = 40320  # 4주
 SYMPTOM_ALERTS = ("CoreUnavailable", "CoreErrorBudgetBurnFast", "MajorUnavailable", "ReadLatencyHigh",
                   "JudgeTurnaroundHigh", "JudgeJobLost", "AiErrorRateHigh")
+# 2차: 서비스 전체 탐지 알림(Task 2 규칙)
+ALL_ALERTS = ("CoreBurnFastAll", "ServiceErrorHigh")
+BLAST_THRESHOLD = 0.05
 STEP = 15
 HOLD = 60
 
@@ -34,6 +37,16 @@ def recovery_seconds(samples, inject_t, target, hold=HOLD):
                 return int(cand - inject_t)
     return 0 if not breached else None
 
+def slo_hold_ratio(samples, start_t, end_t, target=0.005):
+    """구간 안 표본 중 값이 목표 이하인 비율. NaN(요청 없음)은 분모에서 뺀다. 표본이 없으면 None."""
+    vals = [v for t, v in samples if start_t <= t <= end_t and _finite(v)]
+    return None if not vals else sum(1 for v in vals if v <= target) / len(vals)
+
+def blast_radius(route_ratios, start_t, end_t, threshold=BLAST_THRESHOLD):
+    """구간 안에서 오류율이 한 번이라도 threshold를 넘은 route 이름 목록(정렬)."""
+    return sorted(r for r, pts in route_ratios.items()
+                  if any(start_t <= t <= end_t and _finite(v) and v > threshold for t, v in pts))
+
 def first_alert(alerts, inject_t, names, step=STEP):
     """주입 뒤 처음 firing으로 바뀐 증상 알림 (이름, 초).
     alerts: 이름 → 시계열(라벨 조합)별 firing 시각 목록. 시계열마다 '직전 간격에는 firing이 아니었던' 시각을 찾는다.
@@ -50,6 +63,31 @@ def first_alert(alerts, inject_t, names, step=STEP):
                         best = (name, t)
                     break
     return None if best is None else (best[0], int(best[1] - inject_t))
+
+def monitoring_gap_seconds(samples, start_t, end_t, step=STEP):
+    """판정 구간 안에서 Prometheus 자기 up 표본이 없는 구간의 길이(초).
+    samples는 step마다 '직전 PRESENCE_WINDOW초 안의 up 표본 수'다. 격자 지점에 값이 없거나 NaN이거나 0이면 한 칸(step초)으로 세고,
+    합이 구간 길이(end_t - start_t)를 넘지 않게 자른다."""
+    by_idx = {}
+    for t, v in samples:
+        if start_t <= t <= end_t:
+            by_idx[int(round((t - start_t) / step))] = v
+    n = int((end_t - start_t) // step) + 1
+    bad = sum(1 for i in range(n) if not _finite(by_idx.get(i)) or by_idx[i] == 0)
+    return min(bad * step, max(0, int(end_t - start_t)))
+
+PLACEMENT_SERVICES = ("auth", "core", "battle", "judge-api")
+
+def placement_skew(pods):
+    """서비스별 같은 노드의 최대 레플리카 수. pods: (파드 이름, 노드 이름) 목록.
+    파드 이름이 cosmos-<서비스>-로 시작하는 것만 센다. 대상 서비스가 하나도 없으면 0."""
+    per = {s: {} for s in PLACEMENT_SERVICES}
+    for pod, node in pods:
+        for svc in PLACEMENT_SERVICES:
+            if pod.startswith(f"cosmos-{svc}-"):
+                per[svc][node] = per[svc].get(node, 0) + 1
+                break
+    return {s: max(c.values(), default=0) for s, c in per.items()}
 
 def budget_percent(fail_ratio, minutes, slo, period_min=PERIOD_MIN):
     """설계서 6.2: (실패 비율 × 지속 시간) ÷ 4주 허용 실패 시간, 백분율."""
@@ -129,8 +167,24 @@ def core_ratio_1m(prom, start, end):
     r = rng(prom, "(" + expr + ")", start, end)
     return next(iter(r.values()), [])
 
+def route_ratios_1m(prom, start, end):
+    """route별 1분 창 오류율. 5xx, 업스트림 타임아웃, 연결 실패, 정상 호스트 없음을 오류로 센다(Task 2 규칙과 같은 구성)."""
+    r = 'envoy_cluster_name=~"httproute/prod/[^/]+/rule/.*"'
+    lbl = '"route", "$1", "envoy_cluster_name", "httproute/prod/([^/]+)/rule/.*"'
+    def part(metric, k, extra=""):
+        # 같은 route의 여러 지표가 or 로 겹쳐 사라지지 않도록 k 라벨로 구분해 둔다
+        return f'sum by (route, k) (label_replace(label_replace(rate({metric}{{{r}{extra}}}[1m]), {lbl}), "k", "{k}", "", ""))'
+    none = part("envoy_cluster_upstream_cx_none_healthy", "n")
+    err = " or ".join((part("envoy_cluster_upstream_rq_xx", "5", ', envoy_response_code_class="5"'),
+                       part("envoy_cluster_upstream_rq_timeout", "t"),
+                       part("envoy_cluster_upstream_cx_connect_fail", "c"), none))
+    tot = " or ".join((part("envoy_cluster_upstream_rq_total", "r"), none))
+    err_sum, tot_sum = f"sum by (route) ({err})", f"sum by (route) ({tot})"
+    res = rng(prom, f"({err_sum}) / ({tot_sum})", start, end)
+    return {json.loads(k).get("route", "-"): v for k, v in res.items()}
+
 def alert_firing_times(prom, start, end):
-    names = "|".join(SYMPTOM_ALERTS)
+    names = "|".join(SYMPTOM_ALERTS + ALL_ALERTS)
     r = rng(prom, f'ALERTS{{alertstate="firing", alertname=~"{names}"}}', start - 300, end)
     out = {}
     for k, pts in r.items():
@@ -146,6 +200,22 @@ def k6_window(prom, testid, end, window):
         "submit_rejected": q(f'sum(increase(k6_submit_rejected_total{{testid="{testid}"}}[{window}s]))') or 0,
     }
 
+PRESENCE_WINDOW = 45  # 수집 주기 30초 + 지터. 이보다 짧으면 정상 구간도 빈 칸으로 보인다
+
+def monitoring_presence(prom, start, end):
+    """step(15초)마다 직전 PRESENCE_WINDOW초 안의 Prometheus 자기 up 표본 수.
+    평범한 up 선택자는 5분 룩백으로 재시작 공백을 메우므로 표본 존재 자체를 센다. 운영자 잡은 빼고 합산한다.
+    공백은 실제보다 최대 PRESENCE_WINDOW초 짧게 잡힐 수 있다(보수적)."""
+    r = rng(prom, f'sum(count_over_time(up{{job=~".*prometheus.*", job!~".*operator.*"}}[{PRESENCE_WINDOW}s]))', start, end)
+    return next(iter(r.values()), [])
+
+def placement_pods(prom, end):
+    """실험 끝 시각의 prod 실행 중 파드와 노드(kube-state-metrics kube_pod_info 기준)."""
+    expr = ('kube_pod_info{namespace="prod", pod=~"cosmos-(auth|core|battle|judge-api)-.*"}'
+            ' * on(namespace, pod) group_left() (kube_pod_status_phase{namespace="prod", phase="Running"} == 1)')
+    res = _get(prom, "/api/v1/query", {"query": expr, "time": end})
+    return [(x["metric"].get("pod", ""), x["metric"].get("node", "")) for x in res]
+
 def main():
     ap = argparse.ArgumentParser()
     for a in ("prom", "testid", "rev_before", "rev_after", "aborted", "scenario", "step", "own_revisions"):
@@ -159,6 +229,8 @@ def main():
     rec_series = core_ratio_1m(a.prom, a.inject, a.end)
     alerts = alert_firing_times(a.prom, a.inject, a.end)
     det = first_alert(alerts, a.inject, SYMPTOM_ALERTS)
+    det_all = first_alert(alerts, a.inject, ALL_ALERTS)
+    routes = route_ratios_1m(a.prom, a.inject, a.end)
     k6 = k6_window(a.prom, a.testid, a.end, window) if a.testid else {}
     core = journeys.get("core", {"requests": 0, "failure_ratio": None})
     fr = core.get("failure_ratio") or 0.0
@@ -171,11 +243,16 @@ def main():
         "times": {"k6_start": a.start, "inject": a.inject, "stop": a.stop, "end": a.end},
         "detection": {"alert": det[0], "seconds": det[1]} if det else None,
         "recovery_seconds_core": recovery_seconds(rec_series, a.inject, 1 - CORE_SLO),
+        "detection_all": {"alert": det_all[0], "seconds": det_all[1]} if det_all else None,
+        "core_slo_hold": slo_hold_ratio(rec_series, a.inject, a.end, 1 - CORE_SLO),
+        "blast_radius": blast_radius(routes, a.inject, a.end),
+        "monitoring_gap_seconds": monitoring_gap_seconds(monitoring_presence(a.prom, a.inject, a.end), a.inject, a.end),
+        "placement_skew": placement_skew(placement_pods(a.prom, a.end)),
         "journeys": journeys,
         "read_p95_ms": read_p95,
         "budget_percent_core": budget_percent(fr, window / 60, CORE_SLO),
         "judge": {**k6, "completion_ratio": (done / (done + lost)) if (done + lost) else None},
-        "symptom_alerts_fired": sorted(k for k, v in alerts.items() if any(t > a.inject for ts in v for t in ts)),
+        "symptom_alerts_fired": sorted(k for k, v in alerts.items() if k in SYMPTOM_ALERTS and any(t > a.inject for ts in v for t in ts)),
         "revisions": {"before": rb, "after": ra, "scenario_own": own},
         "aborted": a.aborted or None,
         "verdict_blockers": verdict(core.get("requests", 0), rb, ra, a.aborted, own),
