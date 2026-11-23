@@ -1,0 +1,22 @@
+# chart: argo/argo-rollouts 2.43.12 (Argo Rollouts v1.10.2). S1 단계 4 카나리와 자동 롤백.
+installCRDs: true
+keepCRDs: false
+controller:
+  replicas: 1
+  image:
+    registry: quay.io
+    repository: argoproj/argo-rollouts
+    tag: v1.10.2@sha256:2a395642ea411ae7b09274a560c3934b16134dfe36f5ffaaa6054c8a21a2eecf
+  nodeSelector: { workload-class: system }
+  tolerations:
+    - key: CriticalAddonsOnly
+      operator: Exists
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { cpu: 300m, memory: 256Mi }
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+dashboard:
+  enabled: false
