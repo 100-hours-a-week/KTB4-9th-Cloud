@@ -72,6 +72,17 @@ port_forward kube-prometheus-stack-prometheus 19090 9090
 port_forward kube-prometheus-stack-alertmanager 19093 9093
 port_forward kube-prometheus-stack-grafana 13000 80
 for _ in $(seq 20); do _prom_ok && _am_ok && break; sleep 1; done
+# Prometheus·Alertmanager 파드가 다른 노드로 옮겨 가면 port-forward가 끊긴다(S2' 회수). 끊겼으면 다시 잇는다.
+reconnect_monitoring() {
+  _prom_ok && _am_ok && return 0
+  for p in "${PF_PIDS[@]:-}"; do [ -n "$p" ] && kill "$p" 2>/dev/null || true; done
+  PF_PIDS=()
+  port_forward kube-prometheus-stack-prometheus 19090 9090
+  port_forward kube-prometheus-stack-alertmanager 19093 9093
+  port_forward kube-prometheus-stack-grafana 13000 80
+  for _ in $(seq 5); do _prom_ok && _am_ok && return 0; sleep 1; done
+  return 1
+}
 
 # 1. 사전 검사
 log "사전 검사: $NAME (주입 전 ${AFTER_S}s, 주입 ${INJECT_DURATION}s, 회복 ${RECOVER_S}s, $VUS VU)"
@@ -158,17 +169,19 @@ while :; do
   (( $(date +%s) < INJECT_START + INJECT_DURATION )) || break
   # 대응자가 완화를 결정하면 다른 터미널에서 `touch $RECORD_DIR/mitigate`. 바로 원복한다(완화 시각 측정).
   if [ -f "$RECORD_DIR/mitigate" ]; then MITIGATED_AT=$(date +%s); log "대응자 완화 신호: 원복"; break; fi
+  (( GUARD_MON_GAP_OK_S > 0 )) && { reconnect_monitoring || true; }
   reason=$(guard_check) || { ABORTED=$reason; log "중단 조건 위반: $reason"; break; }
 done
 
 # 7. 원복과 회복 관찰
 "$SDIR/stop.sh" >>"$LOG" 2>&1 || log "stop.sh 실패. 수동 확인 필요"
-STOPPED=1; T_STOP=$(date +%s); unset INJECT_START
+STOPPED=1; T_STOP=$(date +%s); unset INJECT_START; export GUARD_RECOVERING=1
 annotate "$SCENARIO $STEP 원복" "chaos,$SCENARIO,$STEP" >/dev/null || true
 log "원복. ${RECOVER_S}s 회복 관찰"
 if [ -z "$ABORTED" ]; then
   while (( $(date +%s) < T_STOP + RECOVER_S )); do
     sleep 15
+    (( GUARD_MON_GAP_OK_S > 0 )) && { reconnect_monitoring || true; }
     reason=$(guard_check) || { ABORTED=$reason; log "중단 조건 위반(회복 중): $reason"; break; }
   done
 fi
@@ -178,10 +191,11 @@ K6_PID=""
 
 # 8~10. 집계, 리비전 비교, 저장
 # k6를 기다리는 동안 port-forward가 끊길 수 있다(2026-11-23 s1-step2 집계 실패). 집계 전에 다시 잇는다.
+# Prometheus 파드가 다른 노드에서 다시 뜨는 중일 수 있어(S2') 최대 5분 동안 다시 이으며 기다린다.
 if ! _prom_ok; then
-  log "Prometheus 연결이 끊겨 port-forward를 다시 연다"
-  port_forward kube-prometheus-stack-prometheus 19090 9090
-  for _ in $(seq 20); do _prom_ok && break; sleep 1; done
+  log "Prometheus 연결이 끊겨 port-forward를 다시 연다(최대 300초)"
+  for _ in $(seq 60); do reconnect_monitoring && break; _prom_ok && break; sleep 5; done
+  _prom_ok || log "Prometheus에 닿지 않아 집계가 실패할 수 있다"
 fi
 # 시나리오가 직접 병합한 리비전(scenarios/*가 $RECORD_DIR/own-revisions에 남김)은 외부 배포로 보지 않는다.
 OWN_REV=""; [ -s "$RECORD_DIR/own-revisions" ] && OWN_REV="$RECORD_DIR/own-revisions"
