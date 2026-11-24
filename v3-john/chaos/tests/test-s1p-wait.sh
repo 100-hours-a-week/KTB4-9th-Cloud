@@ -37,7 +37,7 @@ grep -q 'S1P_HASH_BEFORE=$(kubectl get rollout cosmos-core -n prod -o jsonpath=.
 # 병합 편집 함수: 정의가 있고 풀 크기 한 줄만 바꾼다
 if declare -F _s1p_edit_pool >/dev/null && declare -F s1p_merge_pool >/dev/null; then echo "ok   편집 함수 정의됨"; else echo "FAIL 편집 함수 없음"; fail=1; fi
 cp "$DIR/../../gitops/environments/prod/core.yaml" "$T/core.yaml"
-if _s1p_edit_pool 40 "$T/core.yaml" && grep -q '^  SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "40"$' "$T/core.yaml" \
+if _s1p_edit_pool 77 "$T/core.yaml" && grep -q '^  SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "77"$' "$T/core.yaml" \
    && [ "$(diff "$DIR/../../gitops/environments/prod/core.yaml" "$T/core.yaml" | grep -c '^>')" = 1 ]; then
-  echo "ok   _s1p_edit_pool이 풀 한 줄만 40으로 변경"; else echo "FAIL _s1p_edit_pool 변경"; fail=1; fi
+  echo "ok   _s1p_edit_pool이 풀 한 줄만 77로 변경"; else echo "FAIL _s1p_edit_pool 변경"; fail=1; fi
 exit $fail
