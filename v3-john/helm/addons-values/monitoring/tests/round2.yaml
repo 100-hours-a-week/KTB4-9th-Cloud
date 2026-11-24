@@ -133,3 +133,15 @@ tests:
           - exp_labels: { route: journey-core-submit, journey: core, severity: warning, sev: SEV2, namespace: prod }
             exp_annotations:
               summary: "제출(채점) 경로 실패율 10%. 상태 저장 파드(judge-redis-queue, judge-postgres)와 채점 워커부터 확인"
+  # 기준(5%) 아래인 4%에서는 울리지 않는다.
+  - name: JudgePathDegraded 기준 미만
+    interval: 1m
+    input_series:
+      - series: 'envoy_cluster_upstream_rq_xx{envoy_cluster_name="httproute/prod/journey-core-submit/rule/0", envoy_response_code_class="2"}'
+        values: '0+576x20'
+      - series: 'envoy_cluster_upstream_rq_xx{envoy_cluster_name="httproute/prod/journey-core-submit/rule/0", envoy_response_code_class="5"}'
+        values: '0+24x20'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: JudgePathDegraded
+        exp_alerts: []
