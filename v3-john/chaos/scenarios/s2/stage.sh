@@ -2,13 +2,15 @@
 # S2' 배치 재현: 지정한 application 노드 하나에 judge-api, Envoy 하나, Prometheus, Alertmanager, Tempo, core 하나가 함께 있게 만든다.
 #   stage.sh <노드>     (RECORD_DIR 필요)
 # 방법: 다른 application 노드를 cordon하고 대상 파드를 지워 <노드>에 다시 뜨게 한 뒤, 끝나면 반드시 uncordon한다.
-# S2_STAGE_SKIP=monitoring,judge-api,envoy,core 로 개선 단계가 이미 바꾼 항목은 건너뛴다.
+# S2_STAGE_SKIP=monitoring,tempo,judge-api,envoy,core 로 개선 단계가 이미 바꾼 항목은 건너뛴다(monitoring은 tempo도 포함).
 # S2_STAGE_WAIT_S(기본 300)까지 모든 배치와 Ready를 기다린다. 하나라도 안 맞으면 종료 1, 사용법 오류는 2.
 set -uo pipefail
 node=${1:-}; [ -n "$node" ] || { echo "사용: $0 <노드>" >&2; exit 2; }
 : "${RECORD_DIR:?RECORD_DIR가 필요하다}"
 SKIP=",${S2_STAGE_SKIP:-},"
-skipped() { [[ "$SKIP" == *",$1,"* ]]; }
+skipped() { [[ "$SKIP" == *",$1,"* ]] || { [ "$1" = tempo ] && [[ "$SKIP" == *",monitoring,"* ]]; }; }
+# 모니터링 볼륨(Prometheus, Alertmanager)이 있는 존. 클러스터를 새로 띄우면 바뀐다(1차 2a, 2차 2c). Tempo 볼륨이 다른 존이면 S2_STAGE_SKIP=tempo.
+MON_ZONE=${S2_MON_ZONE:-ap-northeast-2a}
 WAIT_S=${S2_STAGE_WAIT_S:-300}; POLL_S=${S2_STAGE_POLL_S:-5}
 
 # 대상: 항목|네임스페이스|라벨|기대 개수(all은 지금 있는 파드 전부, 숫자는 노드 위 개수)
@@ -17,7 +19,7 @@ ITEMS=(
   "envoy|envoy-gateway-system|gateway.envoyproxy.io/owning-gateway-name=prod|1+"
   "monitoring|monitoring|statefulset.kubernetes.io/pod-name=prometheus-kube-prometheus-stack-prometheus-0|all"
   "monitoring|monitoring|statefulset.kubernetes.io/pod-name=alertmanager-kube-prometheus-stack-alertmanager-0|all"
-  "monitoring|monitoring|statefulset.kubernetes.io/pod-name=tempo-0|all"
+  "tempo|monitoring|statefulset.kubernetes.io/pod-name=tempo-0|all"
   "core|prod|app.kubernetes.io/name=cosmos-core|1"
 )
 
@@ -34,9 +36,9 @@ trap 'exit 130' INT TERM
 
 cls=$(kubectl get node "$node" -o jsonpath='{.metadata.labels.workload-class}' 2>/dev/null)
 [ "$cls" = application ] || { echo "$node는 application 노드가 아니다($cls)" >&2; exit 1; }
-if ! skipped monitoring; then
+if ! skipped monitoring || ! skipped tempo; then
   zone=$(kubectl get node "$node" -o jsonpath='{.metadata.labels.topology\.kubernetes\.io/zone}' 2>/dev/null)
-  [ "$zone" = ap-northeast-2a ] || { echo "$node의 존이 $zone이다. Prometheus, Alertmanager, Tempo의 볼륨은 ap-northeast-2a에 있어 올릴 수 없다(건너뛰려면 S2_STAGE_SKIP=monitoring)" >&2; exit 1; }
+  [ "$zone" = "$MON_ZONE" ] || { echo "$node의 존이 $zone이다. 모니터링 볼륨은 $MON_ZONE에 있어 올릴 수 없다(S2_MON_ZONE으로 존을 지정하거나 S2_STAGE_SKIP=monitoring,tempo)" >&2; exit 1; }
 fi
 
 # 다른 application 노드를 cordon한다.
