@@ -47,7 +47,8 @@ for d in yaml.safe_load_all(open(crd)):
 if schema is None:
     print("FAIL CRD에 BackendTrafficPolicy 없음"); sys.exit(1)
 
-docs = [d for d in yaml.safe_load_all(open(gw)) if d and d.get("kind") == "BackendTrafficPolicy"]
+# 재시도 정책만 검사한다. 같은 파일의 다른 BackendTrafficPolicy(S1' 단계 2 제출 경로 격벽 submit-bulkhead)는 제외한다.
+docs = [d for d in yaml.safe_load_all(open(gw)) if d and d.get("kind") == "BackendTrafficPolicy" and d["metadata"]["name"] == "retry-read-routes"]
 if not docs:
     no("gateway.yaml에 BackendTrafficPolicy가 없다"); sys.exit(1)
 ok(f"BackendTrafficPolicy {len(docs)}개 발견")
