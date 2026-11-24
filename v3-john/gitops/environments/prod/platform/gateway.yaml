@@ -156,3 +156,19 @@ spec:
         - path: { type: PathPrefix, value: /api }
       backendRefs:
         - { name: core-service, port: 80 }
+---
+# S1' 단계 2(2026-11-24): 제출 경로 격벽. 제출 요청은 채점 결과를 기다리는 동안 core DB 연결을 쥔다.
+# 채점이 멈추면 제출이 core 풀(파드당 10)을 다 잡아 문제 조회·major-core까지 5xx가 난다(records/s1p-pilot.md).
+# Envoy 한 대당 제출 동시 요청을 8로 묶어, 넘치는 제출은 Envoy가 바로 503으로 돌려보낸다(upstream_rq_pending_overflow).
+# 값 근거: 기준선 제출 동시 요청 Envoy 한 대당 최대 6(평상시 거절 0), Envoy 2대 합 16 < core 풀 합 20(다른 경로 몫이 남는다).
+# Envoy 레플리카가 늘면 합계 상한도 늘어난다. 레플리카를 바꿀 때 이 값을 함께 본다(chaos/decisions/s1c-step2.md).
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: submit-bulkhead
+  namespace: prod
+spec:
+  targetRefs:
+    - { group: gateway.networking.k8s.io, kind: HTTPRoute, name: journey-core-submit }
+  circuitBreaker:
+    maxParallelRequests: 8
