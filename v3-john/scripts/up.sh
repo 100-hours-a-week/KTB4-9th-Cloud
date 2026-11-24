@@ -25,6 +25,8 @@ helm upgrade --install cosmos-foundation "$BASE/helm/platform/cosmos-foundation"
 inst aws-load-balancer-controller eks/aws-load-balancer-controller 3.6.2 kube-system "$V/lb-controller/values.yaml" --set "vpcId=$VPC_ID"
 inst secrets-provider-aws aws-secrets-manager/secrets-store-csi-driver-provider-aws 3.1.4 kube-system "$V/secrets-store-csi/values.yaml"
 inst cluster-autoscaler autoscaler/cluster-autoscaler 9.60.0 kube-system "$V/cluster-autoscaler/values.yaml"
+# 스팟 회수 2분 전 알림에 노드를 비운다(2차 S2' 플랫폼 표준, 2026-11-24).
+inst aws-node-termination-handler eks/aws-node-termination-handler 0.21.0 kube-system "$V/node-termination-handler/values.yaml"
 inst keda kedacore/keda 2.21.0 keda "$V/keda/values.yaml"
 inst chaos-mesh chaos-mesh/chaos-mesh 2.8.8 chaos-mesh "$V/chaos-mesh/values.yaml"
 inst envoy-gateway oci://docker.io/envoyproxy/gateway-helm 1.9.3 envoy-gateway-system "$V/envoy-gateway/values.yaml"

@@ -1,0 +1,18 @@
+# chart: eks/aws-node-termination-handler 0.21.0 (앱 1.19.0), IMDS 모드 DaemonSet
+# 2차 S2'(2026-11-24): 스팟 회수 2분 전 알림을 받으면 즉시 노드를 cordon·drain한다. 관리형 노드 그룹은 재조정 권고에는
+# 대응하지만 회수 알림(2분)에는 노드를 비우지 않아, 파드가 인스턴스 종료와 함께 강제로 죽었다(정상 종료, PDB가 작동할 기회 없음).
+# 모든 노드 그룹(스팟)에 깔리는 플랫폼 표준이다. IMDS 모드는 hostNetwork로 메타데이터를 읽어 IAM·SQS가 필요 없다.
+enableSpotInterruptionDraining: true
+enableScheduledEventDraining: true
+enableRebalanceMonitoring: false
+enableRebalanceDraining: false
+# 회수까지 2분이므로 파드 종료 유예는 각 파드 설정(terminationGracePeriodSeconds)을 따르되 노드 전체 120초 안에서 끝낸다.
+nodeTerminationGracePeriod: 120
+podTerminationGracePeriod: -1
+ignoreDaemonSets: true
+emitKubernetesEvents: true
+daemonsetTolerations:
+  - operator: Exists
+resources:
+  requests: { cpu: 10m, memory: 32Mi }
+  limits: { cpu: 100m, memory: 64Mi }
