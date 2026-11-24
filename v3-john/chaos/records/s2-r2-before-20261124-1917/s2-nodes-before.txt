@@ -1,0 +1,7 @@
+NAME                                              STATUS   ROLES    AGE   VERSION               WORKLOAD-CLASS   CAPACITYTYPE   ZONE              INSTANCE-TYPE
+ip-10-30-33-252.ap-northeast-2.compute.internal   Ready    <none>   11h   v1.37.1-eks-9adbfea   application      SPOT           ap-northeast-2a   t3.xlarge
+ip-10-30-34-13.ap-northeast-2.compute.internal    Ready    <none>   10h   v1.37.1-eks-9adbfea   stateful         SPOT           ap-northeast-2a   m5a.large
+ip-10-30-34-182.ap-northeast-2.compute.internal   Ready    <none>   8h    v1.37.1-eks-9adbfea   judge            SPOT           ap-northeast-2a   c5.xlarge
+ip-10-30-43-12.ap-northeast-2.compute.internal    Ready    <none>   30m   v1.37.1-eks-9adbfea   system           SPOT           ap-northeast-2a   t3.large
+ip-10-30-56-240.ap-northeast-2.compute.internal   Ready    <none>   18m   v1.37.1-eks-9adbfea   application      SPOT           ap-northeast-2c   t3.xlarge
+ip-10-30-58-65.ap-northeast-2.compute.internal    Ready    <none>   16h   v1.37.1-eks-9adbfea   application      SPOT           ap-northeast-2c   t3.xlarge
