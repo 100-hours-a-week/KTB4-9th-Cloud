@@ -51,7 +51,7 @@ probes:
             exit 0
           end
           now = Time.now.to_i
-          prev, since = (File.read(st).split.map(&:to_i) rescue [done, 0])
+          prev, since = (File.read(st).split.map(&:to_i) rescue [done, 0]); prev ||= done; since ||= 0
           bad = ws.empty? || (q > 0 && done == prev)
           since = bad ? (since > 0 ? since : now) : 0
           File.write(st, "#{done} #{since}")
