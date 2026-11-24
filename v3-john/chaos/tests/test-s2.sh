@@ -95,6 +95,11 @@ R=$(mktemp -d); mkpods n2 n3; : > "$CALLS"; FAKE_ZONE=ap-northeast-2c run_stage 
 R=$(mktemp -d); mkpods n2 n3; : > "$CALLS"; FAKE_ZONE=ap-northeast-2c S2_STAGE_SKIP=monitoring run_stage "$R"; rc=$?
 [ $rc -eq 0 ] && ok "monitoring 건너뛰면 2a 밖도 허용" || no "zone+skip rc=$rc $(cat "$R/out.txt")"
 
+# 2026-11-24: 볼륨 존은 클러스터마다 다르다(2차는 Prometheus·Alertmanager 2c, Tempo 2a). S2_MON_ZONE으로 받는다.
+R=$(mktemp -d); mkpods n2 n3; : > "$CALLS"; FAKE_ZONE=ap-northeast-2c S2_MON_ZONE=ap-northeast-2c S2_STAGE_SKIP=tempo run_stage "$R"; rc=$?
+[ $rc -eq 0 ] && ! grep -q 'tempo-0' "$CALLS" && grep -q 'prometheus' "$R/s2-staged.txt" && ok "S2_MON_ZONE=2c + tempo 건너뜀: 2c 노드 허용, Tempo는 건드리지 않음" || no "mon zone rc=$rc $(cat "$R/out.txt")"
+R=$(mktemp -d); mkpods n2 n3; : > "$CALLS"; FAKE_ZONE=ap-northeast-2a S2_MON_ZONE=ap-northeast-2c run_stage "$R"; rc=$?
+[ $rc -eq 1 ] && ! grep -q '^cordon' "$CALLS" && ok "S2_MON_ZONE과 다른 존 노드는 cordon 전에 거절" || no "mon zone 거절 rc=$rc"
 R=$(mktemp -d); mkpods n2 n3; PATH="$T/bin:$PATH" RECORD_DIR="$R" "$D/scenarios/s2/stage.sh" >/dev/null 2>&1; rc=$?
 [ $rc -eq 2 ] && ok "인자 없으면 사용법 오류" || no "인자 없음 rc=$rc"
 exit $fail
