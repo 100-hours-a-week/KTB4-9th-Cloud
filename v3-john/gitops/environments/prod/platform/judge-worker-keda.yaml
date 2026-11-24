@@ -18,13 +18,13 @@ metadata:
 spec:
   scaleTargetRef:
     name: cosmos-judge-worker
-  # 실험(2026-11-25): 대응 전 원래 구성(1대 고정)으로 잠시 되돌려 측정한다. 측정 뒤 되돌린다.
-  minReplicaCount: 1
-  maxReplicaCount: 1
+  # 2차 장애 대응(2026-11-24): 상시 2대. 한 대가 느려지거나 재시작해도 다른 한 대가 대기열을 처리한다. 대기열이 쌓이면 3대까지.
+  minReplicaCount: 2
+  maxReplicaCount: 3
   pollingInterval: 10
   fallback:
     failureThreshold: 3
-    replicas: 1
+    replicas: 2
   advanced:
     horizontalPodAutoscalerConfig:
       behavior:
