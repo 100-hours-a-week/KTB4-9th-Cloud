@@ -38,3 +38,11 @@ run promtool "$PROM_IMAGE" check rules cosmos-rules.yaml
 run amtool "$AM_IMAGE" check-config alertmanager.yaml
 tests=$(cd "$WORK" && ls -1 *.yaml | grep -vE '^(cosmos-rules|alertmanager|rendered)\.yaml$')
 run promtool "$PROM_IMAGE" test rules $tests
+# S1' 단계 1: 연결 예산 알림 둘이 blackhole이 아니라 Discord 수신자로 가는지 확인한다.
+# 규칙에 정의된 라벨(severity=warning, sev=SEV2, namespace=prod)을 그대로 쓴다.
+for a in RdsConnectionBudgetHigh DbConnectionAcquireFailed; do
+  got=$(run amtool "$AM_IMAGE" config routes test --config.file=alertmanager.yaml \
+    alertname="$a" severity=warning sev=SEV2 namespace=prod)
+  [ "$got" = "discord" ] || { echo "경로 검사 실패: $a -> '$got' (기대: discord)"; exit 1; }
+  echo "경로 검사 통과: $a -> $got"
+done
