@@ -120,86 +120,49 @@
 - [ ] **Step 5: 기준선 3회** — `RATE=$RATE_BASE run-k6.sh round2-base-<n> 10m`. 핵심 SLO 유지율 100%, `CoreBurnFastAll` 미발생이 기준이다. 아니면 원인을 고치기 전까지 다음 작업으로 가지 않는다
 - [ ] **Step 6: 커밋**(기록, 상수)
 
-## 1단계: S1' 연결 풀 고갈
+## 1단계: S1' 채점 장애의 연결 풀 연쇄 (2026-11-24 재설계)
 
-### Task 5: S1' 시나리오
+처음 Task 5~10(풀 확대 PR + auth 재시작)은 보정 1회차와 사전 측정으로 전제가 틀린 것을 확인하고 바꿨다(설계서 6.1 "처음 설계와 버린 이유"). Task 5의 실행기 주입 준비 단계(`pre-inject.sh`)와 `scenarios/s1p`는 기록으로 남긴다. 단계 브랜치 `s1p-step3`(connectionGuard), `s1p-step4`(최소 유휴, CI 규칙 5)는 S1' 단계에서 빠진다.
 
-**Files:** Create `v3-john/chaos/scenarios/s1p/{lib.sh,set_pool.py,inject.sh,stop.sh,scenario.env,README.md}`, `chaos/tests/test_set_pool.py`
+### Task 6c: S1' 시나리오 `s1c`와 사전 측정 기록
 
-**Interfaces:**
-- Consumes: 1차 `scenarios/s1/lib.sh`의 `s1_merge` 흐름(작업 트리, PR, 병합, Argo 동기화 대기, `own-revisions` 기록)
-- Produces:
-  - `set_pool.py <values-file> <n>`: `SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "<n>"` 한 줄만 바꾼다. 줄이 없거나 두 개 이상이면 종료 코드 2
-  - `s1p_merge_pool <n> <msg>`: `s1_merge`와 같은 흐름으로 core 값 파일 풀만 바꿔 병합
-  - `inject.sh`: 원래 값을 `$RECORD_DIR/s1p-original`에 저장 → `s1p_merge_pool $S1P_POOL` → core Rollout Healthy 대기(최대 600초. 카나리 5분 분석 포함) → `S1P_TRIGGER_DELAY`(기본 180)초 대기 → `kubectl rollout restart deployment/cosmos-auth` → 시각을 `s1p-events`에 기록하고 반환(auth 롤아웃 완료는 기다리지 않음)
-  - `stop.sh`(멱등): 풀을 원래 값으로 되돌리는 PR → core Healthy 대기 → auth가 모두 Ready가 아니면 auth 재시작 → `cosmos:db_connections:sum`이 실험 전 값 +20 이하가 될 때까지 최대 300초 대기
-  - `scenario.env`: `INJECT_DURATION=600`
-
-- [ ] **Step 1: 테스트** — `test_set_pool.py`: 한 줄 교체, 따옴표 유지, 없는 줄 → 2, 두 줄 → 2, 다른 줄(`SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT`) 불변
-- [ ] **Step 2: 실패 확인** — `python3 -m unittest v3-john/chaos/tests/test_set_pool.py` → FAIL
-- [ ] **Step 3: 구현** — 위 Interfaces. `bash -n` 통과
-- [ ] **Step 4: 통과 확인** — 같은 명령 → OK
-- [ ] **Step 5: 커밋**
-
-### Task 6: S1' 주입값 보정과 개선 전 3회
-
-- [ ] **Step 1: N 후보** — Task 4의 상한 M, 평상시 연결 C(실측)로, core 2개 × N + 나머지가 M 아래이고, 여기에 auth 새 파드 1개 × 10이 더해지면 M을 넘는 N을 계산한다(카나리 중 core 파드 3개일 때도 M 아래인지 확인). 계산을 `records/s1p-calibration.md`에 적는다
-- [ ] **Step 2: 보정 3회** — `S1P_POOL=<N> RATE=$RATE_BASE run-experiment.sh s1p calib-<k>`. 3회 모두 auth 경로 `ServiceErrorHigh` 또는 auth 새 파드 준비 실패가 나야 확정. 아니면 N을 한 단계 올려 다시. N을 올려도 core 배포 자체가 실패하면(core 카나리 중단) 그 결과를 기록하고 사용자에게 알린 뒤 멈춘다(설계서 6.1 대체 경로 B·C)
-- [ ] **Step 3: 개선 전 3회** — 같은 N으로 `s1p before`. 대응자는 원인을 모르는 척하지 않고 `response.log`에 판단 순서를 남긴다(auth 배포를 먼저 의심했는지 포함)
-- [ ] **Step 4** — 포스트모템 `records/s1p-before-postmortem.md`(양식 `incident/postmortem-template.md`), 커밋
-
-### Task 7: S1' 단계 1 연결 알림과 런북
-
-**Files:** Modify `kube-prometheus-stack.yaml`(Alertmanager 경로에서 blackhole 제거); Create `chaos/runbooks/db-connection-exhaustion.md`
-
-- [ ] **Step 0: 결정 기록** — `chaos/decisions/s1p-step1.md`(설계서 6.3 형식, 대안은 6.3 예시 표 참고). 검증 기준을 실험 전에 적는다
-- [ ] **Step 1** — 경로만 열고 `check-rules.sh` 통과. Expected: 1차·2차 테스트 모두 SUCCESS
-- [ ] **Step 2** — 런북: 탐지 신호(`RdsConnectionBudgetHigh`, `DbConnectionAcquireFailed`, `ServiceErrorHigh`), 확인(`cosmos:db_connections:sum` 서비스별 분해 질의, 최근 값 변경 PR, CloudWatch `DatabaseConnections`), 완화(연결을 늘린 PR 되돌림 — 터진 서비스가 아니라 연결을 가장 많이 쥔 서비스부터), 복구 확인
-- [ ] **Step 3** — 병합, `s1p step1` 3회, 메모에 탐지 시간과 "원인 서비스를 맞힐 때까지 걸린 시간"
-
-### Task 8: S1' 단계 2 연결 예산 CI
-
-**Files:** Modify `.github/scripts/check-v3-john-values.py`; Create `.github/scripts/tests/fixtures/{budget-ok,budget-over}/*.yaml`; Modify `.github/scripts/tests/test_check_values.py`
+**Files:** Create `v3-john/chaos/scenarios/s1c/{inject.sh,stop.sh,scenario.env,README.md}`, `chaos/tests/test-s1c.sh`, `chaos/records/s1p-pilot.md`, `chaos/records/s1p-calibration.md`
 
 **Interfaces:**
-- Produces: `connection_budget(paths: list[str]) -> tuple[int, list[str]]` — (최대 연결 합계, 계산 내역). 서비스별 `(hpa.max + surge) × HIKARI_MAXIMUM_POOL_SIZE`. surge: 값 파일에 `rollout: { enabled: true }`면 `ceil(hpa.max × 0.25)`, 아니면 `rollingUpdate.maxSurge`(차트 기본 1). 풀 줄이 없으면 Hikari 기본 10. 규칙 4: 합계 > `RDS_MAX_CONNECTIONS × 0.8`이면 실패. `RDS_MAX_CONNECTIONS`는 스크립트 상수(Task 4 실측값)
+- `inject.sh`: judge-worker `ScaledObject`(prod/cosmos-judge-worker)에 `autoscaling.keda.sh/paused-replicas: "0"` 주석 → 워커 파드가 0이 될 때까지 최대 120초 대기 → `s1c-events`에 시각
+- `stop.sh`(멱등): 주석 제거 → 워커 Ready까지 최대 300초 대기 → 시각 기록
+- `scenario.env`: `INJECT_DURATION=300`
 
-- [ ] **Step 0: 결정 기록** — `chaos/decisions/s1p-step2.md`(설계서 6.3 형식, 대안은 6.3 예시 표 참고). 검증 기준을 실험 전에 적는다
-- [ ] **Step 1: 테스트** — `test_budget_counts_rollout_surge`(core rollout, hpa max 3, 풀 40 → (3+1)×40=160), `test_budget_deployment_surge`(auth hpa max 2, 풀 10 → 30), `test_budget_over_fails`(fixture 합계가 0.8M 초과 → 종료 1, 출력에 "연결 예산"), `test_budget_ok_passes`, 현재 prod 값 통과
-- [ ] **Step 2: 실패 확인** — `python3 -m unittest discover -s .github/scripts/tests` → FAIL
-- [ ] **Step 3: 구현**
-- [ ] **Step 4: 통과 확인** — 같은 명령 → OK, `check-v3-john-values.py v3-john/gitops/environments/prod/*.yaml` → 0
-- [ ] **Step 5** — 병합. 사용자에게 main 필수 검사 지정을 요청한다(저장소 관리자 설정). 확인용 draft PR(core 풀 N)이 CI에서 실패하는지 보고 닫는다
-- [ ] **Step 6** — `s1p step2` 3회는 CI를 우회해 같은 PR을 병합한다(`s1p_merge_pool`은 CI를 기다리지 않음). 기록에 "CI 실패, 우회 병합"을 남긴다. 필수 검사가 지정되었다면 우회 병합이 거부되는 것 자체를 결과로 기록하고 실험은 1회만
+- [ ] **Step 1: 테스트** — `test-s1c.sh`: 가짜 kubectl로 inject가 주석을 붙이고, stop이 주석을 지우며 두 번 불려도 안전한지
+- [ ] **Step 2~4** — RED → 구현 → GREEN
+- [ ] **Step 5** — 사전 측정과 보정 기록 커밋
 
-### Task 9: S1' 단계 3 영향 범위 카나리
+### Task 7c: S1' 개선 전 3회와 포스트모템
 
-**Files:** Modify `gitops/charts/cosmos-app/templates/rollout.yaml`, `values.yaml`, `tests/test-rollout.sh`, `gitops/environments/prod/core.yaml`
+- [ ] 회차마다 `prepare.sh` 뒤 `RATE=30 run-experiment.sh s1c before`. 3회 모두 문제 조회 또는 major-core 경로 `ServiceErrorHigh`나 core 1분 오류율 0.5% 초과가 나야 확정(사전 측정과 같은 연쇄)
+- [ ] 포스트모템 `records/s1c-before-postmortem.md`, 결정 기록 근거 채우기
 
-**Interfaces:**
-- Produces: 차트 값 `rollout.connectionGuard: { enabled: false, rdsMax: 0, reserve: 0 }`. 켜면 AnalysisTemplate에 지표 두 개 추가
-  - `db-connection-headroom`: `cosmos:db_connections:sum or vector(0)`, 성공 조건 `result[0] <= rdsMax - reserve`. `reserve`는 "다른 서비스가 한 번 재배포할 여유" = 가장 큰 서비스의 (레플리카 최대 × 풀). core.yaml에 Task 4 실측과 함께 값으로 넣는다
-  - `other-routes-error`: `max(cosmos:journey_error_ratio_all:rate5m{journey="major"} >= 0) or vector(0)`, 성공 조건 `result[0] < 0.05`, 그리고 auth 경로(`route="journey-core-auth"`) 오류율 같은 조건
-  - 분석 간격·횟수는 1차와 같음(1분, 5회, 실패 허용 0)
+### Task 8c: 단계 1 탐지와 런북
 
-- [ ] **Step 0: 결정 기록** — `chaos/decisions/s1p-step3.md`(설계서 6.3 형식, 대안은 6.3 예시 표 참고). 검증 기준을 실험 전에 적는다
-- [ ] **Step 1: 테스트** — `test-rollout.sh`: connectionGuard 켜면 두 지표 존재, `rdsMax - reserve` 값이 성공 조건에 렌더링, 질의에 `or vector(0)` 포함, 꺼지면 1차와 같은 두 지표만
-- [ ] **Step 2: 실패 확인** — `bash v3-john/gitops/charts/cosmos-app/tests/test-rollout.sh` → FAIL
-- [ ] **Step 3: 구현**
-- [ ] **Step 4: 통과 확인** — 같은 명령 → PASS, 다른 차트 테스트도 PASS
-- [ ] **Step 5** — 병합, 트래픽 없는 상태에서 무변경 재시작으로 분석이 통과하는지 먼저 확인(Review Focus 3). Expected: Rollout Healthy
-- [ ] **Step 6** — `s1p step3` 3회. 기대: core 카나리가 `db-connection-headroom` 실패로 자동 중단, auth 재시작 시점에는 core가 원래 풀로 돌아가 있어 로그인 정상
+**Files:** `s1p-step1` 브랜치 재사용(연결 알림 경로 개방, amtool 경로 테스트), `chaos/runbooks/db-connection-exhaustion.md`를 이 연쇄(제출 대기 → 풀 점유 → 다른 경로 5xx, 첫 확인: 채점 워커·큐, Hikari 대기)에 맞게 고침, `chaos/decisions/s1c-step1.md`
 
-### Task 10: S1' 단계 4 최소 유휴 연결 축소
+- [ ] 결정 기록 → 병합 → `s1c step1` 3회. 대응자는 런북대로 판단 순서를 `response.log`에 남긴다
 
-설계서가 빌더에게 맡긴 선택(최소 유휴 연결 축소 vs RDS Proxy vs 인스턴스 상향)은 결정 기록에서 비교해 정한다. 계획의 기본안은 **최소 유휴 연결 축소**다(값 파일만, 추가 비용·엔드포인트 변경 없음). 결정 기록이 다른 안을 고르면 이 작업의 Files를 그 안으로 바꾸고 기록에 이유를 남긴다.
+### Task 9c: 단계 2 게이트웨이 격벽
 
-**Files:** Modify `gitops/environments/prod/{auth,core,battle}.yaml`(`SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: "2"`), `.github/scripts/check-v3-john-values.py`(규칙 5: Spring 값에 최소 유휴 연결이 있고 최대 풀의 절반 이하), 테스트 fixture 1개
+**Files:** Modify `gitops/environments/prod/platform/gateway.yaml`(`BackendTrafficPolicy` 대상 `journey-core-submit`, `circuitBreaker.maxParallelRequests`, 필요하면 `maxPendingRequests`), 렌더링·스키마 검사, `chaos/decisions/s1c-step2.md`
 
-- [ ] **Step 0: 결정 기록** — `chaos/decisions/s1p-step4.md`(설계서 6.3 형식, 대안은 6.3 예시 표 참고). 검증 기준을 실험 전에 적는다
-- [ ] **Step 1~4** — 규칙 5 테스트(없음 → 실패, 최대 40·최소 2 → 통과) RED → GREEN
-- [ ] **Step 5** — 병합 뒤 단계 3 카나리 조건은 그대로 두고(연결 여유가 늘어 통과할 수 있음) `s1p step4` 3회. 측정: 같은 N에서 연결 합계 최대값, auth 재시작 결과, 조회 p95 변화(연결을 새로 여는 비용)
-- [ ] **Step 6** — `records/s1p-summary.md`(설계서 4.2 지표 전부, 중앙값·범위), 커밋
+- [ ] 결정 기록: 값 근거(기준선 제출률 x 지연, Envoy 2대, core 풀) / 대안 3개 / 검증 기준(문제 조회·major-core 5xx 중앙값 0, 평상시 제출 거절 0)
+- [ ] 평상시 영향 확인: 기준선 부하 5분에서 제출 503(overflow) 0
+- [ ] 병합, 정책 `Accepted` 확인, `s1c step2` 3회. 넘친 요청 수(`envoy_cluster_upstream_rq_pending_overflow`)를 기록
+
+### Task 10c: 단계 3 풀 재산정과 연결 예산
+
+**Files:** `s1p-step2` 브랜치의 CI 규칙 4 재사용, `gitops/environments/prod/core.yaml` 풀 값(사전 측정 근거), `chaos/decisions/s1c-step3.md`
+
+- [ ] CI 검사가 키운 값이 예산 안인지(통과), 예산 밖 값(예: 131)이면 실패하는지 확인
+- [ ] 병합, `s1c step3` 3회. DB 연결 최대치를 기록. 단계 2 유지 여부를 결정 기록에 적는다
+- [ ] `records/s1c-summary.md`
 
 ## 2단계: S2' 스팟 노드 한 대 회수, 손실 원인 제거
 
