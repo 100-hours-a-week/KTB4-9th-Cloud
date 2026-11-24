@@ -110,6 +110,9 @@ spec:
   rules:
     - matches:
         - path: { type: RegularExpression, value: "/api/problems/[^/]+/code-submissions(/.*)?" }
+      # S1' 단계 2b(2026-11-24): 제출은 채점 결과를 최대 약 30초 기다리며 core DB 연결을 쥔다. Envoy 기본 15초면 게이트웨이가 먼저
+      # 끊어 격벽(submit-bulkhead) 슬롯이 풀리고 core는 연결을 계속 쥔다(단계 2 실험에서 넘침 0, 효과 없음). 35초로 맞춘다.
+      timeouts: { request: 35s }
       backendRefs:
         - { name: core-service, port: 80 }
 ---
