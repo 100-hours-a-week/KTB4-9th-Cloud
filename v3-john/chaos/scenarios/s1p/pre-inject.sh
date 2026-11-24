@@ -16,7 +16,7 @@ if [ ! -s "$RECORD_DIR/s1p-db-before" ]; then
 fi
 s1p_merge_pool "$S1P_POOL" "chaos(S1'): core 풀 크기를 ${S1P_POOL}로 변경"
 echo "$(date +%s) core 풀 변경 PR 병합·동기화(풀 ${S1P_POOL})" >> "$RECORD_DIR/s1p-events"
-rc=0; s1p_wait_core_settled 600 "$S1P_GEN_BEFORE" || rc=$?
+rc=0; s1p_wait_core_settled 600 "$S1P_HASH_BEFORE" || rc=$?
 case $rc in
   0) echo "$(date +%s) core Rollout Healthy(풀 ${S1P_POOL})" >> "$RECORD_DIR/s1p-events" ;;
   3) echo "$(date +%s) core 카나리 중단(풀 ${S1P_POOL})" >> "$RECORD_DIR/s1p-events"; echo aborted > "$RECORD_DIR/s1p-core-canary" ;;

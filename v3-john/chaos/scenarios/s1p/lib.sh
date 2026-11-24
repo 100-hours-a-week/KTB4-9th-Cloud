@@ -13,7 +13,8 @@ s1p_current() {
 # 작업 트리 → 편집 → 커밋 → PR → 병합 → own-revisions 기록 → Argo CD 새로 고침 → 동기화 대기(s1_merge와 같은 흐름)
 s1p_merge_edit() {
   local msg=$1 wt br pr sha; shift
-  S1P_GEN_BEFORE=$(kubectl get rollout cosmos-core -n prod -o jsonpath='{.metadata.generation}' 2>/dev/null || true)
+  # core Rollout은 workloadRef라 값 변경이 generation을 올리지 않는다. 파드 템플릿 해시로 배포 완료를 판정한다.
+  S1P_HASH_BEFORE=$(kubectl get rollout cosmos-core -n prod -o jsonpath='{.status.currentPodHash}' 2>/dev/null || true)
   br="chaos/s1p-$(date +%Y%m%d-%H%M%S)"
   wt=$(mktemp -d)
   git -C "$GIT_DIR_ROOT" worktree add -q -b "$br" "$wt" origin/main
@@ -47,34 +48,33 @@ _s1p_edit_pool() { python3 "$S1P_DIR/set_pool.py" "$2" "$1"; }  # <n> <값 파�
 # s1p_merge_pool <n> <커밋 메시지> : core 풀 크기만 바꿔 병합한다.
 s1p_merge_pool() { s1p_merge_edit "$2" _s1p_edit_pool "$1"; }
 
-# s1p_wait_core_healthy <초> [<병합 전 generation>] : generation이 병합 전 값보다 커지고(주어진 경우),
-# Rollout이 그 스펙을 보고(observedGeneration == generation) Healthy가 될 때까지 기다린다. 카나리 분석 포함.
+# s1p_wait_core_healthy <초> [<병합 전 파드 해시>] : 새 템플릿(currentPodHash != 병합 전)이 안정(stableRS)이 되고
+# Rollout이 Healthy일 때까지 기다린다. 카나리 분석 포함. core Rollout은 workloadRef라 generation으로는 판정할 수 없다.
 s1p_wait_core_healthy() {
-  local deadline=$(( $(date +%s) + $1 )) before=${2:-} gen obs phase
+  local deadline=$(( $(date +%s) + $1 )) before=${2:-} cur stable phase
   while :; do
-    gen=$(kubectl get rollout cosmos-core -n prod -o jsonpath='{.metadata.generation}' 2>/dev/null || true)
-    obs=$(kubectl get rollout cosmos-core -n prod -o jsonpath='{.status.observedGeneration}' 2>/dev/null || true)
+    cur=$(kubectl get rollout cosmos-core -n prod -o jsonpath='{.status.currentPodHash}' 2>/dev/null || true)
+    stable=$(kubectl get rollout cosmos-core -n prod -o jsonpath='{.status.stableRS}' 2>/dev/null || true)
     phase=$(kubectl get rollout cosmos-core -n prod -o jsonpath='{.status.phase}' 2>/dev/null || true)
-    if [ -n "$gen" ] && [ "$gen" = "$obs" ] && [ "$phase" = Healthy ] && { [ -z "$before" ] || [ "$gen" -gt "$before" ]; }; then return 0; fi
-    (( $(date +%s) >= deadline )) && { echo "core Rollout이 ${1}초 안에 Healthy가 되지 않았다(generation=$gen 병합 전=$before observed=$obs phase=$phase)" >&2; return 1; }
+    if [ -n "$cur" ] && [ "$cur" = "$stable" ] && [ "$phase" = Healthy ] && { [ -z "$before" ] || [ "$cur" != "$before" ]; }; then return 0; fi
+    (( $(date +%s) >= deadline )) && { echo "core Rollout이 ${1}초 안에 Healthy가 되지 않았다(현재 해시=$cur 안정=$stable 병합 전=$before phase=$phase)" >&2; return 1; }
     sleep 5
   done
 }
-
-# s1p_wait_core_settled <초> [<병합 전 generation>] : 새 스펙을 관측한 Rollout이 Healthy면 0, 카나리가 중단되면(status.abort=true) 3,
-# 시간 안에 둘 다 아니면 1. 영향 범위 카나리(S1' 단계 3)가 배포를 멈추는 것도 실험 결과이므로 실패로 보지 않는다.
+# s1p_wait_core_settled <초> [<병합 전 파드 해시>] : 새 템플릿이 안정이 되고 Healthy면 0, 새 템플릿의 카나리가 중단되면
+# (status.abort=true) 3, 시간 안에 둘 다 아니면 1. 영향 범위 카나리(S1' 단계 3)가 배포를 멈추는 것도 실험 결과이므로 실패로 보지 않는다.
 s1p_wait_core_settled() {
-  local deadline=$(( $(date +%s) + $1 )) before=${2:-} gen obs phase abort
+  local deadline=$(( $(date +%s) + $1 )) before=${2:-} cur stable phase abort
   while :; do
-    gen=$(kubectl get rollout cosmos-core -n prod -o jsonpath='{.metadata.generation}' 2>/dev/null || true)
-    obs=$(kubectl get rollout cosmos-core -n prod -o jsonpath='{.status.observedGeneration}' 2>/dev/null || true)
+    cur=$(kubectl get rollout cosmos-core -n prod -o jsonpath='{.status.currentPodHash}' 2>/dev/null || true)
+    stable=$(kubectl get rollout cosmos-core -n prod -o jsonpath='{.status.stableRS}' 2>/dev/null || true)
     phase=$(kubectl get rollout cosmos-core -n prod -o jsonpath='{.status.phase}' 2>/dev/null || true)
     abort=$(kubectl get rollout cosmos-core -n prod -o jsonpath='{.status.abort}' 2>/dev/null || true)
-    if [ -n "$gen" ] && [ "$gen" = "$obs" ] && { [ -z "$before" ] || [ "$gen" -gt "$before" ]; }; then
-      [ "$phase" = Healthy ] && return 0
+    if [ -n "$cur" ] && { [ -z "$before" ] || [ "$cur" != "$before" ]; }; then
+      [ "$cur" = "$stable" ] && [ "$phase" = Healthy ] && return 0
       [ "$abort" = true ] && return 3
     fi
-    (( $(date +%s) >= deadline )) && { echo "core Rollout이 ${1}초 안에 Healthy나 중단에 이르지 않았다(generation=$gen 병합 전=$before observed=$obs phase=$phase abort=$abort)" >&2; return 1; }
+    (( $(date +%s) >= deadline )) && { echo "core Rollout이 ${1}초 안에 Healthy나 중단에 이르지 않았다(현재 해시=$cur 안정=$stable 병합 전=$before phase=$phase abort=$abort)" >&2; return 1; }
     sleep 5
   done
 }
