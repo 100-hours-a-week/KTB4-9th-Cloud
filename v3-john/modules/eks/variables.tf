@@ -82,10 +82,11 @@ variable "node_groups" {
       taints         = [{ key = "workload", value = "stateful", effect = "NO_SCHEDULE" }]
     }
     judge-base-ng = {
+      # 2차 장애 대응(2026-11-24): 채점 워커 상시 2대(워커 1대 = CPU 2, 노드 4코어에 1대씩). 대기열 확장용 1대 여유.
       instance_types = ["c7i.xlarge", "c6i.xlarge", "c5.xlarge"]
-      min_size       = 1
-      desired_size   = 1
-      max_size       = 1
+      min_size       = 2
+      desired_size   = 2
+      max_size       = 3
       labels         = { "workload-class" = "judge" }
       taints         = [{ key = "workload", value = "judge", effect = "NO_SCHEDULE" }]
     }

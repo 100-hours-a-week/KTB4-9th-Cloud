@@ -116,3 +116,20 @@ tests:
           - exp_labels: { pod: core-a, severity: warning, sev: SEV2, namespace: prod }
             exp_annotations:
               summary: "core-a가 2분 동안 DB 연결을 얻지 못한 건 10건"
+  # 2차 장애 대응: 제출 경로 실패 10%면 JudgePathDegraded가 울린다. 다른 경로 오류에는 울리지 않는다.
+  - name: JudgePathDegraded 제출 경로만
+    interval: 1m
+    input_series:
+      - series: 'envoy_cluster_upstream_rq_xx{envoy_cluster_name="httproute/prod/journey-core-submit/rule/0", envoy_response_code_class="2"}'
+        values: '0+540x20'
+      - series: 'envoy_cluster_upstream_rq_xx{envoy_cluster_name="httproute/prod/journey-core-submit/rule/0", envoy_response_code_class="5"}'
+        values: '0+60x20'
+      - series: 'envoy_cluster_upstream_rq_xx{envoy_cluster_name="httproute/prod/journey-core-problem/rule/0", envoy_response_code_class="5"}'
+        values: '0+600x20'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: JudgePathDegraded
+        exp_alerts:
+          - exp_labels: { route: journey-core-submit, journey: core, severity: warning, sev: SEV2, namespace: prod }
+            exp_annotations:
+              summary: "제출(채점) 경로 실패율 10%. 상태 저장 파드(judge-redis-queue, judge-postgres)와 채점 워커부터 확인"

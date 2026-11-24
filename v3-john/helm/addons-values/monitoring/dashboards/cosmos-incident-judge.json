@@ -1,0 +1,328 @@
+{
+ "uid": "cosmos-incident-judge",
+ "title": "COSMOS / 장애 대응 / DB 교체 후 채점",
+ "tags": [
+  "cosmos",
+  "incident",
+  "round2"
+ ],
+ "timezone": "browser",
+ "schemaVersion": 39,
+ "time": {
+  "from": "now-1h",
+  "to": "now"
+ },
+ "refresh": "30s",
+ "panels": [
+  {
+   "id": 1,
+   "type": "timeseries",
+   "title": "① DB·큐 정상 개수 (4개 = 정상)",
+   "description": "상태 저장 파드 4개(ai-postgres, judge-postgres, judge-redis-queue, rabbitmq) 중 Ready 수",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus-v2"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 12,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 10
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(kube_pod_status_ready{namespace=\"prod\",condition=\"true\",pod=~\"(ai-postgres|judge-postgres|judge-redis-queue|rabbitmq)-0\"})",
+     "legendFormat": "Ready",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus-v2"
+     }
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "type": "timeseries",
+   "title": "② 제출 응답 (초당)",
+   "description": "제출 경로 응답 코드별 초당 건수. 503이 실패",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus-v2"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 0,
+    "w": 12,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "reqps",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 10
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (envoy_response_code)(rate(envoy_cluster_upstream_rq{envoy_cluster_name=~\"httproute/prod/journey-core-submit/.+\"}[1m]))",
+     "legendFormat": "{{envoy_response_code}}",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus-v2"
+     }
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "type": "timeseries",
+   "title": "③ 제출 성공률",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus-v2"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 8,
+    "w": 12,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 10
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(rate(envoy_cluster_upstream_rq_xx{envoy_cluster_name=~\"httproute/prod/journey-core-submit/.+\",envoy_response_code_class=\"2\"}[1m])) / sum(rate(envoy_cluster_upstream_rq_xx{envoy_cluster_name=~\"httproute/prod/journey-core-submit/.+\"}[1m]))",
+     "legendFormat": "성공률",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus-v2"
+     }
+    }
+   ]
+  },
+  {
+   "id": 4,
+   "type": "timeseries",
+   "title": "④ 제출 처리 시간 p95",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus-v2"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 8,
+    "w": 12,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "ms",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 10
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "histogram_quantile(0.95, sum by (le)(rate(envoy_cluster_upstream_rq_time_bucket{envoy_cluster_name=~\"httproute/prod/journey-core-submit/.+\"}[1m])))",
+     "legendFormat": "p95",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus-v2"
+     }
+    }
+   ]
+  },
+  {
+   "id": 5,
+   "type": "timeseries",
+   "title": "⑤ 채점 완료·유실 (분당)",
+   "description": "부하 발생기(k6) 기준",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus-v2"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 16,
+    "w": 12,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 10
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(rate(k6_judge_completed_total[1m]))*60",
+     "legendFormat": "완료",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus-v2"
+     }
+    },
+    {
+     "refId": "B",
+     "expr": "sum(rate(k6_judge_lost_total[1m]))*60",
+     "legendFormat": "유실",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus-v2"
+     }
+    }
+   ]
+  },
+  {
+   "id": 6,
+   "type": "timeseries",
+   "title": "⑥ 채점 서비스 재시작",
+   "description": "자동 복구가 파드를 재시작하면 올라간다",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus-v2"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 16,
+    "w": 12,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 10
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (pod)(increase(kube_pod_container_status_restarts_total{namespace=\"prod\",pod=~\"cosmos-judge-(api|worker)-.*\"}[5m]))",
+     "legendFormat": "{{pod}}",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus-v2"
+     }
+    },
+    {
+     "refId": "B",
+     "expr": "count by (namespace)(kube_pod_info{namespace=\"prod\",pod=~\"cosmos-judge-(api|worker)-.*\"})",
+     "legendFormat": "채점 파드 수",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus-v2"
+     }
+    }
+   ]
+  }
+ ],
+ "annotations": {
+  "list": [
+   {
+    "name": "알림",
+    "datasource": {
+     "type": "prometheus",
+     "uid": "prometheus-v2"
+    },
+    "enable": true,
+    "iconColor": "red",
+    "expr": "ALERTS{alertstate=\"firing\",alertname=~\"JudgePathDegraded|ServiceErrorHigh|JudgeJobLost|CoreBurnFastAll\"}",
+    "titleFormat": "{{alertname}}",
+    "step": "30s"
+   }
+  ]
+ }
+}
