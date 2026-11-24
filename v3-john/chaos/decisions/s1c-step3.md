@@ -2,7 +2,7 @@
 
 ## 근거
 
-(개선 전 실험 `s1c-before`와 단계 2 결과를 채운다)
+개선 전 실험 `s1c-before` 3회: core 활성 연결 10/10, 대기 최대 중앙값 97, 영향 경로 3개, 핵심 SLO 유지율 중앙값 0.590(`records/s1c-before-postmortem.md`). 단계 2 결과는 실험 뒤 아래 결과 칸에 함께 적는다.
 
 설계 단계에서 잰 값(`records/s1p-pilot.md`):
 
