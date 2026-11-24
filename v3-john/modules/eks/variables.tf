@@ -62,7 +62,9 @@ variable "node_groups" {
   }))
   default = {
     system-ng = {
-      instance_types = ["t3.large", "t3a.large"]
+      # 운영 기준 구성(2026-11-24): 클러스터 애드온은 온디맨드. 처음에는 비용 때문에 임시로 전부 스팟이었다.
+      capacity_type  = "ON_DEMAND"
+      instance_types = ["t3.large"]
       min_size       = 1
       desired_size   = 1
       max_size       = 1
@@ -70,7 +72,9 @@ variable "node_groups" {
       taints         = [{ key = "CriticalAddonsOnly", value = "true", effect = "NO_SCHEDULE" }]
     }
     stateful-ng = {
-      instance_types = ["m7i.large", "m6i.large", "m5.large", "m5a.large", "r5.large", "r6i.large", "t3.large", "t3a.large"]
+      # 운영 기준 구성(2026-11-24): 데이터를 가진 DB·큐(레플리카 1)는 온디맨드. 처음에는 비용 때문에 임시로 전부 스팟이었다.
+      capacity_type  = "ON_DEMAND"
+      instance_types = ["m5a.large"]
       min_size       = 1
       desired_size   = 1
       max_size       = 1
@@ -95,6 +99,18 @@ variable "node_groups" {
       max_size = 3
       labels   = { "workload-class" = "application" }
       taints   = []
+    }
+    monitoring-od-ng = {
+      # 운영 기준 구성(2026-11-24): 탐지 경로(Prometheus, Alertmanager)는 온디맨드 전용 노드. 감시자가 장애와 같이 사라지지 않게 한다.
+      # 서브넷은 Prometheus·Alertmanager 볼륨(EBS) 존 하나다(2차 클러스터 ap-northeast-2c). 상시 운영이면 StorageClass allowedTopologies로 고정한다.
+      capacity_type  = "ON_DEMAND"
+      subnet_keys    = ["c"]
+      instance_types = ["t3.large"]
+      min_size       = 1
+      desired_size   = 1
+      max_size       = 1
+      labels         = { "workload-class" = "monitoring" }
+      taints         = [{ key = "workload", value = "monitoring", effect = "NO_SCHEDULE" }]
     }
   }
 }
