@@ -97,10 +97,12 @@ variable "node_groups" {
       taints   = []
     }
     monitoring-od-ng = {
-      # S2 개선 단계 4: 스팟 회수가 탐지 수단(Prometheus, Alertmanager, Tempo)을 함께 지우지 않게 온디맨드 노드에 분리한다.
-      # 모니터링 볼륨(EBS)이 ap-northeast-2a에 있으므로 서브넷은 a 하나다. 온디맨드 vCPU는 Spot 한도와 별개 쿼터(128)로 센다.
+      # S2 개선 단계 4: 스팟 회수가 탐지 수단(Prometheus, Alertmanager)을 함께 지우지 않게 온디맨드 노드에 분리한다.
+      # 서브넷은 Prometheus·Alertmanager 볼륨(EBS)이 있는 존 하나다. 2026-11-24 2차 클러스터는 ap-northeast-2c였다(1차는 2a).
+      # 볼륨 존은 처음 기동 때 정해지므로, 상시 운영이면 StorageClass allowedTopologies로 이 존에 고정해야 한다(결정 기록 s2p-step4).
+      # 온디맨드 vCPU는 Spot 한도와 별개 쿼터(128)로 센다.
       capacity_type  = "ON_DEMAND"
-      subnet_keys    = ["a"]
+      subnet_keys    = ["c"]
       instance_types = ["t3.large"]
       min_size       = 1
       desired_size   = 1

@@ -31,7 +31,9 @@
 
 쿼터는 다음과 같다. 새 노드 그룹은 온디맨드이므로 Spot vCPU 가드(실험 중단 기준 28, 한도 32)에 세지 않고 온디맨드 표준 vCPU 한도 128에서 2 vCPU를 쓴다. 기존 온디맨드 노드 vCPU 합은 단계 실험 전에 확인해 채운다.
 
-노드 용량은 다음과 같다. t3.large는 2 vCPU, 8GiB다. 요청 합산과 이동 범위는 구현 보고서에 적었고, Prometheus, Alertmanager, kube-state-metrics, Grafana, Tempo, Loki를 옮기며 요청 합은 CPU 1,150m, 메모리 4,608Mi다. 실제 할당 가능 용량과 DaemonSet 요청을 뺀 여유는 실험 전에 `kubectl describe node`로 확인해 채운다.
+노드 용량은 다음과 같다. t3.large는 2 vCPU, 8GiB다. 옮기는 대상은 Prometheus, Alertmanager, kube-state-metrics이고 요청 합은 CPU 600m, 메모리 약 2.3GiB다.
+
+2026-11-24 수정: 2차 클러스터는 Prometheus·Alertmanager 볼륨이 ap-northeast-2c, Grafana·Loki·Tempo 볼륨이 ap-northeast-2a에 생겼다(1차는 모두 2a). EBS는 존을 넘어 붙지 않으므로 노드 그룹을 2c 하나에 두고, 탐지·알림 경로인 Prometheus·Alertmanager·kube-state-metrics만 옮긴다. Tempo·Loki·Grafana는 스팟에 남아 회수 때 트레이스·로그 조회가 잠시 끊길 수 있다(알림과 지표 수집에는 영향 없음). 상시 운영이라면 모니터링용 StorageClass에 `allowedTopologies`로 노드 그룹 존을 고정해 볼륨이 항상 같은 존에 생기게 해야 한다. 이번 실험에서는 볼륨을 다시 만들면 지표 이력이 사라져 하지 않았다. 실제 할당 가능 용량과 DaemonSet 요청을 뺀 여유는 실험 전에 `kubectl describe node`로 확인해 채운다.
 
 ## 검증 기준
 

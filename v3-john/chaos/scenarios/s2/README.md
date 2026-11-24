@@ -27,7 +27,7 @@ S2_NODE=<노드> v3-john/chaos/run-experiment.sh s2 before --inject-after 3m --r
 - 모든 배치와 Ready를 최대 `S2_STAGE_WAIT_S`초(기본 300) 기다린다. 하나라도 어긋나면 종료 1이다. core가 노드에 정확히 1개여야 한다.
 - 결과는 `$RECORD_DIR/s2-staged.txt`에 남는다.
 - Prometheus, Alertmanager, Tempo 볼륨은 ap-northeast-2a에 있으므로 노드가 그 존이 아니면 cordon 전에 종료 1이다. 개선 단계가 모니터링 배치를 바꿨다면 `S2_STAGE_SKIP=monitoring`으로 건너뛰며 존 검사도 함께 빠진다. `judge-api`, `envoy`, `core`도 같은 변수로 건너뛸 수 있다(쉼표 구분).
-- S2' 단계 4(모니터링 온디맨드 분리) 이후에는 Prometheus, Alertmanager, Tempo가 `workload-class=monitoring` 노드에 있으므로 `S2_STAGE_SKIP=monitoring`을 쓴다. 이 값이면 stage.sh가 모니터링 파드를 지우지도 않고 존 검사도 하지 않으며 `s2-staged.txt`에도 적지 않는다. 단계 4 실험은 `S2_STAGE_SKIP=monitoring RECORD_DIR=... stage.sh <노드>`로 부른다.
+- S2' 단계 4(모니터링 온디맨드 분리) 이후에는 Prometheus, Alertmanager가 `workload-class=monitoring` 노드에 있으므로 `S2_STAGE_SKIP=monitoring`을 쓴다(Tempo도 함께 건너뜀). 이 값이면 stage.sh가 모니터링 파드를 지우지도 않고 존 검사도 하지 않으며 `s2-staged.txt`에도 적지 않는다.
 - 실행기는 `workload-class=application` 노드 중 cordon된 것이 있으면 시작하지 않는다. stage.sh가 중간에 죽어 cordon이 남았을 때를 막는다.
 - k6 파드가 대상 노드와 같이 죽지 않도록 `K6_AVOID_NODE=<노드>`를 주면 k6 Job에 해당 노드를 피하는 노드 친화성이 붙는다.
 

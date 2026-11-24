@@ -110,10 +110,12 @@ persistence:
   accessModes: [ReadWriteOnce]
   size: 10Gi
 
-# S2 개선 단계 4: 온디맨드 monitoring 노드에 둔다(스팟 회수와 분리).
-nodeSelector: { workload-class: monitoring }
+nodeSelector: { workload-class: application }
 tolerations:
-  - { key: workload, operator: Equal, value: monitoring, effect: NoSchedule }
+  - key: CriticalAddonsOnly
+    operator: Equal
+    value: "true"
+    effect: NoSchedule
 
 securityContext:
   runAsUser: 10001
