@@ -2,6 +2,8 @@
 # 실험 템플릿은 실험마다 대상 인스턴스가 달라서 chaos/scenarios/s2/inject.sh가 만들고 stop.sh가 지운다.
 locals {
   fis_target_node_group = "application-ng"
+  # 회수 알림을 보낼 수 있는 노드 그룹. 2차 B(상태 저장 노드 회수, 2026-11-24)로 stateful-ng를 더한다.
+  fis_target_node_groups = ["application-ng", "stateful-ng"]
 }
 
 data "aws_iam_policy_document" "fis_assume" {
@@ -26,7 +28,7 @@ resource "aws_iam_role" "fis" {
   assume_role_policy = data.aws_iam_policy_document.fis_assume.json
 }
 
-# 회수 알림은 이 클러스터의 application 노드 그룹 인스턴스에만 보낼 수 있다.
+# 회수 알림은 이 클러스터의 application·stateful 노드 그룹 인스턴스에만 보낼 수 있다.
 data "aws_iam_policy_document" "fis" {
   statement {
     actions   = ["ec2:SendSpotInstanceInterruptions"]
@@ -39,7 +41,7 @@ data "aws_iam_policy_document" "fis" {
     condition {
       test     = "StringEquals"
       variable = "aws:ResourceTag/eks:nodegroup-name"
-      values   = [local.fis_target_node_group]
+      values   = local.fis_target_node_groups
     }
   }
   statement {

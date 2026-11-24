@@ -1,0 +1,8 @@
+# S2' 배치 기록 노드=ip-10-30-63-102.ap-northeast-2.compute.internal 시각=2026-11-24T09:32:54Z skip=tempo
+prod/cosmos-judge-api-748f7b77f4-rcqbw ip-10-30-63-102.ap-northeast-2.compute.internal ready=True
+envoy-gateway-system/envoy-prod-prod-b068b97c-8566685d56-dcxzq ip-10-30-63-102.ap-northeast-2.compute.internal ready=True
+envoy-gateway-system/envoy-prod-prod-b068b97c-8566685d56-lrrz6 ip-10-30-33-252.ap-northeast-2.compute.internal ready=True
+monitoring/prometheus-kube-prometheus-stack-prometheus-0 ip-10-30-63-102.ap-northeast-2.compute.internal ready=True
+monitoring/alertmanager-kube-prometheus-stack-alertmanager-0 ip-10-30-63-102.ap-northeast-2.compute.internal ready=True
+prod/cosmos-core-5788cbbdfb-f6p9j ip-10-30-63-102.ap-northeast-2.compute.internal ready=True
+prod/cosmos-core-5788cbbdfb-t8j7h ip-10-30-58-65.ap-northeast-2.compute.internal ready=True
