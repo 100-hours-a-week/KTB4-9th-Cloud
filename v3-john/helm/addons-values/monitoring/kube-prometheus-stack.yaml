@@ -391,6 +391,16 @@ additionalPrometheusRulesMap:
             annotations:
               summary: "핵심 기능 오류율이 에러 예산을 14.4배 넘는 속도로 소진 중 (타임아웃과 연결 실패 포함)"
           # 어느 경로가 먼저 무너졌는지 보여 준다.
+          # 2차 장애 대응(2026-11-24): 제출(채점) 경로 장애. DB·큐 노드 교체 때 채점이 따라잡지 못하는 장애를 원인 쪽 이름으로 알린다.
+          # ServiceErrorHigh(모든 경로, 2분)보다 빨리(1분) 울리고 첫 확인 위치를 알려 준다. 런북 chaos/runbooks/stateful-node-loss.md
+          - alert: JudgePathDegraded
+            expr: |
+              cosmos:route_errors_all:rate5m{route="journey-core-submit"}
+              / on (route, journey) cosmos:route_requests_all:rate5m{route="journey-core-submit"} > 0.05
+            for: 1m
+            labels: { severity: warning, sev: SEV2, namespace: prod }
+            annotations:
+              summary: "제출(채점) 경로 실패율 {{ $value | humanizePercentage }}. 상태 저장 파드(judge-redis-queue, judge-postgres)와 채점 워커부터 확인"
           - alert: ServiceErrorHigh
             expr: |
               cosmos:route_errors_all:rate5m

@@ -27,6 +27,39 @@ secrets:
     keys: { username: POSTGRES_USER, password: POSTGRES_PASSWORD, database: POSTGRES_DB }
   - secret: /cosmos-v2/stage/judge-redis
     keys: { password: REDIS_PASSWORD }
+# 2차 장애 대응(2026-11-24): 채점 워커 생존 검사. DB·큐 노드 교체 때 Redis가 끊기면 채점 프로세스(resque)가 죽거나 멈출 수 있는데,
+# 컨테이너는 관리 스크립트 때문에 Running으로 남아 쿠버네티스가 고장을 모른다(실측: 사람이 재시작할 때까지 장애 지속).
+# 이 노드(파드)에 등록된 채점 프로세스가 없거나, 대기열에 일이 있는데 이 파드의 처리 건수가 90초 동안 늘지 않으면 실패한다.
+# Redis 자체에 닿지 못하면 통과한다(워커를 재시작해도 고쳐지지 않는 의존 장애다). 판단 근거: chaos/decisions/s3r-step1.md
+probes:
+  livenessProbe:
+    exec:
+      command:
+        - sh
+        - -c
+        - |
+          cd /api && exec ruby -e '
+          require "redis"; require "socket"
+          st = "/tmp/judge-liveness"
+          begin
+            r = Redis.new(host: ENV["REDIS_HOST"], password: File.read("/mnt/secrets/REDIS_PASSWORD").strip, timeout: 2)
+            ns = ENV["RESQUE_NAMESPACE"]; h = Socket.gethostname
+            ws = r.smembers(ns + ":workers").select { |x| x.start_with?(h + ":") }
+            q = r.llen(ns + ":queue:1.13.1")
+            done = ws.sum { |w| r.get(ns + ":stat:processed:" + w).to_i }
+          rescue StandardError
+            exit 0
+          end
+          now = Time.now.to_i
+          prev, since = (File.read(st).split.map(&:to_i) rescue [done, 0])
+          bad = ws.empty? || (q > 0 && done == prev)
+          since = bad ? (since > 0 ? since : now) : 0
+          File.write(st, "#{done} #{since}")
+          exit((bad && now - since >= 90) ? 1 : 0)'
+    initialDelaySeconds: 60
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 1
 resources:
   requests: { cpu: "2", memory: 2Gi }
   limits: { cpu: "2", memory: 2Gi }
