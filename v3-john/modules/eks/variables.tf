@@ -70,10 +70,12 @@ variable "node_groups" {
       taints         = [{ key = "CriticalAddonsOnly", value = "true", effect = "NO_SCHEDULE" }]
     }
     stateful-ng = {
+      # 2차 S2' B 단계 1(2026-11-24): 대기 노드 1대를 더 둔다. 회수 알림 뒤 관리형 노드 그룹이 노드를 비우면(알림 +80초 실측)
+      # 상태 저장 파드가 새 노드 기동(수 분)을 기다리지 않고 같은 존(2a, 볼륨 존)의 대기 노드로 바로 옮겨 간다.
       instance_types = ["m7i.large", "m6i.large", "m5.large", "m5a.large", "r5.large", "r6i.large", "t3.large", "t3a.large"]
-      min_size       = 1
-      desired_size   = 1
-      max_size       = 1
+      min_size       = 2
+      desired_size   = 2
+      max_size       = 2
       labels         = { "workload-class" = "stateful" }
       taints         = [{ key = "workload", value = "stateful", effect = "NO_SCHEDULE" }]
     }
