@@ -1,0 +1,13 @@
+NAMESPACE     NAME                                                              READY   STATUS    RESTARTS   AGE   IP             NODE                                             NOMINATED NODE   READINESS GATES
+kube-system   aws-node-l79mc                                                    2/2     Running   0          10h   10.30.34.13    ip-10-30-34-13.ap-northeast-2.compute.internal   <none>           <none>
+kube-system   ebs-csi-node-568nk                                                3/3     Running   0          10h   10.30.47.36    ip-10-30-34-13.ap-northeast-2.compute.internal   <none>           <none>
+kube-system   eks-pod-identity-agent-72jbw                                      1/1     Running   0          10h   10.30.34.13    ip-10-30-34-13.ap-northeast-2.compute.internal   <none>           <none>
+kube-system   kube-proxy-t8cvr                                                  1/1     Running   0          10h   10.30.34.13    ip-10-30-34-13.ap-northeast-2.compute.internal   <none>           <none>
+kube-system   secrets-provider-aws-secrets-store-csi-driver-provider-awsh7z28   1/1     Running   0          10h   10.30.34.180   ip-10-30-34-13.ap-northeast-2.compute.internal   <none>           <none>
+kube-system   secrets-store-csi-driver-wxpnm                                    3/3     Running   0          10h   10.30.33.52    ip-10-30-34-13.ap-northeast-2.compute.internal   <none>           <none>
+monitoring    alloy-rhsr4                                                       2/2     Running   0          10h   10.30.36.60    ip-10-30-34-13.ap-northeast-2.compute.internal   <none>           <none>
+monitoring    kube-prometheus-stack-prometheus-node-exporter-vqst8              1/1     Running   0          10h   10.30.34.13    ip-10-30-34-13.ap-northeast-2.compute.internal   <none>           <none>
+prod          ai-postgres-0                                                     1/1     Running   0          10h   10.30.38.172   ip-10-30-34-13.ap-northeast-2.compute.internal   <none>           <none>
+prod          judge-postgres-0                                                  1/1     Running   0          10h   10.30.43.195   ip-10-30-34-13.ap-northeast-2.compute.internal   <none>           <none>
+prod          judge-redis-queue-0                                               1/1     Running   0          10h   10.30.39.229   ip-10-30-34-13.ap-northeast-2.compute.internal   <none>           <none>
+prod          rabbitmq-0                                                        1/1     Running   0          10h   10.30.44.232   ip-10-30-34-13.ap-northeast-2.compute.internal   <none>           <none>
