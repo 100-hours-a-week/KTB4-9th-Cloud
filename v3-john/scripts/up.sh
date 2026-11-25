@@ -88,8 +88,8 @@ for a in prod-ai-postgres prod-judge-postgres prod-judge-redis prod-rabbitmq; do
 for a in prod-ai-postgres prod-judge-postgres prod-judge-redis prod-rabbitmq; do wait_healthy "$a"; done
 "$BASE/scripts/restore-postgres.sh"
 "$BASE/scripts/restore-mysql.sh"
-for a in auth core core-submit battle ai-llm ai-make-problem ai-problem-batch mlflow judge-api judge-worker; do sync_app "prod-$a"; done
-for a in auth core core-submit battle ai-llm mlflow judge-api judge-worker; do wait_healthy "prod-$a"; done
+for a in auth core battle ai-llm ai-make-problem ai-problem-batch mlflow judge-api judge-worker; do sync_app "prod-$a"; done
+for a in auth core battle ai-llm mlflow judge-api judge-worker; do wait_healthy "prod-$a"; done
 
 until kubectl get svc -n envoy-gateway-system -o jsonpath='{.items[*].status.loadBalancer.ingress[*].hostname}' | grep -q "$CLUSTER"; do sleep 10; done
 kubectl apply -f "$G/environments/argocd/route.yaml" -f "$G/environments/argocd/grafana-route.yaml"

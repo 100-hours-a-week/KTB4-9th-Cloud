@@ -12,7 +12,6 @@ spec:
         elements:
           - { name: auth, autoSync: true }
           - { name: core, autoSync: true }
-          - { name: core-submit, autoSync: true } # S1' 단계 4: 코드 제출 전용 core
           - { name: battle, autoSync: true }
           - { name: ai-llm, autoSync: true }
           - { name: ai-make-problem, autoSync: true }
