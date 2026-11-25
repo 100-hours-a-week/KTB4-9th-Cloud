@@ -9,8 +9,9 @@ metrics: { enabled: true }
 env:
   SPRING_PROFILES_ACTIVE: stage
   SPRING_CONFIG_IMPORT: optional:configtree:/mnt/secrets/
-  # S1' 단계 3(2026-11-24): 채점 대기 제출이 풀을 다 잡지 않게 10에서 40으로. 근거 chaos/decisions/s1c-step3.md, 상한은 CI 연결 예산 검사
-  SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "40"
+  # S1' 단계 4(2026-11-25): 코드 제출을 core-submit 배포로 분리해 풀을 10으로 되돌린다. 채점을 기다리는 제출이 이 풀을 쓰지 않는다.
+  # 단계 3의 40은 용량 대응이었다(부하가 늘면 재발). 근거 chaos/decisions/s1c-step4.md
+  SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "10"
   # S3a 단계 2: DB 연결을 30초(기본)가 아니라 3초만 기다리고 실패한다. 요청 스레드가 오래 묶이지 않는다.
   SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT: "3000"
   MANAGEMENT_SERVER_PORT: "9091"

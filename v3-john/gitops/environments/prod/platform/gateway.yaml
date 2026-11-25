@@ -113,8 +113,9 @@ spec:
       # S1' 단계 2b(2026-11-24): 제출은 채점 결과를 최대 약 30초 기다리며 core DB 연결을 쥔다. Envoy 기본 15초면 게이트웨이가 먼저
       # 끊어 격벽(submit-bulkhead) 슬롯이 풀리고 core는 연결을 계속 쥔다(단계 2 실험에서 넘침 0, 효과 없음). 35초로 맞춘다.
       timeouts: { request: 35s }
+      # S1' 단계 4(2026-11-25): 제출은 제출 전용 core로 보낸다. 채점을 기다리는 제출이 문제 조회·대결과 연결 풀을 나눠 쓰지 않게 한다.
       backendRefs:
-        - { name: core-service, port: 80 }
+        - { name: core-submit-service, port: 80 }
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
